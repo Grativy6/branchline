@@ -1,0 +1,34 @@
+.home-screen { flex: 1 1 auto; min-height: 0; overflow: auto; width: 100%; }
+.home-inner { width: min(900px, calc(100% - 56px)); min-height: 100%; margin: 0 auto; padding: 58px 0 34px; }
+.home-header { display: flex; align-items: center; gap: 20px; max-width: 680px; margin: 0 auto 38px; }
+.home-tree { width: 116px; height: 116px; flex-shrink: 0; object-fit: contain; }
+.home-header h1 { margin: 0; overflow-wrap: anywhere; font-size: 31px; font-weight: 600; letter-spacing: -.035em; }
+.home-eyebrow { margin: 0 0 3px; color: var(--accent); font-size: 11px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; }
+.home-subtitle { margin: 5px 0 0; color: var(--muted); }
+.home-content { display: grid; gap: 30px; max-width: 680px; margin: 0 auto; }
+.home-section-title { margin: 0 0 10px; font-size: 14px; font-weight: 650; }
+.home-card { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 20px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface-strong); box-shadow: 0 8px 24px rgba(37,48,45,.04); }
+.home-card h2 { margin: 1px 0 2px; overflow-wrap: anywhere; font-size: 19px; font-weight: 600; }
+.home-card-meta, .home-empty-copy { margin: 0; color: var(--muted); font-size: 12px; }
+.home-empty-card { background: var(--surface); box-shadow: none; }
+.home-recent-list { display: grid; gap: 4px; margin-top: 7px; }
+.home-recent-link { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 12px; border: 1px solid transparent; border-radius: 7px; background: transparent; color: var(--ink); text-align: left; }
+.home-recent-link:hover { border-color: var(--line); background: var(--surface-strong); }
+.home-recent-link span:first-child { min-width: 0; display: grid; gap: 1px; }
+.home-recent-link strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.home-recent-link small, .home-tool-card small, .home-model-strip small { color: var(--muted); font-size: 11px; }
+.home-section-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.home-section-heading .home-section-title { margin-bottom: 10px; }
+.home-tools-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.home-tool-card { min-width: 0; display: flex; min-height: 78px; flex-direction: column; justify-content: space-between; gap: 9px; padding: 12px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface-strong); }
+.home-tool-card span:first-child { min-width: 0; display: grid; gap: 2px; }
+.home-tool-card strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.home-tool-status { width: fit-content; padding: 2px 6px; border-radius: 99px; background: var(--accent-wash); color: var(--accent-dark); font-size: 10px; font-weight: 650; }
+.home-tool-status.is-disabled { background: var(--subtle); color: var(--muted); }
+.home-model-strip { display: flex; max-width: 680px; align-items: center; justify-content: space-between; gap: 14px; margin: 38px auto 0; padding-top: 15px; border-top: 1px solid var(--line); }
+.home-model-strip > span:first-child { min-width: 0; display: grid; gap: 1px; overflow-wrap: anywhere; }
+.home-model-strip strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.home-model-status, .home-model-message { display: block; color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
+.home-model-actions { display: flex; flex-shrink: 0; gap: 3px; }
+@media (max-width: 600px) { .home-inner { width: min(calc(100% - 32px), 680px); padding-top: 36px; } .home-header { margin-bottom: 29px; } .home-tools-list { grid-template-columns: 1fr; } .home-tool-card { min-height: 0; flex-direction: row; align-items: center; } }
+@media (max-width: 390px) { .home-inner { width: calc(100% - 24px); padding-top: 26px; } .home-header { gap: 12px; } .home-tree { width: 88px; height: 88px; } .home-header h1 { font-size: 26px; } .home-subtitle { font-size: 12px; } .home-card { align-items: flex-start; flex-direction: column; padding: 16px; } .home-card .primary-button { width: 100%; } .home-model-strip { align-items: flex-start; flex-direction: column; } .home-model-actions { width: 100%; justify-content: space-between; } }

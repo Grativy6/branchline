@@ -1,0 +1,65 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import {createRequire} from 'node:module';
+import {fixture} from './helpers.mjs';
+const {chromium}=createRequire(import.meta.url)(process.env.BRANCHLINE_TEST_PLAYWRIGHT);
+const output=path.resolve(process.argv[2]);await fs.mkdir(output,{recursive:true});
+const cleanup=[],f=await fixture({after:fn=>cleanup.push(fn)});
+let browser,page;
+const report={kind:'REAL_EDGE_SYNTHETIC_WORKSPACE',status:'RUNNING',checks:[],errors:[]};
+try {
+  await f.command('ui.update',{welcomeTour:{version:1,skipped:true,completedAt:new Date().toISOString()}});
+  browser=await chromium.launch({executablePath:process.env.BRANCHLINE_TEST_BROWSER,headless:true});
+  page=await browser.newPage({viewport:{width:1400,height:950}});page.setDefaultTimeout(10000);
+  page.on('pageerror',e=>report.errors.push(e.message));
+  const enter=async()=>{await page.goto(f.uiUrl);await page.reload();await page.locator('.home-resume-button').first().click();};
+  const prepare=async(discard=false)=>{
+    await page.evaluate(discard=>window.branchlinePrepareClose(discard),discard);
+    await page.waitForFunction(()=>window.branchlineCloseState.status!=='saving');
+    return page.evaluate(()=>window.branchlineCloseState);
+  };
+  await enter();await page.locator('#details-toggle').click();
+  assert(await page.locator('#details-toggle').isHidden());
+  await page.locator('#details-form [name="notes"]').fill('Private details saved on close.');
+  await page.locator('#details-form [name="instructions"]').fill('Human-written guidance saved on close.');
+  await page.locator('[data-action="continuity-tab"][data-id="heart"]').click();
+  await page.locator('#heart-form [name="text"]').fill('Shared heart saved on close.');
+  await page.locator('#message-input').fill('Typed immediately before closing.');
+  assert.equal((await prepare()).status,'ready');
+  assert.equal(f.app.store.state.drafts[f.chatId],'Typed immediately before closing.');
+  assert.equal(f.app.store.state.roots[0].notes,'Private details saved on close.');
+  assert.equal(f.app.store.state.roots[0].continuity.heart.at(-1).text,'Shared heart saved on close.');
+  report.checks.push('Immediate close waits for composer, private Details and shared heart saves; opener hides while Details is visible.');
+  await enter();await page.locator('[data-action="harnesses"]').click();await page.locator('[data-action="harness-new"]').click();
+  await page.locator('#harness-editor-form [name="name"]').fill('Unfinished coat');
+  await page.locator('#harness-editor-form [name="instructions"]').fill('Still editing; never automatically applied.');
+  assert.equal((await prepare()).status,'ready');
+  assert.equal(f.app.store.state.customHarnesses,undefined);
+  const draft=structuredClone(f.app.store.state.ui.coatDraft);
+  assert.equal(draft.content.instructions,'Still editing; never automatically applied.');
+  await enter();await page.locator('#settings-button').click();await page.getByRole('tab',{name:'Coats & pockets',exact:true}).click();
+  await page.locator('[data-action="harness-resume"]').click();
+  assert.equal(await page.locator('#harness-editor-form [name="name"]').inputValue(),'Unfinished coat');
+  report.checks.push('An unfinished Coat survives a fresh page and remains unapplied.');
+  await page.locator('#dialog .dialog-header [data-action="close-dialog"]').click();
+  await page.locator('#message-input').fill('Save must fail safely.');
+  await page.route('**/api/command',route=>route.request().postDataJSON()?.type==='draft.save'
+    ?route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({error:'Synthetic save refusal'})}):route.continue());
+  assert.equal((await prepare()).status,'failed');
+  assert.equal(await page.locator('#message-input').inputValue(),'Save must fail safely.');
+  await page.unroute('**/api/command');await page.evaluate(()=>window.branchlineCancelClose());
+  assert.equal((await prepare()).status,'ready');
+  assert.equal(f.app.store.state.drafts[f.chatId],'Save must fail safely.');
+  report.checks.push('A failed save keeps the page and typed words available; retry saves them.');
+  await page.evaluate(()=>{window.branchlineCancelClose();document.querySelector('#attach-file').click();});
+  await page.locator('#file-input').setInputFiles({name:'unsent.txt',mimeType:'text/plain',buffer:Buffer.from('Synthetic unsent attachment.')});
+  await page.waitForFunction(()=>!document.querySelector('#attached-file').hidden);
+  assert.equal((await prepare()).status,'needs-confirmation');
+  await page.evaluate(()=>window.branchlineCancelClose());
+  assert.equal((await prepare(true)).status,'ready');
+  report.checks.push('An unsent file selection requires an explicit discard decision before close.');
+  await page.screenshot({path:path.join(output,'close-drafts.png')});
+  assert.deepEqual(report.errors,[]);report.status='PASS';
+} catch(error){report.status='FAIL';report.error=error.stack;process.exitCode=1;await page?.screenshot({path:path.join(output,'close-drafts-failure.png')}).catch(()=>{});}
+finally {await browser?.close();for(const fn of cleanup.reverse())await fn();report.workspace=f.dataDir;await fs.writeFile(path.join(output,'close-drafts.json'),JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify(report));}

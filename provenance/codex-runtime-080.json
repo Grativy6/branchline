@@ -1,0 +1,13 @@
+{
+  "version": "0.158.0-alpha.2",
+  "platform": "win32-x64",
+  "sourceCommit": "10382da79a2a2d6e8ae221fa63077215389c1ad2",
+  "source": "https://github.com/openai/codex/tree/10382da79a2a2d6e8ae221fa63077215389c1ad2",
+  "release": "https://github.com/openai/codex/releases/tag/rust-v0.158.0-alpha.2",
+  "url": "https://github.com/openai/codex/releases/download/rust-v0.158.0-alpha.2/codex-x86_64-pc-windows-msvc.exe",
+  "sha256": "ff09da8dc3fb2a4cd26eef2aa4cf9b0034140193a4e32d0d48e9aea185ff1224",
+  "bytes": 321969456,
+  "packagedName": "codex.exe",
+  "upstreamLicence": "Apache-2.0",
+  "notes": "Official release asset, verified against GitHub's published asset digest. Only the CLI executable is included. Voice, code-mode hosts, command runners, sandbox installers and other package sidecars are not shipped or enabled. Branchline's capability configuration and catalogue remain pinned; this record does not grant native tools. Not a reproducible-build claim."
+}

@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f4f2ea">
+  <title>Branchline v0.8 Preview</title>
+  <link rel="icon" href="/assets/branchline.ico" type="image/x-icon">
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/home.css">
+  <link rel="stylesheet" href="/toy-shelf.css">
+  <link rel="stylesheet" href="/dream-review.css"><link rel="stylesheet" href="/dreams.css">
+  <link rel="stylesheet" href="/table.css">
+  <link rel="stylesheet" href="/mind.css">
+  <link rel="stylesheet" href="/desks.css">
+  <link rel="stylesheet" href="/themes.css">
+  <link rel="stylesheet" href="/tools.css">
+  <link rel="stylesheet" href="/context-carry.css">
+  <link rel="stylesheet" href="/desktop-controls.css">
+  <link rel="stylesheet" href="/parallel.css">
+  <link rel="stylesheet" href="/images.css">
+  <link rel="stylesheet" href="/sketch-book.css">
+</head>
+<body data-mode="personal">
+  <a class="skip-link" id="skip-link" href="#home-heading">Skip to Home</a>
+  <div class="app-shell" id="app-shell">
+    <aside class="sidebar" id="sidebar" aria-label="Branches">
+      <div class="brand-row">
+        <button class="brand" id="brand-home" type="button" aria-label="Branchline home">
+          <img class="brand-mark" src="/assets/branchline-tree.png" alt="">
+          <span>Branchline</span><small>v0.8</small>
+        </button>
+        <button class="icon-button mobile-only" id="close-sidebar" type="button" aria-label="Close navigation">×</button>
+      </div>
+      <div id="branch-list" class="branch-list"></div>
+      <div class="sidebar-bottom"><button class="primary-button new-root" id="new-root" type="button"><span aria-hidden="true">+</span> New branch</button>
+      <button class="quiet-button" id="open-sketch-book" type="button">Sketch Book</button>
+      <label class="search-field"><span class="sr-only">Find a desk or branch</span><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 5 5"/></svg><input id="branch-search" type="search" placeholder="Find a desk or branch" aria-label="Find a desk or branch"></label></div>
+      <footer class="sidebar-footer"><button class="quiet-button" id="settings-button" type="button" aria-label="Settings">⚙ Settings</button><span class="local-indicator"><i></i>Stored on this device</span></footer>
+    </aside>
+    <div id="nav-backdrop" class="nav-backdrop" aria-hidden="true"></div>
+    <main class="workspace">
+      <header class="topbar">
+        <button class="icon-button" id="toggle-sidebar" type="button" aria-label="Toggle navigation"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+        <div class="mode-tabs"><button id="mode-home" class="mode-tab" type="button" aria-pressed="true" aria-controls="home-screen">Home</button></div>
+        <div id="activity-home"></div>
+        <section class="conversation-header" id="conversation-header" aria-labelledby="conversation-heading"><h1 id="conversation-heading" class="sr-only">Your branch</h1><div id="table-bar" class="table-bar" aria-label="Models, desk and harness" hidden></div></section>
+        <button class="quiet-button details-toggle" id="details-toggle" type="button" aria-expanded="false">Branch details</button>
+      </header>
+      <section id="home-screen" class="home-screen" aria-labelledby="home-heading" hidden></section>
+      <div id="conversation" class="conversation" tabindex="0" role="region" aria-label="Conversation"></div>
+      <section id="tool-interactions" class="tool-interactions" aria-label="Model questions and page requests" hidden></section>
+      <section id="parallel-activity" class="parallel-activity" aria-label="Parallel approaches" hidden></section>
+      <form id="composer-form" class="composer-wrap">
+        <div class="composer-controls"><div class="composer-orientation-group"><div id="response-mode-controls" class="response-mode-row" hidden><div class="response-mode-buttons" role="group" aria-label="Base Coat" aria-describedby="response-mode-description"><button id="response-mode-play" type="button" data-response-mode="play" aria-pressed="false" title="Playful conversation, imagination and exploration">Play</button><button id="response-mode-create" type="button" data-response-mode="create" aria-pressed="true" title="Let the exchange find its shape">Create</button><button id="response-mode-work" type="button" data-response-mode="work" aria-pressed="false" title="Carry the task through, with room for warmth">Work</button></div><span id="response-mode-description" class="sr-only"></span></div><span id="context-status" class="context-status"></span></div><div id="table-reply-controls" hidden></div></div>
+        <div class="composer"><textarea id="message-input" rows="3" placeholder="Write a message…" aria-label="Message"></textarea><input id="image-input" type="file" accept="image/png,image/jpeg,image/webp" multiple hidden aria-label="Select pictures"><section id="selected-images" class="picture-selection" aria-label="Pictures for the next reply" hidden></section><input id="file-input" type="file" hidden aria-label="Select a text file"><div id="attached-file" class="file-selection" hidden><span id="attached-file-name"></span><button id="remove-file" type="button" class="text-button">Remove</button><p class="field-help">A copy will be saved with this chat. One UTF-8 text file, up to the limit set in Resources.</p></div><div class="composer-toolbar"><div class="model-picker"><label class="sr-only" for="model-select">Model for this branch</label><select id="model-select" aria-label="Model for this branch"><option value="">No model selected</option></select><button class="icon-button" id="configure-model" type="button" aria-label="Attachments" aria-expanded="false" aria-controls="attachment-menu">+</button></div><div class="composer-actions"><label class="tool-toggle" id="tools-label" title="Clock, calculations, attached text and questions. Public pages ask first."><input id="tools-enabled" type="checkbox" checked>Tools</label><button id="save-note" type="button" class="quiet-button" data-action="save-note" hidden>Save note</button><span id="attachment-menu" class="attachment-menu" hidden><button id="attach-image" type="button" class="quiet-button">Attach image</button><button id="attach-file" type="button" class="quiet-button">Attach text</button></span><button class="primary-button" id="send-button" type="submit">Save note</button><button class="quiet-button" id="cancel-button" type="button" hidden>Stop this episode</button></div></div></div><div class="composer-caption"><span id="composer-hint">Notes stay on this device. Choose a model for replies.</span><span id="draft-status" role="status"></span></div></form>
+    </main>
+    <aside class="details-panel" id="details-panel" hidden><header class="panel-heading"><h2>Branch details</h2><button class="icon-button" id="close-details" type="button" aria-label="Close details">×</button></header><div class="branch-toolbar"><button class="text-button" id="arrange-chairs" type="button" data-action="table-setup">Arrange chairs</button><button class="quiet-button" id="new-chat" type="button">New branch</button><button class="quiet-button" id="rename-chat" type="button">Rename branch</button></div><div id="details-content"></div></aside>
+  </div>
+  <div id="toast" class="toast" role="status" hidden></div>
+  <div id="error-banner" class="error-banner" role="alert" hidden><span id="error-text"></span><button class="icon-button" id="dismiss-error" type="button" aria-label="Dismiss error">×</button></div>
+  <details id="work-controls" class="work-controls"><summary><svg class="work-indicator" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5Z"/></svg><span>Activity</span></summary><div class="work-menu"><button type="button" class="quiet-button" id="stop-all-episodes">Stop all running episodes</button><small>Ctrl+Alt+. · this app only</small></div></details>
+  <dialog id="dialog" class="app-dialog"><div id="dialog-content"></div></dialog>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

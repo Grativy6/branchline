@@ -1,1 +1,8 @@
-* text=auto eol=lf
+# Preserve the reviewed release bytes and their SHA-256 values on every platform.
+* -text
+provenance/** binary
+*.png binary
+*.ico binary
+server/codex-model-catalog.json -text
+LICENSE -text
+public/licenses/** -text

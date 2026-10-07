@@ -1,0 +1,16 @@
+.context-status { display: inline-flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+.context-status .text-button { font-size: inherit; }
+.context-hint { color: var(--muted); }
+.context-dialog { width: min(760px, calc(100vw - 32px)); }
+.context-summary { display: flex; flex-wrap: wrap; gap: .5rem 1.5rem; align-items: baseline; margin: 1rem 0 .3rem; }
+.context-summary span { color: var(--muted); font-size: .85rem; }
+.context-source-list { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: 1rem; }
+.context-dialog textarea, .context-dialog select { width: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-strong); }
+.context-dialog textarea { min-height: 220px; resize: vertical; line-height: 1.6; }
+.context-dialog hr { border: 0; border-top: 1px solid var(--line); margin: 1.3rem 0; }
+.context-revision { border-bottom: 1px solid var(--line); padding: .8rem 0; font-size: .85rem; }
+.context-revision > span { display: block; margin-bottom: .5rem; }
+.context-history, .context-browse { margin-top: 1rem; }
+.context-original, .context-revision .continuity-source { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 45vh; overflow: auto; }
+.context-dialog summary { cursor: pointer; }
+@media (max-width: 700px) { .context-hint { display: none; } }

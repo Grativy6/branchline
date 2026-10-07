@@ -1,0 +1,13 @@
+node_modules/
+.local/
+.test-data/
+test-results/
+*.log
+desktop/bin/
+desktop/obj/
+releases/
+training/phoenix-pilot/private/
+training/phoenix-pilot/artifacts/
+training/phoenix-pilot/__pycache__/
+training/phoenix-pilot/tests/__pycache__/
+experiments/native-episodes/__pycache__/

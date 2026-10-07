@@ -1,0 +1,192 @@
+{
+  "producedBy": "0.8.9-preview.1",
+  "sourceCommit": "b78cff28bc75a8f66d01b5efab37059dd36ecade",
+  "kind": "SYNTHETIC_LEGACY_DESKS",
+  "desks": {
+    "tend": {
+      "root": {
+        "id": "root_6d73c5a5-4954-4a74-b128-3073d3f865e1",
+        "name": "Synthetic retired tend",
+        "mode": "personal",
+        "createdAt": "2026-10-06T04:41:49.635Z",
+        "instructions": [],
+        "notes": "",
+        "modelId": null,
+        "archivedAt": null,
+        "workspaceKind": "tend",
+        "harnessDefaults": [
+          {
+            "id": "harness_7e01dd44-7731-4b4a-b92e-d2705ae35cb2",
+            "createdAt": "2026-10-06T04:41:49.638Z",
+            "shared": true,
+            "personal": {
+              "id": "tend",
+              "version": 1
+            },
+            "visiting": {
+              "id": "tend",
+              "version": 1
+            },
+            "sourceDefaultId": null
+          }
+        ]
+      },
+      "chat": {
+        "id": "chat_40f2861a-987b-4c84-878c-4ffd737fecc2",
+        "rootId": "root_6d73c5a5-4954-4a74-b128-3073d3f865e1",
+        "title": "Synthetic retired tend",
+        "createdAt": "2026-10-06T04:41:49.635Z",
+        "archivedAt": null,
+        "coatPolicy": 2,
+        "coatChoices": [],
+        "harnessSelections": [
+          {
+            "id": "harness_e4d3a810-b30b-40f9-8ab7-d6c82711515b",
+            "createdAt": "2026-10-06T04:41:49.638Z",
+            "shared": true,
+            "personal": {
+              "id": "tend",
+              "version": 1
+            },
+            "visiting": {
+              "id": "tend",
+              "version": 1
+            },
+            "sourceDefaultId": "harness_7e01dd44-7731-4b4a-b92e-d2705ae35cb2"
+          }
+        ],
+        "coatDefault": {
+          "personal": {
+            "id": "tend",
+            "version": 1
+          },
+          "visiting": {
+            "id": "tend",
+            "version": 1
+          },
+          "selectionId": "harness_e4d3a810-b30b-40f9-8ab7-d6c82711515b"
+        },
+        "coatStarter": true,
+        "table": {
+          "assignments": [
+            {
+              "id": "seats_4abb1c17-1429-4370-aa85-4ed7a4cd18ae",
+              "createdAt": "2026-10-06T04:41:49.635Z",
+              "personalId": null,
+              "visitorModelId": null
+            }
+          ]
+        }
+      },
+      "coat": {
+        "profile": "branchline.coat-selection/2",
+        "selectionId": "harness_e4d3a810-b30b-40f9-8ab7-d6c82711515b",
+        "shared": false,
+        "seat": "personal",
+        "key": "unbound:personal",
+        "mode": "starter",
+        "preset": {
+          "id": "tend",
+          "version": 1,
+          "name": "Tend · starter",
+          "description": "Talk through an idea, inspect shared code, and work toward a useful build.",
+          "instructions": "Help the user tend an idea or build something. Keep their intended result and accepted corrections in view. Work with the code and context actually supplied; ask for a missing detail when it changes the next useful step. Explain concrete choices, make proportionate drafts, and suggest meaningful checks. Distinguish proposed code from applied changes, and expected behavior from results actually observed. Use only tools the app makes available and within their granted scope; this harness grants no permissions. Bring back useful partial work, a blocker, or an unresolved consequential choice without forcing completion or claiming work you did not do. Leave room for ordinary conversation and exploration; the user need not have a task."
+        },
+        "hash": "a085b994e45271c99b0cde1767d3a0e2631d167f01a487a600d407d0182a1869",
+        "role": "response_guidance_only"
+      }
+    },
+    "fs": {
+      "root": {
+        "id": "root_4309f360-8810-4511-9712-8e942a8353a4",
+        "name": "Synthetic retired fs",
+        "mode": "fs",
+        "createdAt": "2026-10-06T04:41:49.639Z",
+        "instructions": [],
+        "notes": "",
+        "modelId": null,
+        "archivedAt": null,
+        "harnessDefaults": [
+          {
+            "id": "harness_caa227a4-8a36-4f3e-abf4-ff726f1a5047",
+            "createdAt": "2026-10-06T04:41:49.639Z",
+            "shared": true,
+            "personal": {
+              "id": "finis-solutus",
+              "version": 1
+            },
+            "visiting": {
+              "id": "finis-solutus",
+              "version": 1
+            },
+            "sourceDefaultId": null
+          }
+        ]
+      },
+      "chat": {
+        "id": "chat_1a7425b6-7e7b-4c27-9400-7313fe17f727",
+        "rootId": "root_4309f360-8810-4511-9712-8e942a8353a4",
+        "title": "World journal",
+        "createdAt": "2026-10-06T04:41:49.639Z",
+        "archivedAt": null,
+        "coatPolicy": 2,
+        "coatChoices": [],
+        "harnessSelections": [
+          {
+            "id": "harness_e1734844-6ff8-4e7f-a4c8-2cf646fce17f",
+            "createdAt": "2026-10-06T04:41:49.639Z",
+            "shared": true,
+            "personal": {
+              "id": "finis-solutus",
+              "version": 1
+            },
+            "visiting": {
+              "id": "finis-solutus",
+              "version": 1
+            },
+            "sourceDefaultId": "harness_caa227a4-8a36-4f3e-abf4-ff726f1a5047"
+          }
+        ],
+        "coatDefault": {
+          "personal": {
+            "id": "finis-solutus",
+            "version": 1
+          },
+          "visiting": {
+            "id": "finis-solutus",
+            "version": 1
+          },
+          "selectionId": "harness_e1734844-6ff8-4e7f-a4c8-2cf646fce17f"
+        },
+        "coatStarter": true,
+        "table": {
+          "assignments": [
+            {
+              "id": "seats_8ee7a849-7707-451c-8849-4ee4e88a682c",
+              "createdAt": "2026-10-06T04:41:49.639Z",
+              "personalId": null,
+              "visitorModelId": null
+            }
+          ]
+        }
+      },
+      "coat": {
+        "profile": "branchline.coat-selection/2",
+        "selectionId": "harness_e1734844-6ff8-4e7f-a4c8-2cf646fce17f",
+        "shared": false,
+        "seat": "personal",
+        "key": "unbound:personal",
+        "mode": "starter",
+        "preset": {
+          "id": "finis-solutus",
+          "version": 1,
+          "name": "Finis Solutus · starter",
+          "description": "A starter DM voice. The full FS kernel is not included yet.",
+          "instructions": "Take the AI dungeon master role for this Finis Solutus branch. Establish the setting and play conventions with the user, then describe scenes, portray other characters, and carry consequences forward. Leave the player’s decisions to them. Keep this branch’s world and events distinct from other campaigns. This is a starter instruction set; ask for any specific game rules or kernel material needed for play."
+        },
+        "hash": "8b7a73e1b46b1b8ff71cb9982a8d4db9dd60946532fe47a57382097903ab33ad",
+        "role": "response_guidance_only"
+      }
+    }
+  }
+}

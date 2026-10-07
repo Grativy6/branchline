@@ -1,0 +1,21 @@
+{
+  "source": "https://github.com/openai/codex/blob/985cf47a4eb6084b2ff6b30ebdb1216acda85bb4/codex-rs/models-manager/models.json",
+  "sourceSha256": "a5e25107506f0934cb62144c093c72bf8c7fa5de1436f4aa02fe54769d789618",
+  "derivedFile": "server/codex-model-catalog.json",
+  "derivedSha256": "99ade5e14b9c91f80b5b20b658634af36b1f17264d8dc3fc90c3c618d2f04302",
+  "changes": [
+    "tool_mode=direct",
+    "experimental_supported_tools=[]",
+    "node_repl_disabled=true",
+    "include_skills_usage_instructions=false",
+    "include_apps_usage_instructions=false",
+    "include_plugin_usage_instructions=false",
+    "supports_search_tool=false",
+    "supports_experimental_context=false",
+    "base_instructions=Continue the Branchline conversation. (thread/start replaces this with exact Branchline instructions)",
+    "model_messages=null"
+  ],
+  "reason": "In the pinned runtime, model-owned code_mode_only and experimental tools override generic feature-off flags. A byte-pinned catalogue makes the application tool floor explicit. Real provider access and account limits still apply.",
+  "license": "Apache-2.0; upstream notice in codex-upstream-LICENSE.txt",
+  "status": "SYNTHETIC_ASTRA_WIRE_VERIFIED"
+}

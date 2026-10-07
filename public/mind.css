@@ -1,0 +1,15 @@
+.mind-panel > summary { cursor: pointer; font-weight: 600; }
+.mind-panel h4 { margin-bottom: .55rem; }
+.mind-current, .mind-thread > details { margin: 1rem 0; }
+.mind-relation { border-left: 2px solid var(--accent); padding: .6rem .8rem; margin: .8rem 0; background: var(--accent-wash); border-radius: 0 8px 8px 0; }
+.mind-relation p { margin: .35rem 0; overflow-wrap: anywhere; }
+.mind-relation small { color: var(--accent-dark); }
+.mind-wake-row, .mind-job { display: flex; align-items: center; justify-content: space-between; gap: .5rem; border-top: 1px solid var(--line); padding: .8rem 0; }
+.mind-wake-row label { display: flex; gap: .65rem; align-items: start; min-width: 0; }
+.mind-wake-row input { margin-top: .2rem; accent-color: var(--accent); }
+.mind-wake-row small, .mind-job small { display: block; color: var(--muted); font-size: .75rem; margin-top: .3rem; }
+.mind-difference { padding: 1rem; background: var(--accent-wash); border-radius: 12px; }
+.mind-json { white-space: pre-wrap; overflow-wrap: anywhere; font-size: .78rem; padding: .8rem; background: var(--surface); max-height: 400px; overflow-y: auto; }
+.learning-sources { margin: .7rem 0; }
+.learning-sources label { display: block; padding: .5rem 0; }
+#reflect-form:has(input[value="mind"]:not(:checked)) .learning-sources { display: none; }
