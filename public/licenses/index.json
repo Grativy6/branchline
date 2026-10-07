@@ -1,0 +1,362 @@
+{
+  "version": "0.8.12-preview.3",
+  "packages": [
+    {
+      "name": "quickjs-emscripten",
+      "version": "0.32.0",
+      "license": "MIT"
+    },
+    {
+      "name": "@jitl/quickjs-wasmfile-debug-asyncify",
+      "version": "0.32.0",
+      "license": "MIT"
+    },
+    {
+      "name": "@jitl/quickjs-ffi-types",
+      "version": "0.32.0",
+      "license": "MIT"
+    },
+    {
+      "name": "@jitl/quickjs-wasmfile-debug-sync",
+      "version": "0.32.0",
+      "license": "MIT"
+    },
+    {
+      "name": "@jitl/quickjs-wasmfile-release-asyncify",
+      "version": "0.32.0",
+      "license": "MIT"
+    },
+    {
+      "name": "@jitl/quickjs-wasmfile-release-sync",
+      "version": "0.32.0",
+      "license": "MIT"
+    },
+    {
+      "name": "quickjs-emscripten-core",
+      "version": "0.32.0",
+      "license": "MIT"
+    },
+    {
+      "name": "sharp",
+      "version": "0.35.5",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "@img/colour",
+      "version": "1.1.0",
+      "license": "MIT"
+    },
+    {
+      "name": "detect-libc",
+      "version": "2.1.2",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "semver",
+      "version": "7.8.5",
+      "license": "ISC"
+    },
+    {
+      "name": "@img/sharp-win32-x64",
+      "version": "0.35.5",
+      "license": "Apache-2.0 AND LGPL-3.0-or-later"
+    }
+  ],
+  "groups": [
+    {
+      "title": "Branchline",
+      "documents": [
+        {
+          "title": "Apache License 2.0 — full text",
+          "file": "Apache-2.0.txt",
+          "source": "LICENSE",
+          "bytes": 11358,
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+        },
+        {
+          "title": "Branchline attribution",
+          "file": "NOTICE.txt",
+          "source": "NOTICE",
+          "bytes": 638,
+          "sha256": "ed58067c512769a6c311bbf7348c56d000927b62d9f39e2a9635a4546e4ff82a"
+        },
+        {
+          "title": "What this licence covers",
+          "file": "LICENSE-SCOPE.txt",
+          "source": "LICENSE-SCOPE.md",
+          "bytes": 3077,
+          "sha256": "a7f33396acbaaf54e62c95fbca733b53da936d1131ecdbbbb9895acf98cc00e4"
+        },
+        {
+          "title": "Component notices and release status",
+          "file": "THIRD-PARTY-NOTICES.txt",
+          "source": "THIRD-PARTY-NOTICES.md",
+          "bytes": 6007,
+          "sha256": "12a8ca2099462fe0897b29c273ee4fa3d9c97f5accba4b994c713abbb5512052"
+        }
+      ]
+    },
+    {
+      "title": "Included components",
+      "documents": [
+        {
+          "title": "Marked 15.0.12 — licence and notices",
+          "file": "Marked-LICENSE.txt",
+          "source": "public/vendor/MARKED-LICENSE.md",
+          "bytes": 2942,
+          "sha256": "8e3a3f82f59a60958f56ca08f445647c32a4733dc7ca6c2c46f6eb898471ab9c"
+        },
+        {
+          "title": "Stock Qwen3.5 model — Apache 2.0",
+          "file": "Qwen3.5-LICENSE.txt",
+          "source": "provenance/licensing/Qwen3.5-LICENSE.txt",
+          "bytes": 11544,
+          "sha256": "bbedc3fda3305820b977265f01b8619d87570a6739de3a5582c3464840f1e57a"
+        },
+        {
+          "title": "llama.cpp — MIT licence",
+          "file": "llama.cpp-LICENSE.txt",
+          "source": "provenance/licensing/llama.cpp-LICENSE.txt",
+          "bytes": 1099,
+          "sha256": "bcd8ec749126d45cb06737d0690295d73df4b6e7e194205bcf91190368f27285"
+        },
+        {
+          "title": "LLVM OpenMP runtime — licence and exceptions",
+          "file": "LLVM-OpenMP-LICENSE.txt",
+          "source": "provenance/licensing/LLVM-OpenMP-LICENSE.txt",
+          "bytes": 19741,
+          "sha256": "fdad1758a9e1f9d5a81e18879b3406772115edc92c24bfa36b70c654f325e8e4"
+        },
+        {
+          "title": "Inno Setup installer — licence",
+          "file": "Inno-Setup-LICENSE.txt",
+          "source": "provenance/licensing/Inno-Setup-LICENSE.txt",
+          "bytes": 1521,
+          "sha256": "2e5346868c2a18434489824e11d65c3031620f792fefc415d05f19cd441abf5c"
+        },
+        {
+          "title": "quickjs-emscripten 0.32.0 — LICENSE",
+          "file": "quickjs-emscripten-LICENSE.txt",
+          "source": "node_modules/quickjs-emscripten/LICENSE",
+          "bytes": 1102,
+          "sha256": "3c6040aa318612a234cc951609b640c0c63d85ae5a98a9330d3116f1553a79db"
+        },
+        {
+          "title": "@jitl/quickjs-wasmfile-debug-asyncify 0.32.0 — LICENSE",
+          "file": "_jitl_quickjs-wasmfile-debug-asyncify-LICENSE.txt",
+          "source": "node_modules/@jitl/quickjs-wasmfile-debug-asyncify/LICENSE",
+          "bytes": 2263,
+          "sha256": "446a69ae534aa8612d8b16d3bfc670c5a5050597dca3ce9820441a60d5d04fbb"
+        },
+        {
+          "title": "@jitl/quickjs-ffi-types 0.32.0 — LICENSE",
+          "file": "_jitl_quickjs-ffi-types-LICENSE.txt",
+          "source": "node_modules/@jitl/quickjs-ffi-types/LICENSE",
+          "bytes": 1102,
+          "sha256": "3c6040aa318612a234cc951609b640c0c63d85ae5a98a9330d3116f1553a79db"
+        },
+        {
+          "title": "@jitl/quickjs-wasmfile-debug-sync 0.32.0 — LICENSE",
+          "file": "_jitl_quickjs-wasmfile-debug-sync-LICENSE.txt",
+          "source": "node_modules/@jitl/quickjs-wasmfile-debug-sync/LICENSE",
+          "bytes": 2263,
+          "sha256": "446a69ae534aa8612d8b16d3bfc670c5a5050597dca3ce9820441a60d5d04fbb"
+        },
+        {
+          "title": "@jitl/quickjs-wasmfile-release-asyncify 0.32.0 — LICENSE",
+          "file": "_jitl_quickjs-wasmfile-release-asyncify-LICENSE.txt",
+          "source": "node_modules/@jitl/quickjs-wasmfile-release-asyncify/LICENSE",
+          "bytes": 2263,
+          "sha256": "446a69ae534aa8612d8b16d3bfc670c5a5050597dca3ce9820441a60d5d04fbb"
+        },
+        {
+          "title": "@jitl/quickjs-wasmfile-release-sync 0.32.0 — LICENSE",
+          "file": "_jitl_quickjs-wasmfile-release-sync-LICENSE.txt",
+          "source": "node_modules/@jitl/quickjs-wasmfile-release-sync/LICENSE",
+          "bytes": 2263,
+          "sha256": "446a69ae534aa8612d8b16d3bfc670c5a5050597dca3ce9820441a60d5d04fbb"
+        },
+        {
+          "title": "quickjs-emscripten-core 0.32.0 — LICENSE",
+          "file": "quickjs-emscripten-core-LICENSE.txt",
+          "source": "node_modules/quickjs-emscripten-core/LICENSE",
+          "bytes": 1102,
+          "sha256": "3c6040aa318612a234cc951609b640c0c63d85ae5a98a9330d3116f1553a79db"
+        },
+        {
+          "title": "sharp 0.35.5 — LICENSE",
+          "file": "sharp-LICENSE.txt",
+          "source": "node_modules/sharp/LICENSE",
+          "bytes": 10273,
+          "sha256": "73ba74dfaa520b49a401b5d21459a8523a146f3b7518a833eea5efa85130bf68"
+        },
+        {
+          "title": "@img/colour 1.1.0 — LICENSE.md",
+          "file": "_img_colour-LICENSE_md.txt",
+          "source": "node_modules/@img/colour/LICENSE.md",
+          "bytes": 4433,
+          "sha256": "e2eaa4603c14cb26f301e88648c12a853fa3f0f5da6d4b0972958c666e7f2ab8"
+        },
+        {
+          "title": "detect-libc 2.1.2 — LICENSE",
+          "file": "detect-libc-LICENSE.txt",
+          "source": "node_modules/detect-libc/LICENSE",
+          "bytes": 11357,
+          "sha256": "b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1"
+        },
+        {
+          "title": "semver 7.8.5 — LICENSE",
+          "file": "semver-LICENSE.txt",
+          "source": "node_modules/semver/LICENSE",
+          "bytes": 765,
+          "sha256": "4ec3d4c66cd87f5c8d8ad911b10f99bf27cb00cdfcff82621956e379186b016b"
+        },
+        {
+          "title": "@img/sharp-win32-x64 0.35.5 — LICENSE",
+          "file": "_img_sharp-win32-x64-LICENSE.txt",
+          "source": "node_modules/@img/sharp-win32-x64/LICENSE",
+          "bytes": 10464,
+          "sha256": "dc1f5d2d43c5531dfe0acaf4e950ea5dbe3e61e1850cf0e983bda7efc10d6693"
+        },
+        {
+          "title": "Sharp native libraries — licence inventory",
+          "file": "Sharp-native-inventory.txt",
+          "source": "node_modules/@img/sharp-win32-x64/README.md",
+          "bytes": 4913,
+          "sha256": "3d083ada5ebafe1e6c227daa7b061d4254b61df4a3901c359ffdeac817ce5866"
+        },
+        {
+          "title": "Sharp native libraries — versions",
+          "file": "Sharp-native-versions.txt",
+          "source": "node_modules/@img/sharp-win32-x64/versions.json",
+          "bytes": 596,
+          "sha256": "e2611d5d854815a8b33c8a3d2ec649511a9596ccf16844e8eae7cf81e79881c4"
+        },
+        {
+          "title": "Hearthline founding orientation — CC BY 4.0",
+          "file": "Hearthline-CC-BY-4.0.txt",
+          "source": "provenance/licensing/Hearthline-CC-BY-4.0.txt",
+          "bytes": 18656,
+          "sha256": "9e5f1b3c610b9c2da5c313bf81d577a7d1acec686bdb0384edefa6df0f90cd94"
+        },
+        {
+          "title": "GNU Lesser General Public License 3.0",
+          "file": "LGPL-3.0.txt",
+          "source": "provenance/licensing/LGPL-3.0.txt",
+          "bytes": 7652,
+          "sha256": "e3a994d82e644b03a792a930f574002658412f62407f5fee083f2555c5f23118"
+        },
+        {
+          "title": "GNU General Public License 3.0 (LGPL companion)",
+          "file": "GPL-3.0.txt",
+          "source": "provenance/licensing/GPL-3.0.txt",
+          "bytes": 35149,
+          "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986"
+        },
+        {
+          "title": "Image libraries - source licence notices",
+          "file": "Sharp-native-notices.txt",
+          "source": "provenance/licensing/Sharp-native-notices.txt",
+          "bytes": 642899,
+          "sha256": "66847f6069fa83786b0e37a94ebb39bc84a22b187fe42b3a69ce7df0d3f5baba"
+        },
+        {
+          "title": "Image libraries - librsvg Rust dependency notices",
+          "file": "Sharp-Rust-notices.txt",
+          "source": "provenance/licensing/Sharp-Rust-notices.txt",
+          "bytes": 3289570,
+          "sha256": "fae7fb02ab21cf04f3d60bc19769727432c6b72598afe26780ec4fe8c7e16d59"
+        },
+        {
+          "title": "Mozilla Public License 2.0",
+          "file": "MPL-2.0.txt",
+          "source": "provenance/licensing/MPL-2.0.txt",
+          "bytes": 16726,
+          "sha256": "3f3d9e0024b1921b067d6f7f88deb4a60cbe7a78e76c64e3f1d7fc3b779b9d04"
+        }
+      ]
+    },
+    {
+      "title": "Windows runtime",
+      "documents": [
+        {
+          "title": "Microsoft WebView2 Evergreen runtime — terms",
+          "file": "WebView2-Runtime-LICENSE.txt",
+          "source": "provenance/licensing/WebView2-Runtime-LICENSE.txt",
+          "bytes": 17244,
+          "sha256": "a694e89f0c4558f4b04a80f3e49fd6722b4bbefbc15604cd72ba4de11aed6465"
+        },
+        {
+          "title": "Microsoft Visual C++ runtime — terms",
+          "file": "VC-Runtime-LICENSE.txt",
+          "source": "provenance/licensing/VC-Runtime-LICENSE.txt",
+          "bytes": 12132,
+          "sha256": "557a2805226206ba8336def69e87daaa61b05b4a236288cab8f8d1fd32b5ac4c"
+        },
+        {
+          "title": "Node.js v24.19.0 — complete licence and notices",
+          "file": "Node-v24.19.0-LICENSE.txt",
+          "source": "provenance/licensing/Node-v24.19.0-LICENSE.txt",
+          "bytes": 157606,
+          "sha256": "148eacf7863ef4329224a29398623077200a27194aa075569faf4a0a85566ca5"
+        },
+        {
+          "title": ".NET 8.0.29 — licence",
+          "file": "dotnet-8.0.29-LICENSE.txt",
+          "source": "provenance/licensing/dotnet-8.0.29-LICENSE.txt",
+          "bytes": 1139,
+          "sha256": "d7a68596ab69b06f51ca278a6545148e4269a9381c26d597c13df5d88e08cf5b"
+        },
+        {
+          "title": ".NET 8.0.29 — third-party notices",
+          "file": "dotnet-8.0.29-THIRD-PARTY-NOTICES.txt",
+          "source": "provenance/licensing/dotnet-8.0.29-THIRD-PARTY-NOTICES.txt",
+          "bytes": 68910,
+          "sha256": "b60b2912da28eaa6518593c9e2efb5334ee062d3c42e80d8fdfa806b3dc52977"
+        },
+        {
+          "title": "Windows Desktop 8.0.29 — licence",
+          "file": "WindowsDesktop-8.0.29-LICENSE.txt",
+          "source": "provenance/licensing/WindowsDesktop-8.0.29-LICENSE.txt",
+          "bytes": 1137,
+          "sha256": "a89886665765362eb77e0f8e26602c924520041d1711b2eedc136434fe4d01ab"
+        },
+        {
+          "title": "WebView2 SDK 1.0.3296.44 — licence",
+          "file": "WebView2-1.0.3296.44-LICENSE.txt",
+          "source": "provenance/licensing/WebView2-1.0.3296.44-LICENSE.txt",
+          "bytes": 1487,
+          "sha256": "0af8f1b807512aae39c2ac1aa4d0cae65cabecb6fd554b8439a5162a0d6eca55"
+        },
+        {
+          "title": "WebView2 SDK 1.0.3296.44 — notices",
+          "file": "WebView2-1.0.3296.44-NOTICE.txt",
+          "source": "provenance/licensing/WebView2-1.0.3296.44-NOTICE.txt",
+          "bytes": 3894,
+          "sha256": "106423785c5b7eba0a8e61d1837f2132e9c828e20ad530f565d981c1df60dd90"
+        },
+        {
+          "title": "Codex 0.158.0-alpha.2 - upstream licence",
+          "file": "Codex-LICENSE.txt",
+          "source": "provenance/licensing/Codex-LICENSE.txt",
+          "bytes": 10926,
+          "sha256": "d17f227e4df5da1600391338865ce0f3055211760a36688f816941d58232d8dc"
+        },
+        {
+          "title": "Codex 0.158.0-alpha.2 - upstream notice",
+          "file": "Codex-NOTICE.txt",
+          "source": "provenance/licensing/Codex-NOTICE.txt",
+          "bytes": 242,
+          "sha256": "9d71575ecfd9a843fc1677b0efb08053c6ba9fd686a0de1a6f5382fd3c220915"
+        },
+        {
+          "title": "Codex model catalogue — retained upstream licence",
+          "file": "Codex-upstream-LICENSE.txt",
+          "source": "provenance/codex-upstream-LICENSE.txt",
+          "bytes": 10926,
+          "sha256": "d17f227e4df5da1600391338865ce0f3055211760a36688f816941d58232d8dc"
+        }
+      ]
+    }
+  ]
+}

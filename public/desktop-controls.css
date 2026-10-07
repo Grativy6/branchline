@@ -1,0 +1,14 @@
+.settings-check { display:flex; gap:.7rem; align-items:center; margin:1rem 0; }
+.thought-cloud { width:48px; height:32px; vertical-align:middle; }
+.cloud-fill { fill:var(--accent, #a16eaf); opacity:.48; }
+.cloud-outline { fill:none; stroke:currentColor; stroke-width:1.5; }
+.context-status .cloud-count { font-size:11px; margin-left:4px; }
+.welcome-tour { max-width:min(390px, calc(100vw - 32px)); max-height:calc(100dvh - 32px); overflow:auto; border:1px solid var(--border,#777); border-radius:20px; padding:24px; background:var(--surface,#fcfaf5); color:var(--ink,#282633); }
+.welcome-tour::backdrop { background:#1114; }
+.welcome-tour p { line-height:1.55; }
+.tour-anchor { outline:3px solid #d494b5; outline-offset:4px; }
+.tour-preview { border:1px dashed currentColor; border-radius:12px; padding:12px; font-size:.9rem; }
+.attachment-menu { display:flex; flex-wrap:wrap; gap:8px; padding:8px 0; }
+.ready-account { padding:12px; border:1px solid var(--border,#aaa); border-radius:12px; }
+@media(max-width:650px) { .cloud-count { display:block; } .composer-toolbar { flex-wrap:wrap; } }
+@media(prefers-reduced-motion:reduce) { .thought-cloud * { transition:none; } }

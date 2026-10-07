@@ -1,0 +1,107 @@
+{
+  "collected": "2026-10-02",
+  "nodeVersion": "v24.19.0",
+  "dotnetVersion": "8.0.29",
+  "webViewVersion": "1.0.3296.44",
+  "documents": [
+    {
+      "group": 1,
+      "title": "Hearthline founding orientation — CC BY 4.0",
+      "file": "Hearthline-CC-BY-4.0.txt",
+      "url": "https://raw.githubusercontent.com/Grativy6/hearthline/eadc221fdce14088d2682994106f286b60e22888/LICENSE",
+      "sha256": "9e5f1b3c610b9c2da5c313bf81d577a7d1acec686bdb0384edefa6df0f90cd94"
+    },
+    {
+      "group": 1,
+      "title": "GNU Lesser General Public License 3.0",
+      "file": "LGPL-3.0.txt",
+      "url": "https://www.gnu.org/licenses/lgpl-3.0.txt",
+      "sha256": "e3a994d82e644b03a792a930f574002658412f62407f5fee083f2555c5f23118"
+    },
+    {
+      "group": 1,
+      "title": "GNU General Public License 3.0 (LGPL companion)",
+      "file": "GPL-3.0.txt",
+      "url": "https://www.gnu.org/licenses/gpl-3.0.txt",
+      "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986"
+    },
+    {
+      "group": 2,
+      "title": "Node.js v24.19.0 — complete licence and notices",
+      "file": "Node-v24.19.0-LICENSE.txt",
+      "url": "https://raw.githubusercontent.com/nodejs/node/v24.19.0/LICENSE",
+      "sha256": "148eacf7863ef4329224a29398623077200a27194aa075569faf4a0a85566ca5"
+    },
+    {
+      "group": 2,
+      "title": ".NET 8.0.29 — licence",
+      "file": "dotnet-8.0.29-LICENSE.txt",
+      "nugetPath": "microsoft.netcore.app.runtime.win-x64/8.0.29/LICENSE.TXT",
+      "sha256": "d7a68596ab69b06f51ca278a6545148e4269a9381c26d597c13df5d88e08cf5b"
+    },
+    {
+      "group": 2,
+      "title": ".NET 8.0.29 — third-party notices",
+      "file": "dotnet-8.0.29-THIRD-PARTY-NOTICES.txt",
+      "nugetPath": "microsoft.netcore.app.runtime.win-x64/8.0.29/THIRD-PARTY-NOTICES.TXT",
+      "sha256": "b60b2912da28eaa6518593c9e2efb5334ee062d3c42e80d8fdfa806b3dc52977"
+    },
+    {
+      "group": 2,
+      "title": "Windows Desktop 8.0.29 — licence",
+      "file": "WindowsDesktop-8.0.29-LICENSE.txt",
+      "nugetPath": "microsoft.windowsdesktop.app.runtime.win-x64/8.0.29/LICENSE",
+      "sha256": "a89886665765362eb77e0f8e26602c924520041d1711b2eedc136434fe4d01ab"
+    },
+    {
+      "group": 2,
+      "title": "WebView2 SDK 1.0.3296.44 — licence",
+      "file": "WebView2-1.0.3296.44-LICENSE.txt",
+      "nugetPath": "microsoft.web.webview2/1.0.3296.44/LICENSE.txt",
+      "sha256": "0af8f1b807512aae39c2ac1aa4d0cae65cabecb6fd554b8439a5162a0d6eca55"
+    },
+    {
+      "group": 2,
+      "title": "WebView2 SDK 1.0.3296.44 — notices",
+      "file": "WebView2-1.0.3296.44-NOTICE.txt",
+      "nugetPath": "microsoft.web.webview2/1.0.3296.44/NOTICE.txt",
+      "sha256": "106423785c5b7eba0a8e61d1837f2132e9c828e20ad530f565d981c1df60dd90"
+    },
+    {
+      "group": 2,
+      "title": "Codex 0.158.0-alpha.2 - upstream licence",
+      "file": "Codex-LICENSE.txt",
+      "sha256": "d17f227e4df5da1600391338865ce0f3055211760a36688f816941d58232d8dc",
+      "url": "https://raw.githubusercontent.com/openai/codex/10382da79a2a2d6e8ae221fa63077215389c1ad2/LICENSE"
+    },
+    {
+      "group": 2,
+      "title": "Codex 0.158.0-alpha.2 - upstream notice",
+      "file": "Codex-NOTICE.txt",
+      "sha256": "9d71575ecfd9a843fc1677b0efb08053c6ba9fd686a0de1a6f5382fd3c220915",
+      "url": "https://raw.githubusercontent.com/openai/codex/10382da79a2a2d6e8ae221fa63077215389c1ad2/NOTICE"
+    },
+    {
+      "group": 1,
+      "title": "Image libraries - source licence notices",
+      "file": "Sharp-native-notices.txt",
+      "sha256": "66847f6069fa83786b0e37a94ebb39bc84a22b187fe42b3a69ce7df0d3f5baba",
+      "sourceManifest": "native-sources.json"
+    },
+    {
+      "group": 1,
+      "title": "Image libraries - librsvg Rust dependency notices",
+      "file": "Sharp-Rust-notices.txt",
+      "sha256": "fae7fb02ab21cf04f3d60bc19769727432c6b72598afe26780ec4fe8c7e16d59",
+      "sourceManifest": "native-sources.json"
+    },
+    {
+      "group": 1,
+      "title": "Mozilla Public License 2.0",
+      "file": "MPL-2.0.txt",
+      "url": "https://www.mozilla.org/media/MPL/2.0/index.txt",
+      "sha256": "3f3d9e0024b1921b067d6f7f88deb4a60cbe7a78e76c64e3f1d7fc3b779b9d04"
+    }
+  ],
+  "nodeExeSha256": "3602f2bb1a10f2cbab4c36886218a33c1ab3db87290e73b033c46c77147d0237"
+}

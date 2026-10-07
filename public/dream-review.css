@@ -1,0 +1,43 @@
+.personal-model-actions { display:flex; align-items:center; gap:16px; justify-content:space-between; margin-top:12px; flex-wrap:wrap; }
+.dream-timing { display:grid; gap:16px; justify-items:start; align-self:stretch; align-content:space-between; }
+.dream-review { padding:0; overflow:hidden; max-width:calc(100vw - 24px); max-height:calc(100vh - 24px); }
+.dream-review[open] { display:flex; flex-direction:column; container-type:inline-size; }
+.dream-review .dialog-header { flex:none; padding:16px 20px; }
+.dream-review .dialog-header h2 { min-width:0; overflow-wrap:anywhere; }
+.dream-review-tools { display:flex; flex-wrap:wrap; gap:8px; padding:10px 20px; border-bottom:1px solid var(--line); flex:none; }
+.dream-journal { display:grid; grid-template-columns:minmax(180px, .36fr) minmax(0,1fr); min-height:0; flex:1; }
+.dream-journal-list { border-right:1px solid var(--line); overflow:auto; padding:12px; min-height:0; }
+.dream-entry { display:flex; flex-direction:column; align-items:flex-start; gap:5px; text-align:left; color:var(--ink); background:transparent; border:1px solid transparent; border-radius:8px; width:100%; padding:13px 11px; margin-bottom:5px; overflow-wrap:anywhere; }
+.dream-entry[aria-pressed="true"] { background:var(--subtle); border-color:var(--line); }
+.dream-entry:hover { background:var(--subtle); }
+.dream-entry small { color:var(--muted); font-size:11px; }
+.dream-journal-detail { overflow:auto; min-width:0; padding:10px 24px 60px; }
+.dream-journal-detail h3 { margin:14px 0 5px; font-size:20px; }
+.dream-journal-detail h4 { margin:24px 0 7px; font-size:14px; }
+.dream-current { border-bottom:1px solid var(--line); color:var(--muted); padding-bottom:12px; font-size:12px; }
+.dream-prose { white-space:pre-wrap; overflow-wrap:anywhere; margin:8px 0; }
+.dream-source-list,.dream-note-actions { display:flex; flex-wrap:wrap; align-items:center; gap:10px; }
+.dream-source-list button { white-space:normal; text-align:left; }
+.dream-note-actions small { color:var(--muted); flex-basis:100%; }
+.dream-technical { border-top:1px solid var(--line); margin-top:24px; padding-top:14px; }
+.dream-technical summary { cursor:pointer; }
+.dream-origin dt,.dream-technical dt { margin-top:12px; color:var(--muted); font-size:12px; }
+.dream-origin dd,.dream-technical dd { margin:3px 0; overflow-wrap:anywhere; }
+.dream-error { margin:10px 20px; color:var(--danger, #ee817e); overflow-wrap:anywhere; }
+.dream-sheet { width:min(660px,calc(100vw - 24px)); }
+.dream-sheet[open] { display:flex; flex-direction:column; }
+.dream-sheet .dialog-body { flex:1; min-height:0; padding-bottom:18px; }
+.dream-sheet .dialog-footer { flex-wrap:wrap; }
+.dream-source-text pre { white-space:pre-wrap; overflow-wrap:anywhere; font:inherit; }
+.dream-source-text article { border-top:1px solid var(--line); padding:16px 0; }
+.dream-organize-list { display:grid; gap:12px; padding:16px 0; }
+.dream-review textarea { min-height:100px; }
+.dream-empty { padding:10px; }
+@container (max-width: 580px) {
+  .dream-journal { display:flex; flex-direction:column; }
+  .dream-journal-list { display:flex; gap:6px; flex:none; max-height:145px; border-right:0; border-bottom:1px solid var(--line); }
+  .dream-entry { flex:0 0 160px; margin:0; }
+  .dream-journal-detail { flex:1; min-height:0; padding:8px 16px 60px; }
+  .dream-review .dialog-header,.dream-review-tools { padding:10px 12px; }
+  .dream-review .settings-size-reset { font-size:11px; }
+}

@@ -1,0 +1,49 @@
+.table-bar { min-width: 0; }
+.chair { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; }
+.chair > span:last-child { display: grid; gap: 3px; min-width: 0; }
+.chair small { font-size: .64rem; letter-spacing: .13em; color: var(--muted); }
+.chair strong { font-size: .91rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chair .field-help { margin: 0; font-size: .75rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chair-symbol { display: grid; place-items: center; width: 38px; height: 38px; border: 1px solid var(--line); border-radius: 12px; color: var(--accent); font-size: 1.45rem; flex-shrink: 0; }
+.reply-controls { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; font-size: 12px; }
+#table-reply-controls { margin-left: auto; }
+.reply-controls-label { color: var(--muted); margin-right: 4px; }
+.reply-chair-buttons, .reply-pattern-buttons { display: inline-flex; gap: 2px; padding: 3px; border: 1px solid var(--line); border-radius: 7px; }
+.reply-controls [aria-pressed] { padding: 4px 8px; border: 0; border-radius: 4px; background: transparent; color: var(--muted); }
+.reply-controls [aria-pressed="true"] { color: var(--ink); background: var(--accent-wash); font-weight: 650; }
+.reply-controls [aria-pressed="true"]:disabled { opacity: .85; }
+.reply-controls .ask-now { padding: 5px 8px; color: var(--accent); }
+.reply-controls .ask-now:disabled { color: var(--muted); }
+.personal-model-settings { border: 1px solid var(--line); border-radius: 16px; padding: 20px; margin: 20px 0; }
+.personal-model-settings h3 { margin-top: 0; }
+.personal-model-settings summary { cursor: pointer; padding: 10px 0; }
+.personal-model-card { display: grid; gap: 6px; padding: 14px 0; }
+.personal-model-card small { color: var(--muted); overflow-wrap: anywhere; }
+.personal-model-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; }
+.personal-model-heading strong { min-width: 0; overflow-wrap: anywhere; }
+.personal-model-heading button { flex-shrink: 0; }
+@container conversation-space (max-width: 960px) { .reply-controls-label { display: none; } }
+@container conversation-space (max-width: 580px) {
+  #table-reply-controls { flex: 1 0 100%; }
+  .reply-controls { justify-content: space-between; gap: 6px; }
+}
+@container conversation-space (max-width: 760px) {
+  .table-bar { grid-column: 1 / -1; }
+  .chair .field-help { display: none; }
+}
+@container conversation-space (max-width: 420px) {
+  .chair { gap: 8px; }
+  .chair-symbol { width: 30px; height: 30px; border-radius: 10px; }
+}
+.agent-profile-dialog { width: min(760px, calc(100vw - 24px)); }
+.agent-profile-label, .agent-actions, .agent-entry-options { display: flex; flex-wrap: wrap; align-items: center; gap: .7rem; }
+.agent-profile-label { justify-content: space-between; margin-top: .7rem; }
+.agent-profile-library, .agent-import-entry { margin-top: 1rem; }
+.agent-source { margin: .7rem 0; }
+.agent-source summary, .agent-source-choice { overflow-wrap: anywhere; }
+.agent-source pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 20rem; overflow: auto; padding: 1rem; border: 1px solid var(--border); border-radius: .5rem; }
+.agent-source small, .agent-source .field-help { overflow-wrap: anywhere; }
+.agent-sharing { margin-top: 1.2rem; border: 1px solid var(--border); border-radius: .5rem; padding: .8rem; }
+.agent-sharing label { display: flex; align-items: flex-start; gap: .7rem; margin: .7rem 0; }
+.agent-sharing small { display: block; overflow-wrap: anywhere; }
+.agent-entry-options select { max-width: 100%; }

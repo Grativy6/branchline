@@ -1,0 +1,33 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { createRequire } from 'node:module';
+import { fixture } from './helpers.mjs';
+const require=createRequire(import.meta.url),{chromium}=require(process.env.BRANCHLINE_TEST_PLAYWRIGHT);
+const output=process.env.BRANCHLINE_PC_BROWSER_OUTPUT||path.resolve('test-results/pc-browser');await fs.mkdir(output,{recursive:true});
+const cleanup=[];const f=await fixture({after:fn=>cleanup.push(fn)},{modelOptions:{pcFilesOptions:{executable:path.resolve('desktop/bin/Release/net8.0-windows/win-x64/Branchline.Preview.exe')}}});
+const project=path.join(f.dir,'practice');await fs.mkdir(project);await fs.mkdir(path.join(project,'private'));await fs.writeFile(path.join(project,'note.txt'),'Synthetic only.');
+let browser;const errors=[];
+try {
+  browser=await chromium.launch({headless:true,executablePath:process.env.BRANCHLINE_TEST_BROWSER});
+  const page=await browser.newPage({viewport:{width:1280,height:900}});page.on('pageerror',error=>errors.push(error.message));
+  await page.goto(f.uiUrl);await page.locator('#tour-skip').check();await page.locator('#tour-next').click();await page.getByRole('button',{name:'Settings',exact:true}).click();await page.getByRole('tab',{name:'Agents',exact:true}).click();
+  const form=page.locator('#pc-access-form');await form.waitFor();
+  assert.equal(await form.locator('input[name=read]').isChecked(),false);
+  assert.equal(await form.locator('.pc-unavailable input:disabled').count(),3);
+  await form.locator('[name=read]').check();await form.locator('[name=write]').check();await form.getByRole('button',{name:'Add a folder',exact:true}).click();
+  await form.locator('.pc-root [name=path]').fill(project);await form.locator('.pc-root [data-model]').check();await form.locator('.pc-root [name=folderWrite]').check();
+  await form.getByRole('button',{name:'Add an exclusion',exact:true}).click();await form.locator('.pc-denied [name=path]').fill(path.join(project,'private'));
+  await form.getByRole('button',{name:'Save PC access',exact:true}).click();await form.locator('[data-pc-status]').filter({hasText:'Saved.'}).waitFor();
+  assert.equal(f.app.store.state.pcAccess.settings.at(-1).roots[0].destinations.length,1);
+  await form.locator('h3').scrollIntoViewIfNeeded();await page.screenshot({path:path.join(output,'agents-desktop.png'),fullPage:true});
+  await page.reload();await page.getByRole('button',{name:'Settings',exact:true}).click();await page.getByRole('tab',{name:'Agents',exact:true}).click();await form.waitFor();
+  await form.locator('[name=read]').uncheck();await form.getByRole('button',{name:'Save PC access',exact:true}).click();await form.locator('[data-pc-status]').filter({hasText:'Saved.'}).waitFor();
+  assert.equal(f.app.store.state.pcAccess.settings.at(-1).roots[0].destinations.length,0);assert.equal(f.app.store.state.pcAccess.settings.at(-1).denied.length,1);
+  page.once('dialog',dialog=>dialog.dismiss());await form.locator('[data-remove-denied]').click();assert.equal(await form.locator('.pc-denied').count(),1);
+  await page.setViewportSize({width:780,height:650});await form.scrollIntoViewIfNeeded();await page.screenshot({path:path.join(output,'agents-narrow.png'),fullPage:true});
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+  assert.deepEqual(errors,[]);assert.equal(f.requests.length,0);
+  await fs.writeFile(path.join(output,'report.json'),JSON.stringify({status:'PASS',kind:'REAL_EDGE_SYNTHETIC_WORKSPACE',checks:['Agents placement','all access off initially','explicit recipient and folder grant saved through UI','reopen persistence','Read off clears recipients and keeps exclusions','exclusion removal cancel','program/screen controls unavailable','narrow layout and no page errors'],modelRequests:0},null,2));
+  console.log('PC access browser checks passed.');
+} finally {await browser?.close();for(const fn of cleanup.reverse())await fn();}

@@ -1,0 +1,41 @@
+/* Change these semantic tokens to restyle the shell without changing its
+   components. FS remains a distinct palette within each selected theme. */
+:root {
+  color-scheme: light;
+  --canvas: #f4f2ea; --surface: #fbfaf6; --surface-strong: #fffefa;
+  --ink: #25302d; --muted: #657067; --line: #dfe2d8;
+  --accent: #527368; --accent-dark: #36594f; --accent-wash: #e3eee7;
+  --on-accent: #fff; --on-ink: #fff; --subtle: #eceee6;
+  --danger: #a03f3d; --danger-wash: #fff1f0; --danger-line: #e9c8c5;
+  --focus: #779d8c; --shadow: 0 16px 40px #25302d14;
+  --backdrop: #18241f66; --reading-size: 14px;
+  --dream-accent: #995568; --dream-wash: #f5dce533;
+}
+html[data-theme="starlight"] {
+  color-scheme: dark;
+  --canvas: #111c29; --surface: #152333; --surface-strong: #1b2c3e;
+  --ink: #eef1ed; --muted: #b0bfcb; --line: #354759;
+  --accent: #e5be6a; --accent-dark: #f8d488; --accent-wash: #30414b;
+  --on-accent: #182536; --on-ink: #162536; --subtle: #223448;
+  --danger: #ffb8af; --danger-wash: #472b32; --danger-line: #80545a;
+  --focus: #e5be6a; --shadow: 0 16px 40px #0004; --backdrop: #060e17a6;
+  --dream-accent: #f0b4c6; --dream-wash: #d982a010;
+}
+html[data-theme="paper"] { --canvas: #f2f2ef; --surface: #fafaf7; --surface-strong: #fff; --ink: #292d30; --muted: #62676b; --line: #dadcda; --accent: #535f67; --accent-dark: #344049; --accent-wash: #e6e9eb; --subtle: #eaedec; --focus: #80909a; }
+html[data-reading="relaxed"] { --reading-size: 17px; }
+html[data-reading="large"] { --reading-size: 19px; }
+.message-body, #message-input { font-size: var(--reading-size); }
+.theme-choices { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; border: 0; margin: 22px 0; padding: 0; }
+.theme-choice { position: relative; display: grid; align-content: start; gap: 9px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; cursor: pointer; }
+.theme-choice:has(input:checked) { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.theme-choice input { position: absolute; top: 14px; right: 12px; accent-color: var(--accent); }
+.theme-choice small { color: var(--muted); }
+.theme-swatch { display: flex; gap: 4px; height: 42px; width: 90px; padding: 5px; border-radius: 8px; margin-bottom: 6px; }
+.theme-swatch i { flex: 1; border-radius: 4px; }
+.swatch-garden { background: #f4f2ea; } .swatch-garden i:nth-child(1) { background: #527368; } .swatch-garden i:nth-child(2) { background: #b5cabb; } .swatch-garden i:nth-child(3) { background: #e3eee7; }
+.swatch-starlight { background: #111c29; } .swatch-starlight i:nth-child(1) { background: #e5be6a; } .swatch-starlight i:nth-child(2) { background: #527e96; } .swatch-starlight i:nth-child(3) { background: #30414b; }
+.swatch-paper { background: #f2f2ef; } .swatch-paper i:nth-child(1) { background: #535f67; } .swatch-paper i:nth-child(2) { background: #b7bdc1; } .swatch-paper i:nth-child(3) { background: #e6e9eb; }
+.reading-choice { max-width: 240px; }
+.appearance-preview { padding: 18px 22px; margin: 18px 0; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+.appearance-preview p:last-child { margin-bottom: 0; }
+@media (max-width: 580px) { .theme-choices { grid-template-columns: 1fr; } .theme-choice { grid-template-columns: 100px 1fr; gap: 5px 15px; padding-right: 36px; } .theme-swatch { grid-row: span 2; margin: 0; } }

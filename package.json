@@ -1,0 +1,26 @@
+{
+  "name": "branchline-beta",
+  "version": "0.8.12-preview.3",
+  "license": "Apache-2.0",
+  "private": true,
+  "type": "module",
+  "description": "Local-first Branchline beta UI foundation",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "marked": "15.0.12",
+    "quickjs-emscripten": "0.32.0",
+    "sharp": "0.35.5",
+    "zod": "4.6.5"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "licenses:prepare": "node scripts/Prepare-License-Assets.mjs",
+    "licenses:check": "node scripts/Prepare-License-Assets.mjs --check",
+    "start": "node server/index.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "test:browser": "node tests/browser-smoke.mjs",
+    "test:receipts": "node tests/measure-handoffs.mjs"
+  }
+}

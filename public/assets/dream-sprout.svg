@@ -1,0 +1,190 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"
+     width="512" height="512" preserveAspectRatio="xMidYMid meet"
+     role="img" aria-labelledby="dream-title dream-description">
+  <title id="dream-title">Dreaming sprout</title>
+  <desc id="dream-description">Two green leaves grow from a coral pot beneath a peach moon, wrapped in a soft pink orbit and little stars.</desc>
+
+  <!-- Original vector companion to Chris's Dream illustration.
+       Transparent canvas. Shapes and gradients only; no embedded bitmap,
+       external resources, font dependency, blur filter or script.
+       Edit the gradient stops below to adjust the palette. -->
+  <defs>
+    <radialGradient id="dream-atmosphere" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#ffdecb" stop-opacity=".42"/>
+      <stop offset=".62" stop-color="#f7b5c1" stop-opacity=".2"/>
+      <stop offset="1" stop-color="#f7b5c1" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="dream-moon-halo">
+      <stop offset=".68" stop-color="#ffeacb" stop-opacity=".25"/>
+      <stop offset="1" stop-color="#ffeacb" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="dream-moon" x1="0" y1="0" x2="1" y2=".85">
+      <stop offset="0" stop-color="#f7acb8"/>
+      <stop offset=".48" stop-color="#ffdac8"/>
+      <stop offset="1" stop-color="#fff1d2"/>
+    </linearGradient>
+    <linearGradient id="dream-mist" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#f3a9b4" stop-opacity=".18"/>
+      <stop offset=".5" stop-color="#ffc5d0" stop-opacity=".36"/>
+      <stop offset="1" stop-color="#ffe3cc" stop-opacity=".16"/>
+    </linearGradient>
+    <linearGradient id="dream-orbit" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#fff1d4" stop-opacity=".7"/>
+      <stop offset=".55" stop-color="#ffe3d8"/>
+      <stop offset="1" stop-color="#fff4d7" stop-opacity=".9"/>
+    </linearGradient>
+    <linearGradient id="dream-leaf-large" x1=".05" y1="1" x2=".82" y2="0">
+      <stop offset="0" stop-color="#256f5b"/>
+      <stop offset=".48" stop-color="#54955e"/>
+      <stop offset="1" stop-color="#c8d56f"/>
+    </linearGradient>
+    <linearGradient id="dream-leaf-small" x1="1" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#286d58"/>
+      <stop offset=".55" stop-color="#5c995f"/>
+      <stop offset="1" stop-color="#bfd36f"/>
+    </linearGradient>
+    <linearGradient id="dream-stem" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#378866"/>
+      <stop offset="1" stop-color="#9dc779"/>
+    </linearGradient>
+    <linearGradient id="dream-pot" x1="0" y1="0" x2=".9" y2="1">
+      <stop offset="0" stop-color="#ffa995"/>
+      <stop offset=".45" stop-color="#ee887d"/>
+      <stop offset="1" stop-color="#c95c64"/>
+    </linearGradient>
+    <linearGradient id="dream-pot-rim" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffc3ab"/>
+      <stop offset=".5" stop-color="#ffa398"/>
+      <stop offset="1" stop-color="#e77c78"/>
+    </linearGradient>
+    <linearGradient id="dream-soil" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#843f49"/>
+      <stop offset="1" stop-color="#bd6063"/>
+    </linearGradient>
+    <linearGradient id="dream-star" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff0ce"/>
+      <stop offset=".45" stop-color="#ffc8bb"/>
+      <stop offset="1" stop-color="#f39cae"/>
+    </linearGradient>
+    <radialGradient id="dream-light">
+      <stop offset="0" stop-color="#fff5d8"/>
+      <stop offset=".36" stop-color="#fff0d6" stop-opacity=".75"/>
+      <stop offset="1" stop-color="#ffdbbd" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- A little atmosphere, with the surrounding canvas left transparent. -->
+  <g id="dream-sky">
+    <ellipse cx="260" cy="265" rx="237" ry="184" fill="url(#dream-atmosphere)"/>
+    <path d="M73 268 C43 255 52 224 83 214
+             C82 187 112 173 136 188
+             C155 165 190 173 194 199
+             C249 178 324 185 370 211
+             C397 190 429 199 433 226
+             C470 222 489 254 469 281
+             C490 299 476 327 448 331
+             C449 359 418 372 395 357
+             C339 389 244 405 177 381
+             C155 400 122 387 124 363
+             C95 374 71 357 75 337
+             C36 339 27 307 49 287 Z"
+          fill="url(#dream-mist)"/>
+  </g>
+
+  <g id="dream-moon-disc">
+    <circle cx="201" cy="137" r="116" fill="url(#dream-moon-halo)"/>
+    <circle cx="201" cy="137" r="91" fill="url(#dream-moon)"/>
+    <path d="M147 64 A91 91 0 0 1 289 153"
+          fill="none" stroke="#fff4df" stroke-opacity=".55" stroke-width="1.5"/>
+  </g>
+
+  <!-- The back half of the orbit passes behind the leaves. -->
+  <g id="dream-orbit-back" fill="none" stroke-linecap="round">
+    <path d="M69 310 C35 253 126 223 225 208
+             C325 193 421 209 444 237"
+          stroke="url(#dream-orbit)" stroke-width="5" opacity=".76"/>
+    <path d="M85 303 C63 262 141 236 221 223"
+          stroke="#fff0df" stroke-width="1.5" opacity=".6"/>
+  </g>
+
+  <!-- Rear pot and soil; the stem sits between the soil and front rim. -->
+  <g id="dream-pot-back">
+    <path d="M169 380 C174 434 189 476 260 477
+             C330 477 347 435 351 380 Z" fill="url(#dream-pot)"/>
+    <ellipse cx="260" cy="380" rx="91" ry="23" fill="url(#dream-pot-rim)"/>
+    <ellipse cx="260" cy="380" rx="73" ry="14" fill="url(#dream-soil)"/>
+    <path d="M186 407 C192 438 206 455 230 461"
+          fill="none" stroke="#ffd0b5" stroke-opacity=".22"
+          stroke-width="5" stroke-linecap="round"/>
+  </g>
+
+  <g id="dream-plant">
+    <path d="M259 341 C217 316 178 326 148 305
+             C132 294 123 278 120 257
+             C181 239 244 265 259 341 Z"
+          fill="url(#dream-leaf-small)"/>
+    <path d="M260 325 C232 284 245 231 280 194
+             C314 159 367 137 427 131
+             C426 183 403 237 367 273
+             C335 304 291 307 260 325 Z"
+          fill="url(#dream-leaf-large)"/>
+    <path d="M249 391 C249 351 255 317 275 281
+             C305 232 347 188 404 148
+             C349 195 311 242 285 287
+             C267 323 264 357 264 391 Z"
+          fill="url(#dream-stem)"/>
+    <path d="M253 352 C236 310 207 284 155 270
+             C209 277 243 298 261 332 Z"
+          fill="#9bc57b" opacity=".86"/>
+    <path d="M282 283 C315 269 340 254 363 233"
+          fill="none" stroke="#c8d990" stroke-width="1.6" opacity=".28"
+          stroke-linecap="round"/>
+  </g>
+
+  <!-- Foreground ribbon curls back toward the plant without crossing it. -->
+  <g id="dream-orbit-front">
+    <path d="M426 223 C460 237 463 265 428 280
+             C399 293 363 298 332 298
+             C367 288 405 280 424 268
+             C449 252 444 237 426 223 Z"
+          fill="url(#dream-orbit)"/>
+    <path d="M68 286 C38 322 107 344 168 344
+             C214 344 237 358 242 374
+             C226 359 199 356 163 357
+             C89 359 32 330 68 286 Z"
+          fill="url(#dream-orbit)"/>
+  </g>
+
+  <path id="dream-pot-front-rim"
+        d="M169 380 C180 397 232 404 260 403
+           C300 403 340 395 351 380
+           C346 404 176 417 169 380 Z"
+        fill="url(#dream-pot-rim)"/>
+
+  <g id="dream-sparkles" fill="url(#dream-star)" stroke="#fff1d6" stroke-width="1.4">
+    <path d="M105 173 C101 193 96 199 80 204
+             C97 208 102 215 105 234
+             C109 215 114 208 130 204
+             C113 199 108 193 105 173 Z"/>
+    <path d="M416 319 C412 339 405 347 388 352
+             C405 357 412 364 416 385
+             C420 364 427 357 445 352
+             C427 347 420 339 416 319 Z"/>
+    <path d="M365 79 C363 90 359 94 350 97
+             C359 100 363 104 365 115
+             C368 104 372 100 381 97
+             C371 94 368 90 365 79 Z"/>
+  </g>
+
+  <g id="dream-starlight">
+    <circle cx="340" cy="80" r="18" fill="url(#dream-light)"/>
+    <circle cx="340" cy="80" r="4.5" fill="#fff0d1"/>
+    <circle cx="139" cy="390" r="17" fill="url(#dream-light)"/>
+    <circle cx="139" cy="390" r="4.5" fill="#fff0d1"/>
+    <circle cx="380" cy="319" r="16" fill="url(#dream-light)"/>
+    <circle cx="380" cy="319" r="4" fill="#fff0d1"/>
+    <circle cx="123" cy="312" r="3" fill="#ffe5cd"/>
+    <circle cx="393" cy="119" r="3.5" fill="#ffbdc0"/>
+    <circle cx="301" cy="147" r="3" fill="#ffe5cd"/>
+  </g>
+</svg>

@@ -1,0 +1,15 @@
+import fs from 'node:fs/promises';import path from 'node:path';import {spawn} from 'node:child_process';import {createHash} from 'node:crypto';import assert from 'node:assert/strict';
+import {Store} from '../server/store.mjs';import {hashFile} from '../scripts/public-release.mjs';
+const packageDir=path.resolve('releases',process.argv[2]);assert.equal(path.dirname(packageDir),path.resolve('releases'));
+const base=path.resolve(process.env.BRANCHLINE_TEST_ROOT);await fs.mkdir(base,{recursive:true});const dir=await fs.mkdtemp(path.join(base,'native-sketch-')),workspace=path.join(dir,'workspace');
+const store=new Store(workspace);await store.open();await store.command({type:'root.create',payload:{name:'Synthetic packet branch',mode:'personal'}});const chatId=store.state.chats[0].id;
+await store.command({type:'ui.update',payload:{welcomeTour:{version:1,completedAt:new Date().toISOString(),skipped:true}}});
+await store.command({type:'sketch.save',payload:{id:null,baseRevisionId:null,originChatId:chatId,sourceMessageId:null,title:'Saved source',text:'Exact pending copy 🌱',stage:'ideas',requestId:'native_seed'}});const sketch=store.state.sketchBook.records[0];
+await store.command({type:'sketch.transfer',payload:{id:sketch.id,baseRevisionId:sketch.revisions[0].id,rootId:store.state.roots[0].id,chatId,requestId:'native_move'}});
+const pending=structuredClone(store.state.sketchBook.pending),text='Sketch words typed immediately before native close. 🎇';
+await fs.writeFile(path.join(dir,'native-expected.json'),JSON.stringify({roots:1,stateSha256:createHash('sha256').update(JSON.stringify(store.state)).digest('hex'),closeSketch:text}));await store.close();
+const child=spawn(path.join(packageDir,'Branchline.Preview.exe'),['--smoke-test','--smoke-history','--data-dir',dir],{cwd:packageDir,windowsHide:true,stdio:'ignore'}),timer=setTimeout(()=>child.kill(),60000);
+try{const code=await new Promise((resolve,reject)=>{child.on('error',reject);child.on('exit',resolve);});const result=JSON.parse(await fs.readFile(path.join(dir,'smoke-result.json'),'utf8'));assert.equal(code,0,JSON.stringify(result));assert.equal(result.backendExit,'graceful');await assert.rejects(fs.access(path.join(workspace,'.writer.lock')),{code:'ENOENT'});
+ const reopened=new Store(workspace);await reopened.open();try{assert.equal(reopened.state.ui.sketchDraft.title,'Native unfinished sketch');assert.equal(reopened.state.ui.sketchDraft.text,text);assert.equal(reopened.state.sketchBook.records.length,1);assert.deepEqual(reopened.state.sketchBook.pending,pending);}finally{await reopened.close();}
+ const report={...result,kind:'REAL_NATIVE_WEBVIEW2_SYNTHETIC_SKETCH_WORKSPACE',checks:['native Sketch Book and editor opened','immediate-before-close draft retained without creating a saved sketch','pending copy preserved byte for byte','graceful backend exit and released writer lock'],executableSha256:await hashFile(path.join(packageDir,'Branchline.Preview.exe'))};await fs.writeFile(path.join(process.env.BRANCHLINE_REPORT_ROOT,'native-sketch.json'),JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify(report));
+}finally{clearTimeout(timer);}
