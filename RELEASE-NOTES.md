@@ -1,4 +1,27 @@
-# 0.8.12 Preview 3 — Windows installer repair
+# 0.8.12 Preview 5 — First public Windows package
+
+This candidate brings the current conversation-continuity wording and Windows
+installer repair into one versioned distribution. Stock Qwen3.5-4B is included
+in full Setup; the app-only download is also available. Existing histories,
+model choices, Coats and permissions remain in place.
+
+Book of PEACHES remains a Coming later placeholder. Dream history and preparation
+are available; built-in training and scheduling are unfinished. No Branchline
+account or purchased stamp is required. See the release verification report for
+observed hardware/model results and remaining limits. This preview is unsigned.
+
+# 0.8.12 Preview 4 — Continuity to the room
+
+Ordinary replies now begin with continuity to the conversation already present.
+The Visiting chair is explicitly oriented to shared history, corrections, open
+threads and its own attributed contributions. Original authorship, saved
+history, Coats and tool permissions are preserved.
+
+This is a small prospective prompt update. It does not rewrite earlier replies
+or guarantee a model's interpretation. Preview 3's installer repair remains in
+the source; the new everyday app is being qualified separately.
+
+## 0.8.12 Preview 3 — Windows installer repair
 
 Setup now runs natively as x64 and checks the required native Microsoft runtime
 libraries explicitly. It records each library version and separates installer
@@ -8,12 +31,10 @@ checks. A failed prerequisite check stops before replacing application files.
 The model component's displayed space requirement now includes both bundled
 model files. Conversation and tool behavior are unchanged from Preview 2.
 
-The maintainer reports a successful Windows 11 laptop installation with existing
-chats visible. Further use on that machine and public download checks remain
-pending. See [VERIFICATION.md](VERIFICATION.md) for current source-publication
-status and the distinction between real hardware/model checks and fixtures.
-
-# 0.8.12 Preview 2 — A trail to try
+The maintainer reported a successful Windows 11 laptop installation with existing
+chats visible. That observation belongs to preview 3; see VERIFICATION.md for
+the current candidate's checks.
+## 0.8.12 Preview 2 — A trail to try
 
 The first public release candidate keeps the existing desktop feature set and
 adds an installation handoff: a small Windows download helper and a guide for

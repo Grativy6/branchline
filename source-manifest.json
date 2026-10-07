@@ -1,8 +1,8 @@
 {
   "profile": "branchline.public-source/1",
-  "version": "0.8.12-preview.3",
-  "status": "SOURCE_REVIEW_INSTALLER_NOT_PUBLISHED",
-  "sourceCommit": "0256acb9d2a336690afaf0bbee999c74e82d83ce",
+  "version": "0.8.12-preview.5",
+  "status": "QUALIFIED_PUBLIC_RELEASE_SOURCE",
+  "sourceCommit": "c9c2bdc76859da366c8b3e22b51263822246c3af",
   "worktreeDirty": true,
   "note": "Public source derived from the reviewed candidate snapshot. The implementation commit identifies that snapshot, not this public Git history. Publication amendments below affect documentation and Git byte preservation only. Existing candidate archives and installers retain their original bytes and manifests.",
   "files": [
@@ -10,7 +10,7 @@
       "source": "package.json",
       "path": "package.json",
       "bytes": 752,
-      "sha256": "82046c27da7dfeda26c0c04c9de2bb84aa8118456fba9472206b1052b607c65e"
+      "sha256": "42c5b27f9a340f8c6f226da2caf5163d641c5d3a84d45d7423a847a5d6156cd1"
     },
     {
       "source": "LICENSE",
@@ -40,7 +40,7 @@
       "source": "package-lock.json",
       "path": "package-lock.json",
       "bytes": 65962,
-      "sha256": "7267aec3e47b215eda9c1f29542032ec276f55cf7650a84f7715e8b21c745ffd"
+      "sha256": "8cf60392ff596c0bc17e1d9ebce263d537d5b407ff7e49a09c72df92634d0ec2"
     },
     {
       "source": ".gitattributes",
@@ -69,26 +69,26 @@
     {
       "source": "docs/public/NATIVE-SOURCES.md",
       "path": "NATIVE-SOURCES.md",
-      "bytes": 2029,
-      "sha256": "ec76fa35560e67a021e0d9383e8e5ee386a897c869e5f002eec1d96a87f89663"
+      "bytes": 2040,
+      "sha256": "54f4e909fc63838ce0980bde943c3ab5012b4efab3fe22b6fe609eb0454574f7"
     },
     {
       "source": "docs/public/PREVIEW-LIMITS.md",
       "path": "PREVIEW-LIMITS.md",
-      "bytes": 3865,
-      "sha256": "2f01846afd70d67b52c652cbbf38dcd369a7ee3d2a8bc723ea3d009ab66c954f"
+      "bytes": 4248,
+      "sha256": "a154b6a1fd5ba455c470ba799bd77bd19cd3be70a7ce5d4618f2103b6821958c"
     },
     {
       "source": "docs/public/README.md",
       "path": "README.md",
-      "bytes": 6834,
-      "sha256": "f318455fcb3ca7679461ba2b39bff9a2e45556aac08f59212052b4950d02e8ee"
+      "bytes": 6812,
+      "sha256": "741a5a77374bce3c9e053b809af7be3469761c179054bb450c159c4020c504e5"
     },
     {
       "source": "docs/public/START-HERE.md",
       "path": "START-HERE.md",
-      "bytes": 9703,
-      "sha256": "93150c46118afbcd756dbdd9f0b4d268957e4a60007e412ebc33b30b3e28cb3f"
+      "bytes": 10782,
+      "sha256": "045ced8dd52ffc0f07876796b16ffa8b6823ed4f32a1cefbfef159345358bff7"
     },
     {
       "source": "docs/public/BUG-REPORT.md",
@@ -99,26 +99,26 @@
     {
       "source": "docs/public/NATIVE-SOURCES.md",
       "path": "docs/public/NATIVE-SOURCES.md",
-      "bytes": 2029,
-      "sha256": "ec76fa35560e67a021e0d9383e8e5ee386a897c869e5f002eec1d96a87f89663"
+      "bytes": 2040,
+      "sha256": "54f4e909fc63838ce0980bde943c3ab5012b4efab3fe22b6fe609eb0454574f7"
     },
     {
       "source": "docs/public/PREVIEW-LIMITS.md",
       "path": "docs/public/PREVIEW-LIMITS.md",
-      "bytes": 3865,
-      "sha256": "2f01846afd70d67b52c652cbbf38dcd369a7ee3d2a8bc723ea3d009ab66c954f"
+      "bytes": 4248,
+      "sha256": "a154b6a1fd5ba455c470ba799bd77bd19cd3be70a7ce5d4618f2103b6821958c"
     },
     {
       "source": "docs/public/README.md",
       "path": "docs/public/README.md",
-      "bytes": 6834,
-      "sha256": "f318455fcb3ca7679461ba2b39bff9a2e45556aac08f59212052b4950d02e8ee"
+      "bytes": 6812,
+      "sha256": "741a5a77374bce3c9e053b809af7be3469761c179054bb450c159c4020c504e5"
     },
     {
       "source": "docs/public/START-HERE.md",
       "path": "docs/public/START-HERE.md",
-      "bytes": 9703,
-      "sha256": "93150c46118afbcd756dbdd9f0b4d268957e4a60007e412ebc33b30b3e28cb3f"
+      "bytes": 10782,
+      "sha256": "045ced8dd52ffc0f07876796b16ffa8b6823ed4f32a1cefbfef159345358bff7"
     },
     {
       "source": "server/actions.mjs",
@@ -231,8 +231,8 @@
     {
       "source": "server/episode-prompts.mjs",
       "path": "server/episode-prompts.mjs",
-      "bytes": 1772,
-      "sha256": "eaf26832a4d4e7423e36a0ee3c12c9404e9657829b97452f4384a8fb6c79fe26"
+      "bytes": 1996,
+      "sha256": "8260b714f2de832aa364a210c04d77053ee829587f5f57b09c5bb2344fa21169"
     },
     {
       "source": "server/handoff-wire.mjs",
@@ -880,7 +880,7 @@
       "source": "public/licenses/index.json",
       "path": "public/licenses/index.json",
       "bytes": 13818,
-      "sha256": "2aafc25ba251d28c68ac8d7b2fe0b3d843dd2539b51268180303c8ba0b16e016"
+      "sha256": "78ab50a605176ec4336fa2fdd14a43a012d66d64b3e986b61c7b91b2bcc83ea0"
     },
     {
       "source": "public/licenses/quickjs-emscripten-LICENSE.txt",
@@ -1024,7 +1024,7 @@
       "source": "scripts/Build-Preview.ps1",
       "path": "scripts/Build-Preview.ps1",
       "bytes": 2353,
-      "sha256": "5d68a863911e6005dad4b569c8c51157bfd6fd8abec41af0bf6867a48335e0cd"
+      "sha256": "63c9902fc2b29e3cda4139acb3ab1f98b6a2d0e9a5747f6eaf18024009f9655e"
     },
     {
       "source": "scripts/Copy-Calculation-Runtime.mjs",
@@ -1042,7 +1042,7 @@
       "source": "scripts/Export-Public-Source.mjs",
       "path": "scripts/Export-Public-Source.mjs",
       "bytes": 1526,
-      "sha256": "910e317c11a4bd1ee6dcc4d8d41a89b64966d9d39a33c57cd7133475405c20aa"
+      "sha256": "7fb5b1651c1eef76731d351eac6037b186bd61c43c05c4dad5a6a474ad8292b6"
     },
     {
       "source": "scripts/Fetch-Release-Inputs.mjs",
@@ -1342,7 +1342,7 @@
       "source": "desktop/Branchline.Preview.csproj",
       "path": "desktop/Branchline.Preview.csproj",
       "bytes": 978,
-      "sha256": "a5898965aa495b990fc4978a4a76514b7c6a48402c366d38ae1f925700fafec1"
+      "sha256": "af9776dd79edfe813a74f91769fc02dab553fe022875fe4a42743862651ffb1e"
     },
     {
       "source": "desktop/NuGet.Config",
@@ -1480,19 +1480,19 @@
       "source": "scripts/Create-Release-Archives.ps1",
       "path": "scripts/Create-Release-Archives.ps1",
       "bytes": 4728,
-      "sha256": "fb7f92817ee594e4a014d7ff619e94a2aedbf433982c8109a11ddf39bc2d4fce"
+      "sha256": "74d2061c441c28e0edee1f557d76dd19f0d0ac0743649da89a96ccd7a04c3ae8"
     },
     {
       "source": "docs/public/RELEASE-NOTES.md",
       "path": "docs/public/RELEASE-NOTES.md",
-      "bytes": 12437,
-      "sha256": "7ce5ec6e7c28b88adbb92ab46c1ea7d8c33ab192335b35f007975a6338456275"
+      "bytes": 13533,
+      "sha256": "1a46a8fe97e2355acdac640aa6dc203e874bfa2ee9cdceb4efc49cac2a7771a2"
     },
     {
       "source": "docs/public/RELEASE-NOTES.md",
       "path": "RELEASE-NOTES.md",
-      "bytes": 12437,
-      "sha256": "7ce5ec6e7c28b88adbb92ab46c1ea7d8c33ab192335b35f007975a6338456275"
+      "bytes": 13533,
+      "sha256": "1a46a8fe97e2355acdac640aa6dc203e874bfa2ee9cdceb4efc49cac2a7771a2"
     },
     {
       "source": "server/bundled-profile.mjs",
@@ -2139,14 +2139,14 @@
     {
       "source": "docs/public/DREAM-REVIEW.md",
       "path": "DREAM-REVIEW.md",
-      "bytes": 4049,
-      "sha256": "ac00b4fcb7ec7117abef1fdf71829aabbca75ca939c446290affc66f4995b98c"
+      "bytes": 4465,
+      "sha256": "0653dabda0d64a8a1a07e69ec7d3d5237bc2d42ee7c278ff0bd8d44a9615a396"
     },
     {
       "source": "docs/public/DREAM-REVIEW.md",
       "path": "docs/public/DREAM-REVIEW.md",
-      "bytes": 4049,
-      "sha256": "ac00b4fcb7ec7117abef1fdf71829aabbca75ca939c446290affc66f4995b98c"
+      "bytes": 4465,
+      "sha256": "0653dabda0d64a8a1a07e69ec7d3d5237bc2d42ee7c278ff0bd8d44a9615a396"
     },
     {
       "source": "tests/dream-history.test.mjs",
@@ -2223,14 +2223,14 @@
     {
       "source": "docs/public/INSTALL-WITH-AI.md",
       "path": "INSTALL-WITH-AI.md",
-      "bytes": 5202,
-      "sha256": "ea03a56ab2b402385a62c9d357d1eeaab3756ebf3d27dd7a956280e5b1be1eff"
+      "bytes": 6001,
+      "sha256": "9926e2e6c0624fe57409734f14021f5f69fe84fd46529615950e3b2b0889b1e0"
     },
     {
       "source": "docs/public/INSTALL-WITH-AI.md",
       "path": "docs/public/INSTALL-WITH-AI.md",
-      "bytes": 5202,
-      "sha256": "ea03a56ab2b402385a62c9d357d1eeaab3756ebf3d27dd7a956280e5b1be1eff"
+      "bytes": 6001,
+      "sha256": "9926e2e6c0624fe57409734f14021f5f69fe84fd46529615950e3b2b0889b1e0"
     },
     {
       "source": "docs/public/ORIGIN.md",
@@ -2319,20 +2319,20 @@
     {
       "source": "VERIFICATION.md",
       "path": "VERIFICATION.md",
-      "bytes": 5706,
-      "sha256": "1d04db2d1637efae8b226f5f6fdfb696a9b212b1864ca944f0cb6de4ec5be2a9"
+      "bytes": 7086,
+      "sha256": "cf4c29e0b16213911484c4de6a892e33eaa803b66a17bd01de449b0d7fae0c84"
     },
     {
       "source": "docs/public/VERIFICATION.md",
       "path": "docs/public/VERIFICATION.md",
-      "bytes": 5706,
-      "sha256": "1d04db2d1637efae8b226f5f6fdfb696a9b212b1864ca944f0cb6de4ec5be2a9"
+      "bytes": 7086,
+      "sha256": "cf4c29e0b16213911484c4de6a892e33eaa803b66a17bd01de449b0d7fae0c84"
     }
   ],
   "publication": {
     "repository": "https://github.com/Grativy6/branchline",
-    "publicBaseCommit": "409159e79c9d0b506b417c8b2f400201397637b7",
-    "reviewedSnapshotManifestSha256": "40de47978f0e17f7456095071ef7ba236df271bc3d817459face69f55a5fa608",
+    "publicBaseCommit": "9f7028a2d8107e014c2ded3da4a28141bf1c54fd",
+    "reviewedSnapshotManifestSha256": "b3a94ed3bcf4f46d4e4a5faa4c72c6ba2be5f9cdb185e3e61f00c92108873cc4",
     "applicationAndInstallerCode": "UNCHANGED_FROM_REVIEWED_SNAPSHOT",
     "amendments": [
       {
@@ -2342,23 +2342,63 @@
       },
       {
         "path": "README.md",
-        "reason": "Mark source review and pending downloads; link the public verification report.",
-        "reviewedSha256": "72f4bc2428f8a75e83b5fdbae255e29ea94ed4f46cc66d8c59c389855a0b6ded"
+        "reason": "Link the release verification report and describe qualified systems and workspace limits.",
+        "reviewedSha256": "3ccda0ae7bf35f53be71f7d9bf4ca9795bc7281aee248b8ccebf6acf71f1da0f"
       },
       {
         "path": "docs/public/README.md",
         "reason": "Keep the source README template synchronized with the publication README.",
-        "reviewedSha256": "72f4bc2428f8a75e83b5fdbae255e29ea94ed4f46cc66d8c59c389855a0b6ded"
+        "reviewedSha256": "3ccda0ae7bf35f53be71f7d9bf4ca9795bc7281aee248b8ccebf6acf71f1da0f"
       },
       {
         "path": "RELEASE-NOTES.md",
-        "reason": "Add the Preview 3 installer repair and current verification status.",
-        "reviewedSha256": "6ceba645b6fa2f1af2df3f67e2f9ec02985a05ac7840bb264d579b3675b5b929"
+        "reason": "Retain the previously public preview 3 installer history alongside current notes.",
+        "reviewedSha256": "1dcb8d93f61821867250c690c64d38e00fe93c0e220bd7f3098efdacc2f0d7ce"
       },
       {
         "path": "docs/public/RELEASE-NOTES.md",
-        "reason": "Keep the public release-notes template synchronized.",
-        "reviewedSha256": "6ceba645b6fa2f1af2df3f67e2f9ec02985a05ac7840bb264d579b3675b5b929"
+        "reason": "Keep the public release-note template synchronized with retained history.",
+        "reviewedSha256": "1dcb8d93f61821867250c690c64d38e00fe93c0e220bd7f3098efdacc2f0d7ce"
+      },
+      {
+        "path": "NATIVE-SOURCES.md",
+        "reason": "Correct the native-source companion filename for the preview 5 public release.",
+        "reviewedSha256": "ec76fa35560e67a021e0d9383e8e5ee386a897c869e5f002eec1d96a87f89663"
+      },
+      {
+        "path": "docs/public/NATIVE-SOURCES.md",
+        "reason": "Correct the native-source companion filename for the preview 5 public release.",
+        "reviewedSha256": "ec76fa35560e67a021e0d9383e8e5ee386a897c869e5f002eec1d96a87f89663"
+      },
+      {
+        "path": "START-HERE.md",
+        "reason": "Explain the existing-workspace Qwen participant step and observed FAT32 workspace limitation.",
+        "reviewedSha256": "b8c99bbe4bef7c24b2d9d478a2499e109fe73a90c1a3c92c87ac55751b500dba"
+      },
+      {
+        "path": "docs/public/START-HERE.md",
+        "reason": "Keep the Qwen setup guide template synchronized with the publication guide.",
+        "reviewedSha256": "b8c99bbe4bef7c24b2d9d478a2499e109fe73a90c1a3c92c87ac55751b500dba"
+      },
+      {
+        "path": "INSTALL-WITH-AI.md",
+        "reason": "Carry the complete existing-workspace Qwen setup path into the installation handoff.",
+        "reviewedSha256": "b969ac08c09e155399235177ce54425b40b296d59eef319d6ffc6f18356c6a4e"
+      },
+      {
+        "path": "docs/public/INSTALL-WITH-AI.md",
+        "reason": "Keep the AI installation guide template synchronized with the publication guide.",
+        "reviewedSha256": "b969ac08c09e155399235177ce54425b40b296d59eef319d6ffc6f18356c6a4e"
+      },
+      {
+        "path": "PREVIEW-LIMITS.md",
+        "reason": "Record the observed FAT32 workspace image-saving limit without altering tested app bytes.",
+        "reviewedSha256": "d165a1701f77753ce4222f2a1af068701d18f1930dad3041bfcea35b9dd5028b"
+      },
+      {
+        "path": "docs/public/PREVIEW-LIMITS.md",
+        "reason": "Keep the preview-limits template synchronized with the publication guide.",
+        "reviewedSha256": "d165a1701f77753ce4222f2a1af068701d18f1930dad3041bfcea35b9dd5028b"
       }
     ],
     "addedDocuments": [

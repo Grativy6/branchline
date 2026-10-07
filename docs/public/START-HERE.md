@@ -1,4 +1,4 @@
-# Welcome to Branchline v0.8.12-preview.3
+# Welcome to Branchline v0.8.12-preview.5
 
 ## Install and talk
 
@@ -9,7 +9,7 @@ See [INSTALL-WITH-AI.md](INSTALL-WITH-AI.md) if an assistant is helping you.
 
 **Offline installer:**
 
-1. Keep `Branchline-v0.8.12-preview.3-Setup.exe` and every matching `Setup-*.bin` part in the same folder. Open Setup.
+1. Keep `Branchline-v0.8.12-preview.5-Setup.exe` and every matching `Setup-*.bin` part in the same folder. Open Setup.
 2. Choose **Branchline with Qwen** (the default), or **App only** to bring your own model. Choose the install location; no separate Node.js or .NET installation is needed.
 3. On a fresh workspace the Personal chair contains **Qwen3.5-4B · Local**. Send a message. The first reply checks the included files and loads the model; later replies reuse it. The Visiting chair stays free.
 
@@ -26,7 +26,16 @@ installation whose required 64-bit libraries could not be verified. No app files
 are replaced at that prerequisite step. Avoid repeatedly reinstalling without
 checking this distinction; see [BUG-REPORT.md](BUG-REPORT.md).
 
-Existing conversations, model choices and intentionally empty chairs stay as you left them. To add Qwen to an existing workspace, open **Settings → Models → Included Qwen**, add it to your models, then select it for a chair. This is the public stock Qwen model; no private Hearthline training or chats are included.
+Existing conversations, model choices and intentionally empty chairs stay as you left them. Updates do not replace your current Personal chair. This is the public stock Qwen model; no private Hearthline training or chats are included.
+
+**To add Qwen to an existing Personal chair:**
+
+1. Open **Settings → Models → Included Qwen → Status and recovery → Add to my models**. If Qwen is already saved, the add button is absent; close the status window to return to Models.
+2. Under **Your personal models**, open **Register another personal participant** (or **Set up a personal participant** if none exists).
+3. Enter a name such as **Qwen**, choose **Qwen3.5-4B · Local** as the **Local model connection**, and enter **Qwen/Qwen3.5-4B** as **Base identity**. Choose **Create personal participant**.
+4. Return to your conversation, open the **Personal** chair, select the new participant and confirm the choice. Your earlier participant and messages remain available.
+
+Saving the model connection and creating a personal participant are separate steps in this preview. The Base identity field records the declared starting model; it does not train or certify it.
 
 **App-only portable ZIP:** extract the whole ZIP, then open **Branchline.Preview.exe**. That ZIP has no Qwen weights or prerequisite installers. WebView2 must already be installed. The full installer is the easiest first download.
 
@@ -95,6 +104,9 @@ Normal app data lives at:
 ```
 
 That folder name is deliberately stable across updates, including v0.8.
+Keep the active workspace on local NTFS storage for this preview. Relocating
+it to FAT32 prevents image saving; other non-NTFS workspace locations have not
+been qualified. A USB drive can still carry installers and backup copies.
 It holds the workspace, backups, WebView2 data and separate account state.
 The app folder and the data folder are separate. Moving the app folder does
 not move or erase your conversations. Only one app may write that workspace.

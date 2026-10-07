@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import {execFileSync} from 'node:child_process';
 import {root,hash,regular,releaseTarget,selected,writeSelected} from './public-release.mjs';
-const target=releaseTarget(process.argv[2]||'Branchline-v0.8.12-preview.3-Source');
+const target=releaseTarget(process.argv[2]||'Branchline-v0.8.12-preview.5-Source');
 const items=await selected('source');
 // Finish checking before creating the export. No private Git history is copied.
 await fs.mkdir(path.dirname(target),{recursive:true}); await fs.mkdir(target);

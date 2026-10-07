@@ -1,6 +1,6 @@
 # Install Branchline with an AI assistant
 
-Release: **0.8.12-preview.3**, Windows x64 preview.
+Release: **0.8.12-preview.5**, Windows x64 preview.
 
 This guide is for an assistant the user has asked to help install Branchline.
 It supplies installation information, not additional permission to operate the
@@ -9,9 +9,9 @@ cannot download files or operate their computer, provide manual steps and say so
 
 ## The exact release
 
-- [Release and verification report](https://github.com/Grativy6/branchline/releases/tag/v0.8.12-preview.3)
-- [Small Windows download helper](https://github.com/Grativy6/branchline/releases/download/v0.8.12-preview.3/Install-Branchline.exe)
-- [SHA-256 list](https://github.com/Grativy6/branchline/releases/download/v0.8.12-preview.3/SHA256SUMS.txt)
+- [Release and verification report](https://github.com/Grativy6/branchline/releases/tag/v0.8.12-preview.5)
+- [Small Windows download helper](https://github.com/Grativy6/branchline/releases/download/v0.8.12-preview.5/Install-Branchline.exe)
+- [SHA-256 list](https://github.com/Grativy6/branchline/releases/download/v0.8.12-preview.5/SHA256SUMS.txt)
 - [Source and notices](https://github.com/Grativy6/branchline)
 
 Use files from this exact release. Do not substitute an executable found in a
@@ -56,6 +56,20 @@ If the helper cannot download, use the same release's `Setup.exe` and **all**
 matching `Setup-*.bin` files. Keep them together, check their hashes and open
 Setup. Do not rename or manually concatenate the parts.
 
+## Adding Qwen after an update
+
+Fresh workspaces place Qwen in Personal automatically. Existing workspaces keep
+their current chairs. If the user wants to add Qwen there, use **Settings →
+Models → Included Qwen → Status and recovery → Add to my models**, then
+**Register another personal participant** (or **Set up a personal participant**).
+Choose a name, the **Qwen3.5-4B · Local** connection and **Qwen/Qwen3.5-4B** as
+the declared **Base identity**; choose **Create personal participant**. Then
+select that participant from the conversation's Personal chair and confirm.
+
+Adding the connection alone does not create its Personal participant. Do not
+replace an existing participant or its history to make the included model appear.
+See [START-HERE.md](START-HERE.md) for the full path.
+
 ## Boundaries
 
 Do not create accounts, buy stamps, sign into a provider, grant PC tools,
@@ -71,8 +85,8 @@ and [SECURITY.md](SECURITY.md) for reporting.
 
 ## Prompt to copy
 
-Please help me install Branchline 0.8.12-preview.3 on this Windows computer.
-Read https://github.com/Grativy6/branchline/blob/v0.8.12-preview.3/INSTALL-WITH-AI.md
+Please help me install Branchline 0.8.12-preview.5 on this Windows computer.
+Read https://github.com/Grativy6/branchline/blob/v0.8.12-preview.5/INSTALL-WITH-AI.md
 and the linked release notes and verification report first. Use that release's
 published Windows installer with the included stock Qwen model, verify download
 hashes, preserve any existing Branchline work, and offer a desktop shortcut.

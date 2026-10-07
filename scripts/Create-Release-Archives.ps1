@@ -1,7 +1,7 @@
 param(
     [Parameter(Mandatory)][string]$SourceFolder,
     [Parameter(Mandatory)][string]$BinaryFolder,
-    [string]$Version = '0.8.12-preview.3'
+    [string]$Version = '0.8.12-preview.5'
 )
 $ErrorActionPreference = 'Stop'
 if ($Version -notmatch '^[0-9]+\.[0-9]+\.[0-9]+(?:-[a-zA-Z0-9.]+)?$') { throw 'Use a plain semantic version.' }

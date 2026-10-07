@@ -68,3 +68,11 @@ exact authorship. Existing sharing and context-capacity checks still apply.
 Keep a backup before upgrading a workspace. For rollback, use the older app with
 its pre-upgrade workspace copy; preserve newer history separately. Do not feed a
 newer journal to an older release without a verified compatibility route.
+
+## Preparing a Dream
+
+Dream training is not built in yet. Use **Prepare a Dream** to make a handoff
+for your own capable assistant, or work manually if you know the tooling. The
+preparation prompt describes the starting point and work to review; copying it
+does not start training or grant access. Your assistant needs suitable tools and
+your separate permission for any training, data sharing or paid computation.
