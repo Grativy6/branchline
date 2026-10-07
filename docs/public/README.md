@@ -13,9 +13,10 @@ The download helper gathers and verifies the full installer; the offline parts
 and app-only portable ZIP remain available. Read the release verification report
 for tested systems and remaining limits. This is an unsigned early preview.
 
-**Release preparation:** source is available for review; preview 5 downloads are
-not published yet. See [VERIFICATION.md](VERIFICATION.md) for actual checks and
-remaining steps.
+See [VERIFICATION.md](VERIFICATION.md) for the actual Windows 10/11 checks,
+real model results, fixtures and known limits. Release notes record the public
+download checks separately. Keep an active workspace on local NTFS storage;
+the included guides explain how to add Qwen to an existing Personal chair.
 
 ## What works
 

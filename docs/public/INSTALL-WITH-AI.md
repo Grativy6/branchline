@@ -56,6 +56,20 @@ If the helper cannot download, use the same release's `Setup.exe` and **all**
 matching `Setup-*.bin` files. Keep them together, check their hashes and open
 Setup. Do not rename or manually concatenate the parts.
 
+## Adding Qwen after an update
+
+Fresh workspaces place Qwen in Personal automatically. Existing workspaces keep
+their current chairs. If the user wants to add Qwen there, use **Settings →
+Models → Included Qwen → Status and recovery → Add to my models**, then
+**Register another personal participant** (or **Set up a personal participant**).
+Choose a name, the **Qwen3.5-4B · Local** connection and **Qwen/Qwen3.5-4B** as
+the declared **Base identity**; choose **Create personal participant**. Then
+select that participant from the conversation's Personal chair and confirm.
+
+Adding the connection alone does not create its Personal participant. Do not
+replace an existing participant or its history to make the included model appear.
+See [START-HERE.md](START-HERE.md) for the full path.
+
 ## Boundaries
 
 Do not create accounts, buy stamps, sign into a provider, grant PC tools,

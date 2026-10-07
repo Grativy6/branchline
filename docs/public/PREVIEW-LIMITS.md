@@ -19,6 +19,11 @@ Branchline v0.8.12-preview.5 is a preview for early testers. Back up important w
   Importing a repository's instructions does not run its code or connect its MCP tools.
 - **Images:** still-image transport for compatible models, not a guarantee of
   visual comprehension. Imported image/text content cannot grant actions.
+- **Workspace storage:** keep the active workspace on a local NTFS drive in this
+  preview. Image saving failed when a laptop test moved its workspace onto a
+  FAT32 USB drive; the image store needs a filesystem with hard-link support.
+  Other relocated workspace filesystems are unqualified. Carrying the installer
+  or backup files on USB is separate from running a workspace there.
 - **Retired experiences:** Tend and Finis Solutus creation and starters are archived.
   Existing desks, conversations and exact saved Coats remain supported.
 - **Trust:** provenance, hashes and receipts are evidence. They are not truth,
