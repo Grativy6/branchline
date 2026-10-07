@@ -1,5 +1,5 @@
 {
-  "version": "0.8.12-preview.3",
+  "version": "0.8.12-preview.5",
   "packages": [
     {
       "name": "quickjs-emscripten",

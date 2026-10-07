@@ -1,6 +1,6 @@
 # Preview limits
 
-Branchline v0.8.12-preview.3 is a preview for early testers. Back up important work.
+Branchline v0.8.12-preview.5 is a preview for early testers. Back up important work.
 
 - **Models:** the full installer includes stock Qwen3.5-4B; the app-only ZIP does not. No private Hearthline adapter, GPU service or paid allowance is included. Model answers can be wrong; a successful tool or picture check is not a general accuracy guarantee.
 - **Computer tools:** an explicitly permitted foreground chair can read and

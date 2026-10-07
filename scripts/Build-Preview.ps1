@@ -1,4 +1,4 @@
-param([string]$OutputName = 'Branchline-v0.8.12-preview.3-Windows-x64', [string]$BundledInputFolder)
+param([string]$OutputName = 'Branchline-v0.8.12-preview.5-Windows-x64', [string]$BundledInputFolder)
 $ErrorActionPreference = 'Stop'
 $taskRoot = Split-Path -Parent $PSScriptRoot
 if ($OutputName -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]*$') { throw 'Use a plain release folder name.' }

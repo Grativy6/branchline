@@ -1,93 +1,64 @@
-# 0.8.12-preview.3 verification and release status
+# Branchline 0.8.12-preview.5 verification
 
-October 7, 2026. **Source submitted for review; installer downloads and website
-publication are pending.** This is an unsigned Windows x64 preview.
+Candidate status: local qualification passed; final Windows 11 check and
+public download verification pending. This document does not claim publication.
 
-## Source and candidate
+The application includes the preview 4 continuity wording and preview 3 Windows
+installer repair. This candidate aligns public guides and versioned packages.
+It is unsigned. The included model is stock Qwen3.5-4B Q4_K_M; no private
+Hearthline model, conversation, account or training data is distributed.
 
-The application and installer source come from an explicitly selected snapshot
-of implementation commit `0256acb9d2a336690afaf0bbee999c74e82d83ce`. The public
-repository starts from its own existing history. Private development history,
-conversations, credentials, Dream weights, adapters and raw machine logs are not
-included. The optional public Hearthline orientation has its separate attribution
-and licence; it is not a private model or conversation export.
+## Completed checks on the development Windows 10 PC
 
-`source-manifest.json` records the exact published files, their origin in the
-reviewed snapshot, and the publication-only documentation and Git-attribute
-changes. No application, test, dependency, native-window or installer code was
-changed during source publication. Earlier prepared installer and ZIP files
-retain their original bytes and manifests; their README and release notes
-predate these publication updates. This file carries the current release status.
+- 430/430 regression checks passed.
+- Full and app-only builds passed, with 40 offline notices and 1,040 / 992
+  manifest-listed payload files respectively.
+- Packaged backend checks used synthetic conversation/model fixtures: streaming,
+  Stop, image handling, preview 3 workspace upgrade, export, backup and recovery,
+  restart, Unicode paths and unchanged app files passed. These were not inference.
+- Native WebView2 startup, graceful close and exact last-moment draft preservation
+  passed with separate synthetic workspaces.
+- Four actual packaged Qwen requests on Vulkan passed a short conversation,
+  a red-circle/blue-square image, Stop and garden-name recall after restarting
+  the app backend and model runner. Exact synthetic messages/draft survived.
+  About 10.4 seconds to first text on the initial request; one warm image reply
+  began after about 0.62 seconds. Stop returned in about 0.10 seconds. These are
+  individual samples, not performance promises. The owned runner was stopped.
+- Source, app-only and native-source ZIPs were checked entry by entry. All
+  385 selected source files match the named implementation commit, with recorded
+  Git LF versus checkout CRLF differences; distributed hashes bind exact bytes.
 
-## Completed checks on the Windows 10 development computer
+- A separate installer identity installed and verified all 1,040 full-package
+  files, opened the native app with synthetic data, repaired a damaged app file,
+  and uninstalled while preserving user-created files and every synthetic data
+  byte. The production installer did not run on the development machine.
+- App-only installation verified 992 files without model files or a shared-runtime
+  installation, then uninstalled successfully. These checks used existing Windows
+  prerequisites and do not substitute for a clean-machine test.
+## Checks awaiting completion
 
-- All 430 Node regression checks passed, with no failures or skips.
-- Native x86 and x64 runtime probes detected the actual installed Microsoft
-  libraries. Version boundaries and installer return-code handling also passed
-  compiled tests; the child-installer results in those cases were simulated.
-- A separate qualification installer installed and hash-checked 1,040 files,
-  opened the real native app with synthetic data, repaired an intentionally
-  damaged app file, and uninstalled. A user-created file and every synthetic
-  workspace byte survived. The qualification installer used a different app
-  identity and existing prerequisites, preserving the everyday installation.
-- App-only installation checked 992 files, omitted the model, skipped its C++
-  prerequisite check, and uninstalled successfully. Actual component-page size
-  labels were 3.86 GB for the full selection and 603.2 MB for app-only.
-- Four actual stock Qwen3.5-4B requests through the packaged Vulkan route checked
-  a streamed reply, correct red-circle/blue-square image description, Stop, and
-  a follow-up remembering a fictional garden after restarting the runner and
-  workspace. Prior synthetic messages and the unsent draft were retained.
-- Native immediate-close testing recovered the exact unsent draft and observed
-  graceful backend shutdown.
-- A packaged synthetic-provider journey from preview 2 checked retained state,
-  streaming, Stop, image handling, backup/separate recovery and missing-model
-  handling. Fixture replies are distinct from the actual Qwen checks above.
-- The reviewed source and each entry of the source, app-only and native-source
-  ZIPs matched their recorded manifests. The earlier native download-helper
-  tests covered 11 loopback cases, including cancellation, retry and corruption.
-  Those earlier helper tests are historical coverage; the preview 3 helper's
-  new installer hashes were checked, but its public GitHub route is still pending.
+- Actual final-candidate installation and bundled-model check on Windows 11.
+- Public download/helper delivery, anonymous hashes and website links.
 
-## Checks repeated from the separate public checkout
+The earlier preview 3 installer opened on the Windows 11 laptop with existing
+chats visible, as reported by its user; an Astra image conversation was also
+reported from that machine. That is prior-version evidence, not preview 5
+qualification. Earlier CPU and native download-helper fixture checks likewise
+retain their original version and test conditions.
 
-The locked JavaScript dependencies installed from the existing local cache with
-package scripts disabled. All 430 regression checks passed again. The native
-Windows project restored and built with zero warnings and zero errors, and all
-40 offline licence notices passed their check. These builds and tests used
-synthetic data; they did not open the everyday app or call a provider account.
+## Limits and recovery
 
-The publication file check compares the complete file set with the reviewed
-snapshot and the explicitly listed documentation additions. It also checks
-private-data patterns, root-guide links and the prepared website's versioned
-links, copyable prompt and checksums. A synthetic private-key-header rejection
-test is the one existing byte-pinned scan exception; it contains no key body.
+This is an early Windows x64 preview, not broad hardware certification. The
+model may make mistakes, including authorship or tool-use claims. Host-recorded
+attribution and tool receipts remain the relevant application evidence. The
+final Astra wording had one successful bounded behavioral recheck before this
+version; that does not establish universal model reliability.
 
-## Separate Windows 11 laptop
+Dream review/preparation are available; built-in training and scheduling are
+unfinished. PEACHES remains Coming later and issues no stamp or payment request.
+No Branchline account or purchase is required. Optional outside providers receive
+the context selected for them.
 
-The maintainer reports that the repaired candidate installed, opened, looked
-right and retained the existing chats. This is a user-reported result, not an
-independently reviewed new log or a full functional pass. A local reply, image,
-Stop and close/reopen with a draft still need to be tried on that machine.
-
-The preceding candidate failed its prerequisite check after the Microsoft
-installer reported success. The exact original failing condition was not
-reproduced on the development computer. The repaired Setup uses native x64
-checks and records each library and installer result separately; successful
-laptop installation does not by itself prove which old condition caused it.
-
-## Limits and the remaining release work
-
-This was not a clean-Windows or absent-prerequisite installation test. ARM64,
-other operating systems and broader hardware coverage remain unqualified.
-No new provider-account, private-model or Dream-training checks were run for
-this candidate. A generic full-state comparison with 0.8.0 failed on expected
-new Coat fields; a complete 0.8.0 migration/downgrade pass is not claimed.
-Preserve a verified workspace backup and the matching old app before updating.
-
-The installer release, signed-out public download/helper checks and website
-deployment remain pending. Hashes establish file identity; they do not replace
-publisher signing, complete security review or qualification on every computer.
-The first-party licence and component notices describe their respective scope.
-
-Report ordinary problems through [BUG-REPORT.md](BUG-REPORT.md). Private
-vulnerability reporting is enabled for this repository; see [SECURITY.md](SECURITY.md).
+Back up important work before updating. Keep the earlier app and a compatible
+workspace backup for rollback, preserving newer conversations separately.
+See START-HERE.md, PREVIEW-LIMITS.md, BUG-REPORT.md and SECURITY.md.

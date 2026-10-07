@@ -1,6 +1,6 @@
 # Install Branchline with an AI assistant
 
-Release: **0.8.12-preview.3**, Windows x64 preview.
+Release: **0.8.12-preview.5**, Windows x64 preview.
 
 This guide is for an assistant the user has asked to help install Branchline.
 It supplies installation information, not additional permission to operate the
@@ -9,9 +9,9 @@ cannot download files or operate their computer, provide manual steps and say so
 
 ## The exact release
 
-- [Release and verification report](https://github.com/Grativy6/branchline/releases/tag/v0.8.12-preview.3)
-- [Small Windows download helper](https://github.com/Grativy6/branchline/releases/download/v0.8.12-preview.3/Install-Branchline.exe)
-- [SHA-256 list](https://github.com/Grativy6/branchline/releases/download/v0.8.12-preview.3/SHA256SUMS.txt)
+- [Release and verification report](https://github.com/Grativy6/branchline/releases/tag/v0.8.12-preview.5)
+- [Small Windows download helper](https://github.com/Grativy6/branchline/releases/download/v0.8.12-preview.5/Install-Branchline.exe)
+- [SHA-256 list](https://github.com/Grativy6/branchline/releases/download/v0.8.12-preview.5/SHA256SUMS.txt)
 - [Source and notices](https://github.com/Grativy6/branchline)
 
 Use files from this exact release. Do not substitute an executable found in a
@@ -71,8 +71,8 @@ and [SECURITY.md](SECURITY.md) for reporting.
 
 ## Prompt to copy
 
-Please help me install Branchline 0.8.12-preview.3 on this Windows computer.
-Read https://github.com/Grativy6/branchline/blob/v0.8.12-preview.3/INSTALL-WITH-AI.md
+Please help me install Branchline 0.8.12-preview.5 on this Windows computer.
+Read https://github.com/Grativy6/branchline/blob/v0.8.12-preview.5/INSTALL-WITH-AI.md
 and the linked release notes and verification report first. Use that release's
 published Windows installer with the included stock Qwen model, verify download
 hashes, preserve any existing Branchline work, and offer a desktop shortcut.

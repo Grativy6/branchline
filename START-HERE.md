@@ -1,4 +1,4 @@
-# Welcome to Branchline v0.8.12-preview.3
+# Welcome to Branchline v0.8.12-preview.5
 
 ## Install and talk
 
@@ -9,7 +9,7 @@ See [INSTALL-WITH-AI.md](INSTALL-WITH-AI.md) if an assistant is helping you.
 
 **Offline installer:**
 
-1. Keep `Branchline-v0.8.12-preview.3-Setup.exe` and every matching `Setup-*.bin` part in the same folder. Open Setup.
+1. Keep `Branchline-v0.8.12-preview.5-Setup.exe` and every matching `Setup-*.bin` part in the same folder. Open Setup.
 2. Choose **Branchline with Qwen** (the default), or **App only** to bring your own model. Choose the install location; no separate Node.js or .NET installation is needed.
 3. On a fresh workspace the Personal chair contains **Qwen3.5-4B · Local**. Send a message. The first reply checks the included files and loads the model; later replies reuse it. The Visiting chair stays free.
 
