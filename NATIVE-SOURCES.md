@@ -4,7 +4,7 @@ Branchline uses Sharp and libvips to prepare selected pictures. The library
 code retains its own licences, including LGPL terms. Full notices are available
 offline in **Settings → About & licences**, and in `licenses/` beside the app.
 
-The **Branchline-v0.8.0-Native-Sources.zip** companion must be available beside
+The **Branchline-v0.8.12-preview.5-Native-Sources.zip** companion must be available beside
 the Windows download. `native-sources.json` identifies the exact archives,
 original URLs, versions, sizes and SHA-256 hashes. It includes:
 

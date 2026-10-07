@@ -69,8 +69,8 @@
     {
       "source": "docs/public/NATIVE-SOURCES.md",
       "path": "NATIVE-SOURCES.md",
-      "bytes": 2029,
-      "sha256": "ec76fa35560e67a021e0d9383e8e5ee386a897c869e5f002eec1d96a87f89663"
+      "bytes": 2040,
+      "sha256": "54f4e909fc63838ce0980bde943c3ab5012b4efab3fe22b6fe609eb0454574f7"
     },
     {
       "source": "docs/public/PREVIEW-LIMITS.md",
@@ -99,8 +99,8 @@
     {
       "source": "docs/public/NATIVE-SOURCES.md",
       "path": "docs/public/NATIVE-SOURCES.md",
-      "bytes": 2029,
-      "sha256": "ec76fa35560e67a021e0d9383e8e5ee386a897c869e5f002eec1d96a87f89663"
+      "bytes": 2040,
+      "sha256": "54f4e909fc63838ce0980bde943c3ab5012b4efab3fe22b6fe609eb0454574f7"
     },
     {
       "source": "docs/public/PREVIEW-LIMITS.md",
@@ -2319,14 +2319,14 @@
     {
       "source": "VERIFICATION.md",
       "path": "VERIFICATION.md",
-      "bytes": 3766,
-      "sha256": "bc9a751f3d536b08270acb155d2d9eddb98559d44a0f805e5cc81361c37e3e8e"
+      "bytes": 4815,
+      "sha256": "0c06fbd9de213dd7f7c12cc17365e92b20b2660a43b1f8d1dc7b16b6bf156051"
     },
     {
       "source": "docs/public/VERIFICATION.md",
       "path": "docs/public/VERIFICATION.md",
-      "bytes": 3766,
-      "sha256": "bc9a751f3d536b08270acb155d2d9eddb98559d44a0f805e5cc81361c37e3e8e"
+      "bytes": 4815,
+      "sha256": "0c06fbd9de213dd7f7c12cc17365e92b20b2660a43b1f8d1dc7b16b6bf156051"
     }
   ],
   "publication": {
@@ -2359,6 +2359,16 @@
         "path": "docs/public/RELEASE-NOTES.md",
         "reason": "Keep the public release-note template synchronized with retained history.",
         "reviewedSha256": "1dcb8d93f61821867250c690c64d38e00fe93c0e220bd7f3098efdacc2f0d7ce"
+      },
+      {
+        "path": "NATIVE-SOURCES.md",
+        "reason": "Correct the native-source companion filename for the preview 5 public release.",
+        "reviewedSha256": "ec76fa35560e67a021e0d9383e8e5ee386a897c869e5f002eec1d96a87f89663"
+      },
+      {
+        "path": "docs/public/NATIVE-SOURCES.md",
+        "reason": "Correct the native-source companion filename for the preview 5 public release.",
+        "reviewedSha256": "ec76fa35560e67a021e0d9383e8e5ee386a897c869e5f002eec1d96a87f89663"
       }
     ],
     "addedDocuments": [

@@ -1,7 +1,8 @@
 # Branchline 0.8.12-preview.5 verification
 
-Candidate status: local qualification passed; final Windows 11 check and
-public download verification pending. This document does not claim publication.
+Candidate status: development qualification and Windows 11 production installation
+passed. The laptop model check and public download verification are pending.
+This document does not claim publication.
 
 The application includes the preview 4 continuity wording and preview 3 Windows
 installer repair. This candidate aligns public guides and versioned packages.
@@ -35,10 +36,29 @@ Hearthline model, conversation, account or training data is distributed.
 - App-only installation verified 992 files without model files or a shared-runtime
   installation, then uninstalled successfully. These checks used existing Windows
   prerequisites and do not substitute for a clean-machine test.
+
+## Windows 11 laptop check, October 7, 2026
+
+- Windows 11 Home 10.0.26200 x64; AMD Ryzen 7 260 with Radeon 780M;
+  32 GB RAM, connected to power.
+- All 23 offline handoff checksums passed before execution. A closed copy of the
+  earlier app, workspace and shortcuts was preserved and hash-verified.
+- The production preview 5 full installer completed in the normal app location.
+  All three required C++ libraries were accepted; no restart was required.
+- The native app opened the existing workspace. A private saved-record comparison
+  found unchanged chats, messages, exchanges, models and draft after the update.
+  The user's visual confirmation remains pending.
+- The supplied laptop wrapper reused the name of an existing synthetic picture,
+  although its harness requires a new file. A separate corrected wrapper changes
+  only that output path to the new return folder. Candidate application bytes
+  and the original handoff files remain unchanged.
+
 ## Checks awaiting completion
 
-- Actual final-candidate installation and bundled-model check on Windows 11.
-- Public download/helper delivery, anonymous hashes and website links.
+- Final installed-file verification and bundled-model check on Windows 11.
+- Public download/helper delivery and anonymous hashes.
+
+The GitHub release page is the distribution entry point.
 
 The earlier preview 3 installer opened on the Windows 11 laptop with existing
 chats visible, as reported by its user; an Astra image conversation was also
