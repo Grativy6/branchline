@@ -19,6 +19,11 @@ export function inheritHarness(root, chat) {
 
 export function harnessSnapshot(state, chatId, seat = 'visiting') {
   const chat = state.chats.find(c => c.id === chatId);
+  if (chat?.seating) {
+    const resolved = resolvedCoat(state, chat, seat), preset = findHarness(resolved.ref, state);
+    fail(preset, 'The selected Coat is unavailable.');
+    return { profile:'branchline.chair-coat/1', selectionId:chat.seating.revisionId, shared:false, seat, key:resolved.key, mode:resolved.mode, ref:structuredClone(resolved.ref), preset:structuredClone(preset), hash:digest(preset), role:'response_guidance_only' };
+  }
   if (chat?.coatPolicy) {
     const resolved = resolvedCoat(state, chat, seat);
     const preset = findHarness(resolved.ref, state);
@@ -61,6 +66,7 @@ export function applyHarnessCommand(state, type, p) {
   }
   (chat.harnessSelections ??= []).push(revision(p.shared, p.personal, p.visiting));
   for (const seat of ['personal','visiting']) (chat.coatChoices ??= []).push(coatRecord(coatIdentity(state,chat,seat),'override',p[seat]));
+  if (chat.seating) { chat.seating.desk.coat=null; const visitor=chat.seating.visitors.find(c=>c.id===chat.seating.selectedVisitorId); if(visitor)visitor.coat=null; chat.seating.revisionId='seating_'+crypto.randomUUID(); }
 }
 
 function saveCustomHarness(state, type, p) {
@@ -140,6 +146,10 @@ export function validateHarnesses(state) {
   for (const turn of state.exchanges) {
     if (turn.harness === undefined) continue; // Old history has no retroactive selection.
     const h = turn.harness, chat = state.chats.find(c => c.id === turn.chatId);
+    if(h.profile === 'branchline.chair-coat/1') {
+      fail(turn.speaker?.profile === 'branchline.chair/2' && h.selectionId === turn.speaker.assignmentId && h.seat === turn.speaker.seat && digest(h.ref) === digest(turn.speaker.coat?.ref) && digest(h.preset) === h.hash && digest(findHarness(h.ref,state)) === h.hash && h.role === 'response_guidance_only', 'Recorded chair Coat changed.');
+      continue;
+    }
     if(h.profile === 'branchline.coat-selection/2') {
       const record = [...(state.coatUsuals??[]),...(chat?.coatChoices??[])].find(r=>r.id===h.selectionId);
       const legacy=chat?.harnessSelections?.find(r=>r.id===h.selectionId);
@@ -194,4 +204,5 @@ function selectCoat(state,type,p) {
   }
   fail((rows.filter(r=>r.key===p.key).at(-1)?.id??null)===p.baseId,'This selection changed. Your draft is retained; reopen its choices.');
   rows.push(coatRecord(p.key,mode,p.ref));
+  if (type==='harness.branch' && chat.seating) { for(const seat of ['personal','visiting']) if(coatIdentity(state,chat,seat)===p.key) { const chair=seat==='personal'?chat.seating.desk:chat.seating.visitors.find(c=>c.id===chat.seating.selectedVisitorId); if(chair)chair.coat=null; } chat.seating.revisionId='seating_'+crypto.randomUUID(); }
 }

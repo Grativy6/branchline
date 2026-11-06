@@ -1,0 +1,40 @@
+/* One Settings sidebar; pages replace only the workspace beside it. */
+.workspace { position:relative; isolation:isolate; }
+#settings-category-menu { position:absolute; top:var(--settings-nav-top,80px); bottom:var(--settings-nav-bottom,50px); left:0; right:0; z-index:20; padding:16px; overflow:hidden; background:var(--surface); display:flex; flex-direction:column; gap:6px; }
+#settings-category-menu h2 { margin:0 0 12px; font-size:19px; flex:none; }
+.settings-categories { flex:1; min-height:0; overflow:auto; scrollbar-gutter:stable; }
+#settings-category-menu button { display:block; width:100%; text-align:left; padding:11px 12px; margin:0 0 4px; border:0; border-radius:7px; background:transparent; color:var(--ink); }
+#settings-category-menu button:hover { background:var(--accent-wash); }
+#settings-category-menu button:focus-visible { outline:2px solid var(--focus); outline-offset:-2px; }
+#settings-category-menu button[aria-current=page] { background:var(--accent-wash); color:var(--accent-dark); font-weight:650; }
+.settings-open .branch-list,.settings-open .sidebar-bottom { visibility:hidden; }
+.settings-page:not([hidden]) { position:absolute; top:var(--settings-top,64px); bottom:0; left:0; right:0; z-index:2; display:flex; flex-direction:column; min-width:0; padding:24px 28px; background:var(--canvas); container:settings-space / inline-size; }
+#settings-page-title { flex:none; margin:0 0 20px; font-size:23px; }
+#settings-page-title:focus { outline:none; }
+.settings-page .settings-content { flex:1; min-height:0; min-width:0; overflow:auto; overflow-wrap:anywhere; padding:0 16px 32px 0; scrollbar-gutter:stable; }
+.settings-page .settings-content>form,.settings-page .settings-content>section { max-width:1000px; }
+.settings-page input:not([type=checkbox]):not([type=radio]),.settings-page select,.settings-page textarea { min-width:0; max-width:100%; }
+.settings-page pre { overflow:auto; }
+.settings-page-open .workspace>:not(.topbar):not(.settings-page) { visibility:hidden; }
+.settings-page-open .topbar { height:64px; min-height:64px; flex-wrap:nowrap; }
+.settings-page-open #conversation-header,.settings-page-open #details-toggle { display:none; }
+.settings-page-open #details-panel { display:none; }
+.file-path { overflow-wrap:anywhere; user-select:all; }
+@media(min-width:760px) {
+  .sidebar { position:relative; }
+  .settings-open .app-shell,.settings-open .app-shell.sidebar-collapsed { grid-template-columns:252px minmax(0,1fr); }
+  .settings-open:not(.settings-page-open) .app-shell.details-open { grid-template-columns:252px minmax(0,1fr) 320px; }
+  .settings-open .app-shell.sidebar-collapsed .sidebar { visibility:visible; padding:20px 14px 14px; border-right:1px solid var(--line); }
+}
+@media(min-width:760px) and (max-width:1099px) {
+  .settings-open:not(.settings-page-open) .app-shell.details-open { grid-template-columns:252px minmax(0,1fr); }
+}
+@media(max-width:759px) {
+  .settings-page:not([hidden]) { padding:20px 18px; }
+  .settings-page .settings-content { padding-right:4px; }
+}
+html[data-backdrop-active=true],html[data-backdrop-active=true] body,html[data-backdrop-active=true] .app-shell { background:transparent; }
+html[data-backdrop-active=true] .workspace,html[data-backdrop-active=true] .home-screen { background:color-mix(in srgb,var(--canvas) var(--background-opacity),transparent); }
+html[data-backdrop-active=true] .sidebar,html[data-backdrop-active=true] .topbar,html[data-backdrop-active=true] .settings-page { background:color-mix(in srgb,var(--surface-strong) var(--background-opacity),transparent); }
+html[data-backdrop-active=true] .message,html[data-backdrop-active=true] .settings-content { background:color-mix(in srgb,var(--surface-strong) 94%,transparent); border-radius:8px; }
+@media(forced-colors:active),(prefers-reduced-transparency:reduce) { html[data-backdrop-active=true] body,html[data-backdrop-active=true] .workspace,html[data-backdrop-active=true] .sidebar,html[data-backdrop-active=true] .topbar,html[data-backdrop-active=true] .settings-page { background:var(--canvas); } }

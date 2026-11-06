@@ -1,6 +1,6 @@
 # Branchline component notices
 
-These notices identify the components of the Windows v0.8 preview. They do
+These notices identify the components of the Windows 0.9.1-preview.2 preview. They do
 not replace the accompanying full licence texts or relicense these components
 under Branchline's Apache grant. Full texts are also available offline in
 **Settings → About & licences** and `public/licenses/`.
@@ -61,10 +61,16 @@ The complete notice documents and SHA-256 values are indexed in
 installed package versions and the fixed runtime references. Full dependency
 package files remain beside the binaries in the local preview.
 
-Source development also declares the MCP SDK and Zod, with their existing MIT
-licences supplied by those packages when installed. They are not copied into
-the current executable preview. An installer, runtime change or additional
-dependency must update the actual payload's inventory before publication.
+The runtime now also includes the MCP SDK 1.30.0 and Zod 4.6.5 with their
+dependency closure, Konva 10.9.0, and Playwright Core 1.62.1. Their original
+licences and notices are retained in the package and offline viewer.
+
+The Book, Home and continuity tools include CPython 3.12.14 and selected Python
+packages. Full retained texts are collected in `Book-Runtime-LICENSES.txt`,
+with original notices also present in their runtime package locations. The
+Book of PEACHES has its own LICENSE, NOTICE and SCOPE documents in the offline
+viewer. Its inclusion does not grant access to a person's books or signing key.
+The exact file inventory is recorded in the build manifest and runtime lock.
 
 The application licence is adopted. Candidate verification and public
 publication are separate steps; see `PREVIEW-LIMITS.md` and the release's

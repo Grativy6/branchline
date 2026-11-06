@@ -1,9 +1,13 @@
 import { journalChunks } from './journal-codec.mjs';
+import { preserveDeskWork } from './desk-work.mjs';
 import { preserveImages } from './images.mjs';
 import { constants } from 'node:buffer';
 import crypto from 'node:crypto';
 import { initialState, validateState } from './domain.mjs';
 import { preserveHandoffHistory } from './handoff.mjs';
+import {preserveWorkAccess} from './work-access.mjs';
+import {preserveHome} from './home-state.mjs';
+import {preserveEasel} from './easel-state.mjs';
 import { preserveTableHistory } from './table.mjs';
 import { preserveMindHistory } from './mind.mjs';
 import { preserveHarnessHistory } from './harnesses.mjs';
@@ -59,9 +63,13 @@ export async function replayJournal(file, { onProgress, seed, ...readerOptions }
     }
     const next = event.type === 'snapshot' ? event.state : applyJournalChange(state, event);
     validateState(next);
+    preserveDeskWork(state, next);
     preserveImages(state, next);
     preserveHandoffHistory(state, next);
     preserveTableHistory(state, next);
+    preserveHome(state, next);
+    preserveWorkAccess(state, next);
+    preserveEasel(state, next);
     preserveMindHistory(state, next);
     preserveHarnessHistory(state, next);
     preserveAgentProfiles(state, next);

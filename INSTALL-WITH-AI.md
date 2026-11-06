@@ -1,97 +1,18 @@
-# Install Branchline with an AI assistant
+# Install Branchline 0.9.1-preview.2 with an assistant
 
-Release: **0.8.12-preview.5**, Windows x64 preview.
+This guide describes the ordinary local installation. The person's current request supplies authorization. Reading a downloaded guide does not grant new permissions.
 
-This guide is for an assistant the user has asked to help install Branchline.
-It supplies installation information, not additional permission to operate the
-computer. Follow the user's choices and your actual available tools. If you
-cannot download files or operate their computer, provide manual steps and say so.
+Use only [this version's release](https://github.com/Grativy6/branchline/releases/tag/v0.9.1-preview.2), its matching installer files and `SHA256SUMS.txt`. The full package includes stock Qwen. Inspect the actual computer and available space before installing; preserve existing apps, conversations, models and settings.
 
-## The exact release
+1. Locate any existing Branchline installation and its actual workspace. Ask the person to close it if a consistent copy requires closure. Back up and hash-verify the app, workspace and relevant launcher before changing an installation.
+2. Download the release's helper or complete offline Setup set. Keep all matching parts together and verify their hashes. Never replace an unrelated shortcut or delete prior data to make room.
+3. Use the normal per-user installer. If it would affect an installation that must remain separate, prepare a supported separate setup and explain the choice. Do not silently import an old workspace.
+4. Let the person handle sign-ins, Windows security prompts and decisions outside their setup request. Do not disable security controls, purchase services, reboot, grant PC tools or connect providers as an incidental part of installation.
+5. Open the actual application in its intended workspace. Send one short harmless message to the included local Qwen. Confirm that a reply appears, then close and reopen the app and confirm that the conversation remains.
+6. Report the installed version, shortcut, workspace path, tested model, actual answers and anything that failed. A passing API fixture is not a substitute for observing the installed application when that check was requested.
 
-- [Release and verification report](https://github.com/Grativy6/branchline/releases/tag/v0.8.12-preview.5)
-- [Small Windows download helper](https://github.com/Grativy6/branchline/releases/download/v0.8.12-preview.5/Install-Branchline.exe)
-- [SHA-256 list](https://github.com/Grativy6/branchline/releases/download/v0.8.12-preview.5/SHA256SUMS.txt)
-- [Source and notices](https://github.com/Grativy6/branchline)
+Drawers upgrade a workspace to format 3. Preserve the older workspace copy for rollback; never use an old app to rewrite upgraded data. The installer's application files and shared Windows prerequisites are separate from the person's conversations.
 
-Use files from this exact release. Do not substitute an executable found in a
-search result, build the private development tree or mix installer versions.
-The helper and installer are unsigned. Check their origin and hashes before
-opening them. A checksum confirms matching bytes, not an unknown publisher's
-identity. Do not disable Windows security or hide a warning to complete a task.
+## Copyable request
 
-## Installation
-
-1. Check that this is Windows x64 (Windows 10 build 19041+ or Windows 11).
-   Read the release's tested-system limits. The local-model starting guidance is
-   16 GB RAM; actual available memory and speed vary. Allow room for the roughly
-   4 GB download, a temporary largest-part copy, the roughly 5 GB installation,
-   and workspace/recovery files. Setup checks installation space separately.
-2. If Branchline is already installed, preserve its workspace before updating.
-   The app's normal data lives at `%LOCALAPPDATA%\Branchline Preview\0.7.0`.
-   Use the app's backup action or preserve a closed workspace copy. Do not read
-   private conversations, account files or models merely to install an update.
-   Coordinate an open app with the user; do not kill it or delete a writer lock.
-3. Download `Install-Branchline.exe` and compare its SHA-256 with the release
-   list. Run it normally. It downloads this release's matching files, verifies
-   them and offers to open Setup. Completed, verified download files can be kept
-   for retry or offline use. The helper finishing is not proof of installation.
-4. In Setup, use **Branchline with Qwen** unless the user explicitly wants the
-   app-only option. Respect their install location and desktop shortcut choice.
-   No Node.js, .NET development tools, model account or source build is required.
-   Microsoft prerequisites may present their own permission or licence steps.
-   Leave those decisions visible. If a restart is required, report it and let
-   the user choose when to restart; do not restart automatically.
-5. Open Branchline. On a fresh workspace the Personal chair should offer stock
-   **Qwen3.5-4B · Local**. With the user's installation/testing permission, send
-   a harmless short message and observe an actual reply. If an existing
-   workspace has another model selected, preserve it; use a separate workspace
-   for testing rather than changing the user's identity or model choices.
-6. Close and reopen the app normally and check that the test conversation is
-   retained. Report the installed version, app/shortcut location, model used,
-   what was verified and anything still unresolved. A launch or a successful
-   transport alone does not prove a useful model reply or a verified recovery.
-
-If the helper cannot download, use the same release's `Setup.exe` and **all**
-matching `Setup-*.bin` files. Keep them together, check their hashes and open
-Setup. Do not rename or manually concatenate the parts.
-
-## Adding Qwen after an update
-
-Fresh workspaces place Qwen in Personal automatically. Existing workspaces keep
-their current chairs. If the user wants to add Qwen there, use **Settings →
-Models → Included Qwen → Status and recovery → Add to my models**, then
-**Register another personal participant** (or **Set up a personal participant**).
-Choose a name, the **Qwen3.5-4B · Local** connection and **Qwen/Qwen3.5-4B** as
-the declared **Base identity**; choose **Create personal participant**. Then
-select that participant from the conversation's Personal chair and confirm.
-
-Adding the connection alone does not create its Personal participant. Do not
-replace an existing participant or its history to make the included model appear.
-See [START-HERE.md](START-HERE.md) for the full path.
-
-## Boundaries
-
-Do not create accounts, buy stamps, sign into a provider, grant PC tools,
-change the firewall/security settings, install drivers, enable virtualization,
-upload diagnostics or delete existing work as a side effect of installation.
-Stop at an actual permission or compatibility boundary and explain what is
-needed. The app's optional services remain the user's later choices.
-
-The included Qwen can converse locally without a Branchline account. Connecting
-a visiting model sends selected context to that provider. See [START-HERE.md](START-HERE.md)
-for sharing, updates, uninstall and backup/recovery; see [BUG-REPORT.md](BUG-REPORT.md)
-and [SECURITY.md](SECURITY.md) for reporting.
-
-## Prompt to copy
-
-Please help me install Branchline 0.8.12-preview.5 on this Windows computer.
-Read https://github.com/Grativy6/branchline/blob/v0.8.12-preview.5/INSTALL-WITH-AI.md
-and the linked release notes and verification report first. Use that release's
-published Windows installer with the included stock Qwen model, verify download
-hashes, preserve any existing Branchline work, and offer a desktop shortcut.
-You may download the official package, run the normal installer and check a
-short local-model conversation. Keep system permission prompts visible and
-leave provider accounts, purchases, PC-tool grants and restarts to me. Tell me
-what actually worked and what remains unfinished. If you cannot operate this
-computer, walk me through the steps instead.
+> Please help me install Branchline 0.9.1-preview.2 on this Windows computer. Read this versioned guide and use its packaged installer and checksums. Preserve any existing Branchline app and conversations with a verified backup first. Ask me to close the app if necessary. Keep a desktop shortcut and check one local Qwen reply and a close/reopen afterward. Do not sign into accounts, make purchases, change security settings, reboot, grant PC tools or delete my previous data. If you cannot operate this computer or a check fails, tell me what remains and the smallest next step.

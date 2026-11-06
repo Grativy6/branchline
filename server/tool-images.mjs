@@ -9,6 +9,7 @@ export async function withToolImage(result,bytes,signal) {
   if(!['png','jpeg'].includes(info.format)||!info.width||!info.height||info.width>2048||info.height>2048||info.pages>1)throw new Error('Unsupported tool image.');
   signal?.throwIfAborted();images.set(result,'data:image/'+info.format+';base64,'+bytes.toString('base64'));return result;
 }
+export function toolImageUrl(result,signal){signal?.throwIfAborted();return images.get(result)??null;}
 export function codexToolContent(result,signal) {
   signal?.throwIfAborted();const url=images.get(result);
   return [{type:'inputText',text:JSON.stringify(result)},...(url?[{type:'inputImage',imageUrl:url}]:[])];

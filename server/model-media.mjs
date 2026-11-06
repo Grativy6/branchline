@@ -1,9 +1,10 @@
 import fs from 'node:fs/promises';
+import { OPENAI_MODELS, validateOpenAI } from './openai-input.mjs';
 import crypto from 'node:crypto';
 import { digest } from './integrity.mjs';
 import { CODEX_CATALOG, CODEX_CATALOG_SHA256 } from './codex-policy.mjs';
 import { resolveSpeaker } from './table.mjs';
-import { activeImageIds, selectedImages, imageReference } from './images.mjs';
+import { activeImageIds, selectedImages, imageReference, imageSelectionRevision } from './images.mjs';
 
 const fail = (ok, message) => { if (!ok) throw new Error('Pictures: ' + message); };
 const liveClearances = new WeakSet();
@@ -28,6 +29,7 @@ export function localImageMessages(messages, imageData) {
 }
 export async function imageCapability(model) {
   fail((model.inputFormat ?? 'chat') === 'chat', `${model.name} uses a text-only connection. Choose a vision-capable chair or remove the pictures from the next reply.`);
+  if (model.runtime === 'openai') {validateOpenAI(model);fail(OPENAI_MODELS[model.model]?.vision,'this API model has no reviewed image route.');return {profile:MEDIA_PROFILE,route:'openai-responses-image-data-url',source:'reviewed_official_model_profile',loadedTokens:OPENAI_MODELS[model.model].window,imageTokensEach:16384,budgetBasis:'conservative_image_allowance_not_exact_tokenizer_count',destination:'OpenAI API',remote:true};}
   if (model.runtime === 'codex') {
     const bytes = await fs.readFile(CODEX_CATALOG);
     fail(crypto.createHash('sha256').update(bytes).digest('hex') === CODEX_CATALOG_SHA256, 'the reviewed Codex capability catalogue changed.');
@@ -58,6 +60,9 @@ export async function imageCapability(model) {
 // image, history record nor a model can manufacture the live clearance below.
 export class ImagePlans {
   constructor({ capability = imageCapability } = {}) { this.plans = new Map(); this.capability = capability; }
+  invalidateBundledWindow() {
+    for (const [id, plan] of this.plans) if (plan.routes.some(route => route.capability.route === 'bundled-chat-image-data-url')) this.plans.delete(id);
+  }
   async prepare(state, { chatId, speaker = null, replyMode = 'single' }) {
     fail(['single', 'both', 'alternate'].includes(replyMode), 'unknown reply mode.');
     const images = selectedImages(state, chatId), first = resolveSpeaker(state, chatId, speaker);
@@ -66,12 +71,12 @@ export class ImagePlans {
     if (replyMode === 'both') chosen.push(resolveSpeaker(state, chatId, first.selection?.seat === 'personal' ? 'visiting' : 'personal'));
     const routes = [];
     for (const choice of chosen) routes.push({ modelId: choice.model.id, modelName: choice.model.name, modelHash: digest(choice.model), selectionHash: digest(choice.selection),
-      seat: choice.selection?.seat ?? null, capability: await this.capability(choice.model) });
+      seat: choice.selection?.seat ?? null, capability: await this.capability(choice.model,state) });
     const id = 'imageplan_' + crypto.randomUUID();
     for (const [key, value] of this.plans) if (value.expires < Date.now()) this.plans.delete(key);
     // At most one current plan per branch; older clicks cannot accumulate grants.
     for (const [key, value] of this.plans) if (value.chatId === chatId) this.plans.delete(key);
-    const plan = { id, chatId, ids: images.map(i => i.id), imageHash: digest(images.map(imageReference)), routes, expires: Date.now() + 300000, firstExchange: null, uses: new Set() };
+    const plan = { id, chatId, ids: images.map(i => i.id), selectionRevision: imageSelectionRevision(state, chatId), imageHash: digest(images.map(imageReference)), routes, expires: Date.now() + 300000, firstExchange: null, uses: new Set() };
     this.plans.set(id, plan);
     return { id, chatId, images: images.map(i => ({ id: i.id, name: i.name, width: i.view.width, height: i.view.height })), routes,
       imageTokenAllowance: images.length * Math.max(...routes.map(r => r.capability.imageTokensEach)), note: 'Only selected PNG viewing copies are sent. Original files stay on this device.' };
@@ -80,8 +85,9 @@ export class ImagePlans {
     const ids = activeImageIds(state, body.chatId);
     if (!ids.length && !body.imagePlanId) return null;
     const plan = this.plans.get(body.imagePlanId);
-    fail(plan && plan.expires > Date.now() && plan.chatId === body.chatId && digest(plan.ids) === digest(ids), 'picture selection or sharing route changed. Review the destination and send again.');
-    const images = selectedImages(state, body.chatId, ids);
+    fail(plan && plan.expires > Date.now() && plan.chatId === body.chatId && plan.selectionRevision === imageSelectionRevision(state, body.chatId)
+      && (body.followUpOf ? plan.firstExchange === body.followUpOf : digest(plan.ids) === digest(ids)), 'picture selection or sharing route changed. Review the destination and send again.');
+    const images = selectedImages(state, body.chatId, plan.ids);
     fail(digest(images.map(imageReference)) === plan.imageHash, 'selected picture changed.');
     const route = plan.routes.find(r => r.modelHash === digest(checked.model) && r.selectionHash === digest(checked.selection));
     fail(route && !plan.uses.has(route.seat ?? route.modelId), 'this model destination was not cleared for these pictures.');
@@ -92,6 +98,7 @@ export class ImagePlans {
     if (!checked) return null;
     const { plan, images, route } = checked;
     plan.uses.add(route.seat ?? route.modelId); plan.firstExchange ??= exchangeId;
+    if(route.capability.route==='selected_vision_tool')return null;
     const clearance = Object.freeze({ chatId: plan.chatId, modelHash: route.modelHash, imagesHash: digest(images.map(imageReference)), capability: route.capability });
     liveClearances.add(clearance); return clearance;
   }

@@ -1,10 +1,16 @@
 import { applyArchiveCommand, validateModelArchives, assertModelAvailable } from './model-archives.mjs';
+import { validateDeskWork } from './desk-work.mjs';
+import { assertChairAvailable } from './table.mjs';
+import { chairView } from '../public/chair-roster.js';
 import { isModelArchived } from '../public/model-archives.js';
 import { visiblePersonalModels } from '../public/dream-records.js';
 import crypto from 'node:crypto';
+import {validatePeaches} from './peaches.mjs';
+import {validateEasel} from './easel-state.mjs';
+import {validatePersonalContext} from './personal-context.mjs';
 import { applyDreamCommand, validateDreamHistory } from './dream-history.mjs';
 import { digest } from './integrity.mjs';
-import { checkResources, checkCarrySettings } from '../public/resource-settings.js';
+import { checkResources, checkCarrySettings, isBundledContext } from '../public/resource-settings.js';
 import { resolveRecorder } from './carry-recorder.mjs';
 import { validSettingsSize } from '../public/settings-size.js';
 import { validToyShelf } from '../public/toy-shelf.js';
@@ -12,12 +18,14 @@ import { validateCoatDraft } from '../public/coat-draft.js';
 import { checkSketchDraft } from '../public/sketch-format.js';
 import { validateSketchBook, applySketchCommand, transferSketch } from './sketches.mjs';
 import { validatePc } from './pc-permissions.mjs';
+import {validateNav} from './nav-state.mjs';
 import { applyImageConnection, validateImageConnection } from './image-provider.mjs';
 import { assertBundledProfile } from './bundled-profile.mjs';
 import { validateImages } from './images.mjs';
 import { validateReplyMetrics } from './reply-metrics.mjs';
 import { messageInfoKeys } from '../public/message-info.js';
 import { validateParallel, applyAgentSettings } from './parallel-state.mjs';
+import { validatePony, applyPonyCommand } from './pony-state.mjs';
 import { hearthDisplay } from './hearth-state.mjs';
 import { validateCarry, applyCarryCommand } from './context-carry.mjs';
 import { CODEX_ADDRESS } from './codex-policy.mjs';
@@ -27,6 +35,9 @@ import { validateReplyProvenance } from './reply-provenance.mjs';
 import { validateTables, applyTableCommand, assertInferenceIdle, assertReplyAvailable, currentAssignment, resolveSpeaker } from './table.mjs';
 import { validateMind, applyMindCommand } from './mind.mjs';
 import { isResponseMode, responseModeFor } from './response-mode.mjs';
+import { validateOpenAI } from './openai-input.mjs';
+import {validateWorkAccess} from './work-access.mjs';
+import {validateHome} from './home-state.mjs';
 import { validateLoopback } from './model.mjs';
 import { MODEL_INPUT_FORMATS } from './model-format.mjs';
 import { validateHarnesses, applyHarnessCommand, inheritHarness, harnessSnapshot, migrateCoats } from './harnesses.mjs';
@@ -37,8 +48,9 @@ const MODES = new Set(['personal', 'fs']);
 const EXCHANGE_STATUSES = new Set(['pending', 'completed', 'failed', 'cancelled']);
 const ROLES = new Set(['user', 'assistant']);
 const REPLY_LENGTHS = new Set(['short', 'medium', 'long']);
-const MODEL_RUNTIMES = new Set(['compatible', 'lmstudio', 'codex', 'bundled']);
+const MODEL_RUNTIMES = new Set(['compatible', 'lmstudio', 'codex', 'bundled', 'openai']);
 function validateModelRoute(model) {
+  if(model.runtime==='openai')return validateOpenAI(model);
   if (model.runtime === 'bundled') return assertBundledProfile(model);
   if (model.runtime !== 'codex') return validateLoopback(model.baseUrl);
   if (model.baseUrl !== CODEX_ADDRESS || model.thinking === true || (model.inputFormat && model.inputFormat !== 'chat')) throw new Error('Codex uses the fixed ChatGPT subscription connection.');
@@ -85,9 +97,16 @@ function assertUniqueIds(items, label) {
 }
 
 export function validateState(state) {
-  assert(isObject(state) && state.schemaVersion === 1, 'malformed state');
+  validateDeskWork(state);
+  if(state.plans&&(state.plans.profile!=='branchline.plans/1'||!Array.isArray(state.plans.items)||!Array.isArray(state.plans.runs)))throw new Error('Invalid Plans records.');
+  validateEasel(state);
+  validatePeaches(state);
+  validatePersonalContext(state);
+  assert(isObject(state) && [1,2,3].includes(state.schemaVersion), 'This workspace needs a supported Branchline version.');
+  assert(state.schemaVersion!==3||state.deskWork?.profile==='branchline.desk-work/1','The shared-desk workspace is missing its work records.');
+  assert(state.schemaVersion!==2||state.easel?.profile==='branchline.easel/1','The newer workspace is missing its Easel records.');
   for (const root of state.roots || []) if (root.resources !== undefined) checkResources(root.resources);
-  for (const chat of state.chats || []) { if (chat.carrySettings !== undefined) checkCarrySettings(chat.carrySettings);
+  for (const chat of state.chats || []) { assert(chat.contextPolicy===undefined||chat.contextPolicy===2,'invalid conversation policy'); if (chat.carrySettings !== undefined) checkCarrySettings(chat.carrySettings);
     if (chat.carryWriter !== undefined && chat.carryWriter !== null) assert(/^[a-f0-9]{64}$/.test(chat.carryWriter), 'invalid recorder binding'); }
   for (const name of ['roots', 'chats', 'messages', 'exchanges', 'models']) {
     assertUniqueIds(state[name], name);
@@ -95,9 +114,11 @@ export function validateState(state) {
   validateImages(state);
   validateSketchBook(state);
   validatePc(state);
+  validateNav(state);
   validateImageConnection(state);
   assert(isObject(state.drafts), 'drafts must be an object');
   assert(isObject(state.ui), 'ui must be an object');
+  if (state.ui.bundledContextTokens !== undefined) assert(isBundledContext(state.ui.bundledContextTokens), 'invalid included-model context preference');
   assert(MODES.has(state.ui.mode) && typeof state.ui.sidebarCollapsed === 'boolean', 'invalid ui state');
   assert(isObject(state.ui.selected), 'invalid ui selection');
   if (state.ui.coatChangeWarning !== undefined) assert(typeof state.ui.coatChangeWarning === 'boolean', 'invalid Coat-change warning preference');
@@ -114,7 +135,7 @@ export function validateState(state) {
   if (state.ui.coatDraft !== undefined) validateCoatDraft(state.ui.coatDraft);
   if (state.ui.messageInfo !== undefined) validateMessageInfo(state.ui.messageInfo);
   if (state.ui.appearance !== undefined) {
-    assert(isObject(state.ui.appearance) && Object.keys(state.ui.appearance).every(key => ['theme', 'reading'].includes(key)), 'invalid appearance settings');
+    assert(isObject(state.ui.appearance) && Object.keys(state.ui.appearance).every(key => ['theme', 'reading', 'transparency'].includes(key)), 'invalid appearance settings');
     assert(['garden', 'starlight', 'paper'].includes(state.ui.appearance.theme) && ['standard', 'relaxed', 'large'].includes(state.ui.appearance.reading), 'unknown appearance choice');
   }
   const roots = new Map(state.roots.map(r => [r.id, r]));
@@ -179,7 +200,7 @@ export function validateState(state) {
     assert(exchange.responseMode === undefined || exchange.responseMode === null || isResponseMode(exchange.responseMode), 'invalid recorded response mode');
     assert(chats.has(exchange.chatId), 'exchange chat ref missing'); ensureId(exchange.modelId, 'exchange modelId'); ensureText(exchange.modelIdentifier, 'exchange modelIdentifier', 200); ensureText(exchange.modelBaseUrl, 'exchange modelBaseUrl', 500); assert(exchange.modelIdentifier.trim() && exchange.modelBaseUrl.trim(), 'exchange runtime model fields required');
     if (exchange.status === 'pending') {
-      assert(!state.exchanges.some(other => other !== exchange && other.chatId === exchange.chatId && other.status === 'pending'), 'multiple pending exchanges');
+      assert(!state.exchanges.some(other => other !== exchange && other.chatId === exchange.chatId && other.status === 'pending' && (!exchange.speaker?.chairId || !other.speaker?.chairId || exchange.speaker.chairId === other.speaker.chairId)), 'multiple pending exchanges for one chair');
     }
     const exchangeRoot = roots.get(chats.get(exchange.chatId).rootId);
     if (exchange.instructionRevisionId !== null) assert(exchangeRoot.instructions.some(instruction => instruction.id === exchange.instructionRevisionId), 'exchange instruction ref missing');
@@ -226,6 +247,7 @@ export function validateState(state) {
   }
   validateSelectedFiles(state);
   validateTables(state);
+  validateHome(state);validateWorkAccess(state);
   validateDreamHistory(state);
   validateHarnesses(state);
   validateAgentProfiles(state);
@@ -233,6 +255,7 @@ export function validateState(state) {
   validateModelArchives(state);
   validateCarry(state);
   validateParallel(state);
+  validatePony(state);
   return true;
 }
 
@@ -274,6 +297,11 @@ export function applyCommand(state, command) {
     requireRoot(s, p.id).resources = clone(checkResources(p.resources));
     validateState(s); return s;
   }
+  if(type==='chat.contextPolicy'){
+    if(s.exchanges.some(e=>e.chatId===p.id&&e.status==='pending'))throw new Error('This desk is working; keep its current context policy.');assert(Object.keys(p).sort().join()==='id,policy'&&p.policy===2,'invalid conversation policy');const chat=requireChat(s,p.id);chat.contextPolicy=2;
+    if(chat.carrySettings===undefined){try{const writer=resolveRecorder(s,p.id,'personal').model;chat.carrySettings={automatic:true,speaker:'personal',review:false,nearPopup:false,showCount:true};chat.carryWriter=digest(writer);}catch{/* A missing Desk Model waits for an explicit recorder choice. */}}
+    validateState(s);return s;
+  }
   if (type === 'chat.carrySettings') {
     assertInferenceIdle(s);
     assert(Object.keys(p).sort().join() === 'id,settings', 'invalid conversation settings');
@@ -283,6 +311,7 @@ export function applyCommand(state, command) {
     validateState(s); return s;
   }
   if (type === 'parallel.settings') { applyAgentSettings(s, p); validateState(s); return s; }
+  if (type.startsWith('pony.task.')) { applyPonyCommand(s,type,p); validateState(s); return s; }
   if (type.startsWith('image-provider.')) { applyImageConnection(s, type, p); validateState(s); return s; }
   if (type.startsWith('carry.')) { applyCarryCommand(s, type, p); validateState(s); return s; }
   if (type.startsWith('harness.')) { applyHarnessCommand(s, type, p); validateState(s); return s; }
@@ -407,6 +436,7 @@ export function applyCommand(state, command) {
     const existing = p.id ? s.models.find(m => m.id === p.id) : null;
     if(existing && (existing.model!==identifier || existing.baseUrl!==baseUrl) && (s.coatUsuals??[]).some(r=>r.key==='model:'+existing.id) && p.coatRetarget!=='keep') throw new Error('This connection has a usual Coat. Explicitly keep it, or save a separate connection for the new model.');
     if (existing && isModelArchived(s,existing.id)) throw new Error('Return this archived connection to the active list before editing it.');
+    if(existing && (existing.runtime==='openai')!==((p.runtime??existing.runtime)==='openai'))throw new Error('Save a separate connection when changing API billing routes.');
     if (existing && (existing.runtime === 'bundled') !== ((p.runtime ?? existing.runtime) === 'bundled')) throw new Error('Save a separate connection when changing the included model.');
     validateModelRoute({ ...existing, ...p, baseUrl, runtime: p.runtime ?? existing?.runtime });
     if (existing && (existing.runtime === 'codex') !== (p.runtime === 'codex' || (!p.runtime && existing.runtime === 'codex'))) throw new Error('Save a separate connection when changing between local and subscription models.');
@@ -423,7 +453,7 @@ export function applyCommand(state, command) {
     if (s.modelArchives?.some(r=>r.modelId===p.id)) throw new Error('Keep this saved connection for its archive history. Archive it to hide it from active use.');
     ensureId(p.id, 'id');
     if (!s.models.some(m => m.id === p.id)) throw new Error('model not found');
-    if ((s.personalParticipants || []).some(personal => personal.connections.at(-1).modelId === p.id) || s.chats.some(chat => currentAssignment(s, chat.id)?.visitorModelId === p.id)) throw new Error('This model occupies a chair. Change its assignment before removing the connection.');
+    if ((s.personalParticipants || []).some(personal => personal.connections.at(-1).modelId === p.id) || s.chats.some(chat => currentAssignment(s, chat.id)?.visitorModelId === p.id || chat.seating && [chat.seating.desk, ...chat.seating.visitors].some(c => c.modelId === p.id))) throw new Error('This model occupies a chair. Change its assignment before removing the connection.');
     if (s.exchanges.some(e => e.status === 'pending' && e.modelId === p.id) || s.roots.some(root => root.continuity?.jobs?.some(job => job.status === 'pending' && job.modelId === p.id))) throw new Error('model locked during active work');
     for (const root of s.roots) if (root.modelId === p.id) root.modelId = null;
     s.models = s.models.filter(m => m.id !== p.id);
@@ -451,9 +481,9 @@ export function applyCommand(state, command) {
       s.ui.messageInfo = Object.fromEntries(messageInfoKeys.map(key => [key, p.messageInfo[key]]));
     }
     if (p.appearance !== undefined) {
-      assert(isObject(p.appearance) && Object.keys(p.appearance).every(key => ['theme', 'reading'].includes(key)), 'invalid appearance settings');
+      assert(isObject(p.appearance) && Object.keys(p.appearance).every(key => ['theme', 'reading', 'transparency'].includes(key)), 'invalid appearance settings');
       assert(['garden', 'starlight', 'paper'].includes(p.appearance.theme) && ['standard', 'relaxed', 'large'].includes(p.appearance.reading), 'unknown appearance choice');
-      s.ui.appearance = { theme: p.appearance.theme, reading: p.appearance.reading };
+      s.ui.appearance = { theme: p.appearance.theme, reading: p.appearance.reading, ...('transparency' in p.appearance?{transparency:Number.isFinite(Number(p.appearance.transparency))?Math.max(0,Math.min(90,Math.round(Number(p.appearance.transparency)))):0}:{}) };
     }
     if (p.mode !== undefined) {
       if (!MODES.has(p.mode)) throw new Error('invalid mode');
@@ -508,7 +538,11 @@ export function appendExchange(state, chatId, exchange) {
   const model = s.models.find(m => m.id === exchange.modelId);
   if (!model) throw new Error('model not found');
   assertModelAvailable(s,model.id);
-  assertReplyAvailable(s, model);
+  if (exchange.request?.deskTaskId) {
+    const task=s.deskWork?.tasks.find(t=>t.id===exchange.request.deskTaskId);
+    if(!task||task.chatId!==chatId||task.chairId!==exchange.speaker?.chairId||task.requestId!==exchange.request.id)throw new Error('Invalid admitted chair task.');
+    assertChairAvailable(s,chatId,task.chairId);
+  } else assertReplyAvailable(s, model);
   const asking = exchange.request?.kind === 'ask';
   const content = ensureText(exchange.content ?? '', 'content', 200000);
   if (!asking && !content.trim()) throw new Error('content required');
@@ -520,7 +554,7 @@ export function appendExchange(state, chatId, exchange) {
   const record = { id: exchange.id ?? id('exchange'), chatId, status: 'pending', error: null, createdAt: now(), modelId: model.id,
     modelLabel: exchange.modelLabel ?? model.name, modelIdentifier, modelBaseUrl, instructionRevisionId: revision?.id ?? null,
     responseMode: responseModeFor(s, chatId),
-    harness: harnessSnapshot(s, chatId, exchange.speaker?.seat ?? 'visiting'),
+    harness: harnessSnapshot(chairView(s,chatId,exchange.speaker?.chairId), chatId, exchange.speaker?.seat ?? 'visiting'),
     ...(agentProfileSnapshot(s, exchange.speaker) ? { agentProfile: agentProfileSnapshot(s, exchange.speaker) } : {}),
     replyLength: exchange.replyLength ?? root.replyLength ?? 'short', thinking: exchange.thinking ?? model.thinking ?? false,
     runtime: exchange.runtime ?? model.runtime ?? 'compatible', inputFormat: model.inputFormat ?? 'chat', heartRevisionId: continuity.heartRevisionId, memoryEntryIds: continuity.memoryEntryIds,

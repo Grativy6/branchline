@@ -6,7 +6,7 @@ import os from 'node:os';
 import net from 'node:net';
 import { spawn } from 'node:child_process';
 import { setTimeout as delay } from 'node:timers/promises';
-import { BUNDLED_PROFILE, BUNDLED_CONTEXT, BUNDLED_IMAGE_TOKENS, assertBundledProfile } from './bundled-profile.mjs';
+import { BUNDLED_PROFILE, BUNDLED_CONTEXT, BUNDLED_IMAGE_TOKENS, assertBundledProfile, isBundledContext } from './bundled-profile.mjs';
 
 const modelFile = 'Qwen3.5-4B-Q4_K_M.gguf', projectorFile = 'mmproj-Qwen3.5-4B-BF16.gguf';
 const expected = { [modelFile]: '25082a7dd3776cc3c741c6347d3bd04523f05796607b3fbc32fa3a25dfa1418c',
@@ -32,8 +32,10 @@ async function regular(root, relative) {
 }
 
 export class BundledRunner {
-  constructor(root, { startTimeoutMs = 180000, spawnProcess = spawn, allocatePort = freePort, platform = process.platform, architecture = process.arch } = {}) {
+  constructor(root, { startTimeoutMs = 180000, spawnProcess = spawn, allocatePort = freePort, platform = process.platform, architecture = process.arch, contextTokens = BUNDLED_CONTEXT } = {}) {
+    if (!isBundledContext(contextTokens)) throw new Error('Choose a supported included-model window.');
     this.root = path.resolve(root); this.startTimeoutMs = startTimeoutMs; this.spawnProcess = spawnProcess; this.allocatePort = allocatePort;
+    this.contextTokens = contextTokens; this.loadedContextTokens = null; this.changing = false;
     this.platform = platform; this.architecture = architecture; this.child = null; this.port = null; this.token = null;
     this.loading = null; this.loadAbort = null; this.requests = 0; this.closed = false; this.preference = 'auto'; this.verified = false;
     this.state = { available: false, phase: 'unavailable', message: 'The included Qwen files are not installed.', backend: null };
@@ -57,7 +59,12 @@ export class BundledRunner {
     this.state = { available: true, phase: 'idle', message: 'Ready to load when you send a message. Replies stay on this device.', backend: null };
     return this;
   }
-  status() { return { ...this.state, preference: this.preference, busy: this.requests > 0 || !!this.loading, contextTokens: BUNDLED_CONTEXT }; }
+  status() { return { ...this.state, preference: this.preference, busy: this.requests > 0 || !!this.loading || this.changing,
+    changing: this.changing, contextTokens: this.contextTokens, loadedContextTokens: this.loadedContextTokens }; }
+  restoreContext(contextTokens) {
+    if (!isBundledContext(contextTokens) || this.child || this.loading || this.requests || this.changing) throw new Error('The included-model window cannot be restored.');
+    this.contextTokens = contextTokens;
+  }
   update(phase, message, onStatus, extra = {}) { this.state = { ...this.state, phase, message, ...extra }; onStatus?.(this.status()); }
   async verify(signal, onStatus) {
     if (this.verified) return;
@@ -83,11 +90,12 @@ export class BundledRunner {
     const file = await regular(this.root, projectorFile);
     if ((await fs.stat(file)).size !== row.bytes) throw fail('The included vision file is incomplete.');
     return { profile: 'branchline.direct-image-input/1', route: 'bundled-chat-image-data-url', source: 'pinned_model_and_qualified_runtime',
-      loadedTokens: BUNDLED_CONTEXT, imageTokensEach: BUNDLED_IMAGE_TOKENS,
+      loadedTokens: this.loadedContextTokens ?? this.contextTokens, contextVerified: this.loadedContextTokens !== null, imageTokensEach: BUNDLED_IMAGE_TOKENS,
       budgetBasis: 'enforced_image_max_tokens_plus_separate_text_margin', destination: 'Included Qwen on this device', remote: false };
   }
   async ensure(signal, onStatus) {
     signal?.throwIfAborted();
+    if (this.changing) throw fail('The included Qwen window is changing. Try again shortly.');
     if (this.closed) throw fail('The local runner is closing.');
     if (!this.state.available) throw fail('The included Qwen files are not installed. Run the full Setup to add them.');
     if (this.state.phase === 'ready' && this.child?.exitCode === null) return;
@@ -107,6 +115,7 @@ export class BundledRunner {
     if (this.platform !== 'win32' || this.architecture !== 'x64') throw fail('This included runtime supports Windows x64.');
     if (os.freemem() < 4 * 1024 ** 3) throw fail('Qwen needs more free memory. Close another large app and try again.');
     await this.verify(signal, onStatus);
+    const requestedContext = this.contextTokens;
     const backends = this.preference === 'cpu' ? ['cpu'] : ['vulkan', 'cpu'];
     for (const backend of backends) {
       signal.throwIfAborted();
@@ -117,9 +126,9 @@ export class BundledRunner {
         const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^(LLAMA_|GGML_|HF_|CUDA_|VK_|NODE_OPTIONS$)/i.test(key)));
         env.LLAMA_API_KEY = this.token;
         const args = ['-m', path.join(this.root, modelFile), '--mmproj', path.join(this.root, projectorFile), '--alias', BUNDLED_PROFILE.model,
-          '--host', '127.0.0.1', '--port', String(this.port), '--ctx-size', String(BUNDLED_CONTEXT), '--parallel', '1',
+          '--host', '127.0.0.1', '--port', String(this.port), '--ctx-size', String(requestedContext), '--parallel', '1',
           '--threads', String(Math.max(1, Math.min(6, Math.floor(os.availableParallelism() / 2)))), '--image-max-tokens', String(BUNDLED_IMAGE_TOKENS),
-          '--offline', '--no-webui', '--no-mmproj-auto', '--gpu-layers', backend === 'cpu' ? '0' : 'auto'];
+          '--offline', '--no-webui', '--no-mmproj-auto', '--no-context-shift', '--gpu-layers', backend === 'cpu' ? '0' : 'auto'];
         if (backend === 'cpu') args.push('--no-mmproj-offload');
         const child = this.spawnProcess(exe, args, { cwd: path.dirname(exe), env, windowsHide: true, shell: false, stdio: ['ignore', 'ignore', 'pipe'] });
         this.child = child; let failed = null, listening = false, diagnosticTail = '';
@@ -131,7 +140,7 @@ export class BundledRunner {
           if (diagnosticTail.includes(`listening on http://127.0.0.1:${this.port}`)) listening = true;
         });
         child.once('exit', () => {
-          if (this.child === child && this.state.phase === 'ready') this.update('error', 'Qwen stopped unexpectedly. Send again to restart it, or try CPU mode.');
+          if (this.child === child && this.state.phase === 'ready') { this.loadedContextTokens = null; this.update('error', 'Qwen stopped unexpectedly. Send again to restart it, or try CPU mode.'); }
         });
         for (;;) {
           signal.throwIfAborted();
@@ -143,6 +152,15 @@ export class BundledRunner {
             if (response.ok) {
               const body = await response.text();
               if (body.length > 16384 || !JSON.parse(body).data?.some(m => m.id === BUNDLED_PROFILE.model)) throw fail('The local model endpoint did not match this session.');
+              const propsResponse = await fetch(`http://127.0.0.1:${this.port}/props`, { headers: { authorization: `Bearer ${this.token}` }, signal: AbortSignal.any([signal, AbortSignal.timeout(1000)]), redirect: 'error' });
+              if (!propsResponse.ok) { await propsResponse.body?.cancel(); throw fail('The local runtime could not report its loaded context.'); }
+              const propsText = await propsResponse.text();
+              if (propsText.length > 65536) throw fail('The local runtime context report was too large.');
+              let actual;
+              try { actual = JSON.parse(propsText).default_generation_settings?.n_ctx; }
+              catch { throw fail('The local runtime context report was unreadable.'); }
+              if (!Number.isSafeInteger(actual) || actual !== requestedContext) throw fail(`Qwen did not load the requested ${requestedContext.toLocaleString()}-token window. Choose a smaller window and try again.`);
+              this.loadedContextTokens = actual;
               this.update('ready', `Qwen is ready · ${backend === 'cpu' ? 'CPU' : 'graphics acceleration'}.`, onStatus); return;
             }
             await response.body?.cancel();
@@ -159,9 +177,11 @@ export class BundledRunner {
   }
   async fetch(model, url, options, onStatus) {
     assertBundledProfile(model);
+    if (this.changing) throw fail('The included Qwen window is changing. Try again shortly.');
     const route = new URL(url);
     if (route.origin !== new URL(BUNDLED_PROFILE.baseUrl).origin || route.pathname !== '/v1/chat/completions' || route.search || route.hash || options.method !== 'POST') throw fail('Unsupported included-model request.');
     await this.ensure(options.signal, onStatus);
+    if (this.changing) throw fail('The included Qwen window is changing. Try again shortly.');
     this.requests++;
     let released = false;
     const release = () => { if (!released) { released = true; this.requests--; } };
@@ -176,11 +196,11 @@ export class BundledRunner {
     } catch (error) { release(); throw error; }
   }
   async beforeOtherLocal() {
-    if (this.requests || this.loading) throw fail('The included Qwen is busy. Stop its reply before starting another local model.');
+    if (this.requests || this.loading || this.changing) throw fail('The included Qwen is busy. Stop its reply before starting another local model.');
     await this.unload();
   }
   async stopChild() {
-    const child = this.child; this.child = null; this.port = null; this.token = null;
+    const child = this.child; this.child = null; this.port = null; this.token = null; this.loadedContextTokens = null;
     if (child && child.exitCode === null && !child.signalCode) {
       const exited = new Promise(resolve => { child.once('exit', resolve); child.once('error', resolve); });
       child.kill(); await Promise.race([exited, delay(5000)]);
@@ -188,13 +208,31 @@ export class BundledRunner {
     }
   }
   async unload() {
+    if (this.changing) throw fail('The included Qwen window is changing. Try again shortly.');
     if (this.requests) throw fail('Stop the current Qwen reply before unloading it.');
     this.loadAbort?.abort(); await this.loading?.catch(() => {}); await this.stopChild();
     if (this.state.available) this.update('idle', 'Qwen is unloaded. It will load when you send a message.', null, { backend: null });
   }
   async setPreference(preference) {
     if (!['auto', 'cpu'].includes(preference)) throw new Error('Choose automatic or CPU mode.');
+    if (this.changing) throw fail('The included Qwen window is changing. Try again shortly.');
     await this.unload(); this.preference = preference; return this.status();
+  }
+  async setContextTokens(contextTokens, expectedTokens, persist) {
+    if (!isBundledContext(contextTokens) || !isBundledContext(expectedTokens)) throw new Error('Choose a supported included-model window.');
+    if (expectedTokens !== this.contextTokens) throw new Error('The included-model window changed. Reopen Context and try again.');
+    if (this.closed) throw fail('The local runner is closing.');
+    if (this.requests || this.loading || this.changing) throw fail('The included Qwen is busy. Finish its work before changing the window.');
+    if (contextTokens === this.contextTokens) return this.status();
+    this.changing = true;
+    try {
+      await this.stopChild();
+      if (this.state.available) this.update('idle', 'Qwen is unloaded. The previous window remains selected until the change is saved.', null, { backend: null });
+      await persist();
+      this.contextTokens = contextTokens;
+      if (this.state.available) this.update('idle', `Qwen will load with the selected ${contextTokens.toLocaleString()}-token window when needed.`, null, { backend: null });
+    } finally { this.changing = false; }
+    return this.status();
   }
   async close() { this.closed = true; this.loadAbort?.abort(); await this.loading?.catch(() => {}); await this.stopChild(); }
 }

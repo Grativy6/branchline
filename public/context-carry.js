@@ -1,7 +1,7 @@
 import { escapeHtml as e } from './views.js';
 import { tableInfo } from './table.js';
 import { imageCards } from './images.js';
-import { carrySettings } from './resource-settings.js';
+import { carrySettings, resourceSettings, RESOURCE_FIELDS, BUNDLED_CONTEXT_PRESETS } from './resource-settings.js';
 import { recorderOptions, recorderSelect, recorderHint } from './recorder.js';
 
 export const activeAccount = (state, chatId) => state.contextCarry?.records.find(r => r.id === state.contextCarry.active[chatId]);
@@ -12,7 +12,7 @@ export const preparationHint = status => status?.preparation ? (status.preparati
   + ` The account is shared by both chairs. ${status.target ? `Up to ${status.target.accountCharacters.toLocaleString()} account characters and ${status.target.sources} source passages leave room for the smaller window.` : ''}`
   : status?.contextIssue || status?.issue || 'Open a conversation to prepare a handoff.';
 export const budgetHint = status => status?.participants?.length
-  ? `One shared account for this conversation. ${status.participants.map(p => `${p.seat === 'personal' ? 'Personal' : p.seat === 'visiting' ? 'Visiting' : 'Model'}: ${p.characters.toLocaleString()} / ${p.budget.characters.toLocaleString()} characters`).join(' · ')}. Prepared to fit all assigned chairs; these are estimates including current guidance and the saved draft.`
+  ? 'One shared account for the displayed receiving models.'
   : 'This is Branchline’s input budget, including the saved draft; a model’s own token window may differ.';
 export const contextSize = status => status?.characters == null ? 'Shared working context' : status.characters.toLocaleString() + ' / ' + status.limit.toLocaleString() + ' characters · shared context';
 
@@ -26,6 +26,51 @@ export function contextBar(status, busy = false, showCount = true) {
   return `<button type="button" class="text-button" data-action="context-open" aria-label="${label}. ${e(count)}${e(limiting)}" title="${label}. Input characters are estimated; this is not a tokenizer count."><svg class="thought-cloud" viewBox="0 0 64 40" aria-hidden="true"><defs><clipPath id="cloud-clip"><path d="M16 33C2 33 1 16 14 14C14 0 37 0 40 12C57 3 68 29 52 33Z"/></clipPath></defs><rect class="cloud-fill" x="0" y="${34-amount}" width="64" height="${amount}" clip-path="url(#cloud-clip)"/><path class="cloud-outline" d="M16 33C2 33 1 16 14 14C14 0 37 0 40 12C57 3 68 29 52 33Z"/><circle class="cloud-outline" cx="10" cy="37" r="2"/></svg>${showCount ? `<span class="cloud-count">${e(count)}</span>` : ''}${phase === 'preparing' || phase === 'queued' || status?.readyId ? `<span class="context-hint">${label}</span>` : ''}</button>`;
 }
 
+export function capacityControls(state, chat, status) {
+  const root = state.roots.find(item => item.id === chat.rootId);
+  if (!root) return '';
+  const participants = status?.participants ?? [];
+  const limiting = participants.find(item => item.seat === status?.limitingSeat) ?? participants[0];
+  const model = state.models.find(item => item.id === limiting?.modelId) ?? null;
+  const ceiling = resourceSettings(root, model).inputCharacters;
+  const amount = n => Number.isFinite(n) ? n.toLocaleString() : 'unknown';
+  const rows = participants.map(item => {
+    const budget = item.budget ?? {};
+    const title = item.seat === 'personal' ? 'Desk Model' : item.seat === 'visiting' ? 'Visiting' : 'Model';
+    const fixed = Math.max(0, item.fixedCharacters ?? 0);
+    const conversation = Math.max(0, item.characters - fixed);
+    let window;
+    if (item.modelRuntime === 'bundled') window = budget.loadedTokens != null
+      ? `Loaded window: ${amount(budget.loadedTokens)} tokens`
+      : `Selected window: ${amount(budget.configuredTokens)} tokens · not loaded yet`;
+    else if (item.modelRuntime === 'lmstudio') window = budget.loadedTokens != null
+      ? `LM Studio reports ${amount(budget.loadedTokens)} loaded tokens` : 'LM Studio window unknown';
+    else if (item.modelRuntime === 'codex' || item.modelRuntime === 'openai')
+      window = `Provider window estimate: ${amount(budget.loadedTokens)} tokens`;
+    else window = 'Window managed by the connection';
+    return `<div class="context-capacity-row"><strong>${e(title)} · ${e(item.modelLabel)}${item.seat === status?.limitingSeat ? ' · limiting' : ''}</strong>
+      <span>${e(window)} · text allowance ≈ ${amount(budget.characters)} characters${item.modelRuntime === 'bundled' ? ' · reply reserve: ' + amount(budget.reservedOutput) + ' tokens' : ''}</span>
+      <span>Guidance, sources &amp; draft: ≈ ${amount(fixed)} · conversation &amp; account: ≈ ${amount(conversation)}</span></div>`;
+  }).join('');
+  const local = status?.localModel;
+  const bundled = participants.some(item => item.modelRuntime === 'bundled');
+  const options = BUNDLED_CONTEXT_PRESETS.map(n => `<option value="${n}" ${local?.contextTokens === n ? 'selected' : ''}>${amount(n)} tokens</option>`).join('');
+  const windowControl = bundled && local ? `<form id="context-window-form" data-chat-id="${e(chat.id)}" data-expected="${e(local.contextTokens)}" class="context-control">
+    <label class="form-field">Included Qwen window<select name="contextTokens" ${local.busy || !local.available ? 'disabled' : ''}>${options}</select></label>
+    <button class="quiet-button" type="submit" ${local.busy || !local.available ? 'disabled' : ''}>Save window</button>
+    <p class="field-help">Applies to included Qwen across desks. Loads on the next reply; larger windows use more memory. ${local.phase === 'error' || !local.available ? e(local.message ?? '') : ''}</p></form>` : '';
+  const fixedWarning = participants.some(item => item.budget?.characters > 0 && item.fixedCharacters >= item.budget.characters * 0.7);
+  return `<section class="context-capacity"><h3>Space for the next reply</h3>${rows}
+    ${fixedWarning ? '<p class="field-help">Most space is current guidance, sources and draft. A handoff can shorten earlier conversation, not those fixed materials.</p>' : ''}
+    <p class="field-help">Estimated text allowance before pictures; external windows are managed by their provider.</p>
+    ${windowControl}
+    <form id="context-ceiling-form" data-chat-id="${e(chat.id)}" data-root-id="${e(root.id)}" data-model-id="${e(model?.id ?? '')}" data-expected="${ceiling}" class="context-control">
+      <label class="form-field">Desk input ceiling (characters)<input type="number" name="inputCharacters" min="${RESOURCE_FIELDS.inputCharacters.min}" max="${RESOURCE_FIELDS.inputCharacters.max}" step="1" value="${ceiling}" required></label>
+      <button class="quiet-button" type="submit">Save ceiling</button>
+      <p class="field-help">This desk’s sending limit. A smaller model window still applies.</p>
+    </form></section>`;
+}
+
 export function contextDialog(state, chat, status, speaker = 'visiting') {
   const account = activeAccount(state, chat.id), table = tableInfo(state, chat);
   const options = recorderOptions(state, chat);
@@ -34,10 +79,10 @@ export function contextDialog(state, chat, status, speaker = 'visiting') {
   const job = (state.contextCarry?.jobs || []).filter(j => j.chatId === chat.id).at(-1);
   const pins = state.contextCarry?.pins[chat.id] || [];
   const ready = state.contextCarry?.records.find(r => r.id === state.contextCarry.ready?.[chat.id]);
-  return `<p class="field-help">This desk keeps one shared account for this conversation, whichever chair speaks next. The selected model writes a participant account or an outside review; its role and identity are credited separately. Original history stays here, and recent exchanges stay verbatim when they fit. Preparing a handoff makes one model call; it does not train weights.</p>
+  return `${capacityControls(state, chat, status)}<h3>Optional handoff</h3><p class="field-help">A model can prepare a source-linked account and keep recent messages for both chairs. The full history stays saved; preparation uses one model call.</p>
     <div class="context-summary"><strong id="carry-context-size">${contextSize(status)}</strong><span>${status?.carriedMessages || 0} earlier messages carried · ${(status?.totalMessages || 0) - (status?.carriedMessages || 0)} verbatim</span></div>
     <p class="field-help" id="carry-budget-hint">${e(budgetHint(status))}</p>
-    <p class="notice" id="carry-over-budget" ${status?.characters > status?.limit ? '' : 'hidden'}>This conversation needs a smaller working context. A long branch may need more than one handoff pass; each pass preserves the full original history.</p>
+    <p class="notice" id="carry-over-budget" ${status?.characters > status?.limit ? '' : 'hidden'}>Estimated input exceeds the limit shown above. If available, adjust the limiting model window or desk ceiling, or prepare a handoff.</p>
     ${status?.contextIssue ? `<p class="notice">${e(status.contextIssue)}</p>` : ''}
     ${job && ['failed', 'cancelled'].includes(job.status) ? `<p class="notice message-error">${e(job.error)}</p>` : ''}
     ${ready ? `<section class="ready-account"><strong>Ready for the next reply</strong><p>${carrySettings(chat).review ? 'Review this account before allowing it into the next reply.' : 'Branchline will check and use this account before compiling the next reply.'} All newer messages stay verbatim.</p><details><summary>Read prepared account</summary><div class="continuity-source">${e(ready.text)}</div></details>${carrySettings(chat).review && state.contextCarry?.approved?.[chat.id] !== ready.id ? `<button type="button" class="primary-button" data-action="carry-approve" data-id="${e(ready.id)}">Approve for next reply</button>` : ''}<button type="button" class="quiet-button" data-action="carry-cancel-ready">Cancel ready account</button></section>` : ''}
@@ -46,7 +91,7 @@ export function contextDialog(state, chat, status, speaker = 'visiting') {
     <form id="carry-prepare-form" data-chat-id="${e(chat.id)}" data-base-id="${e(account?.id || '')}" data-last-message-id="${e(status?.lastMessageId || '')}">
       <label class="form-field">Prepare with${recorderSelect(state, chat, speaker)}</label><p class="field-help recorder-role">${e(recorderHint(speaker))}</p>
       <p class="field-help" id="carry-preparation-hint">${e(preparationHint(status))}</p>
-      <button class="primary-button" type="submit" ${models.length && status?.preparation && !ready && !['queued','preparing'].includes(status?.preparationState?.phase) ? '' : 'disabled'}>Prepare handoff</button>
+      <button class="quiet-button" type="submit" ${models.length && status?.preparation && !ready && !['queued','preparing'].includes(status?.preparationState?.phase) ? '' : 'disabled'}>Prepare handoff</button>
     </form>
     ${account ? `<hr><form id="carry-edit-form" data-chat-id="${e(chat.id)}" data-base-id="${e(account.id)}"><label class="form-field">Shared desk account<textarea name="text" rows="12" maxlength="8000" required>${e(account.text)}</textarea></label><p class="field-help">${account.author === 'user' ? 'Your correction' : 'Prepared by ' + e(account.modelLabel)} · ${e(new Date(account.createdAt).toLocaleString())}. Shared by both chairs in this branch; historical context, not permission or a replacement for your instructions.</p><button class="quiet-button" type="submit">Save correction</button></form>
       <h3>Original sources</h3><div class="context-source-list">${[...new Set(account.sources.map(ref => ref.sourceId))].map(id => `<button class="quiet-button" type="button" data-action="context-source" data-id="${e(id)}">${e(id)} · Open original</button>`).join('')}</div>` : '<p class="field-help">No handoff is active. All conversation messages are still included.</p>'}
@@ -58,7 +103,7 @@ export function contextDialog(state, chat, status, speaker = 'visiting') {
 export function sourceDialog(source, pinned, state, chatId) {
   return `<p><strong>${e(source.sourceId)} · ${e(source.author)}</strong> · ${e(source.status)}${source.truncated ? ' · reply cut short' : ''}<br><span class="field-help">${e(new Date(source.createdAt).toLocaleString())}</span></p>
     <div class="continuity-source context-original">${e(source.text)}</div>
-    ${source.images?.length && state ? `<div class="picture-grid">${imageCards(state, chatId, source.images.map(image => image.id))}</div><p class="field-help">These pictures remain saved with the original message. Use again selects a viewing copy for your next reply; reopening text alone does not transmit pixels.</p>` : ''}
+    ${source.images?.length && state ? `<div class="picture-grid">${imageCards(state, chatId, source.images.map(image => image.id))}</div><p class="field-help">These pictures remain saved with the original message. Look again selects a viewing copy for your next reply; reopening text alone does not transmit pixels.</p>` : ''}
     <p class="field-help">Characters ${source.offset + 1}–${source.offset + source.text.length} of ${source.totalCharacters}. Exact recorded text and evidence; historical permissions remain historical.</p>
     <div class="context-source-list">${source.nextOffset !== null ? `<button class="quiet-button" data-action="context-source-page" data-id="${e(source.sourceId)}" data-offset="${source.nextOffset}" type="button">Read next page</button>` : ''}${source.offset ? `<button class="quiet-button" data-action="context-source" data-id="${e(source.sourceId)}" type="button">Back to start</button>` : ''}<button class="quiet-button" data-action="${pinned ? 'context-unpin' : 'context-pin'}" data-id="${e(source.sourceId)}" type="button">${pinned ? 'Remove from working context' : 'Bring whole message into context'}</button></div>
     <details><summary>Source identity</summary><p class="detail-value">${e(source.messageId)}<br>${e(source.hash)}</p></details><div class="dialog-footer"><button class="primary-button" type="button" data-action="context-open">Back to handoff</button></div>`;

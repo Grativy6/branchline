@@ -1,0 +1,21 @@
+#work-controls .work-menu{width:min(650px,calc(100vw - 36px));max-height:min(70vh,680px);overflow:auto;flex-wrap:wrap;gap:10px}
+#desk-activity-list{flex:1 0 100%;min-width:0;width:100%}
+#desk-activity-list>header{display:flex;align-items:center;justify-content:space-between;gap:18px}
+#desk-activity-list>header label{font-size:.85rem;display:flex;align-items:center;gap:6px}
+#activity-count{font-size:.75rem;white-space:normal;margin-left:5px}
+.activity-task{border:1px solid var(--border,#ddd);border-radius:10px;padding:12px;margin:8px 0;overflow-wrap:anywhere}
+.activity-task>div:first-child{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.activity-task p{margin:6px 0}.activity-task small,.activity-status{font-size:.8rem;color:var(--muted,#65716b)}
+.activity-task-actions{display:flex;gap:14px;flex-wrap:wrap;margin-top:8px}
+.activity-recent{margin-top:12px}.activity-recent .is-finished{opacity:.9}
+.chair-routing{padding:0 12px 10px}.chair-routing[hidden]{display:none}
+.chair-suggestions{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}
+.chair-routes{border-left:3px solid var(--accent,#517469);padding:8px 12px;font-size:.85rem;background:var(--panel,#fafaf7);border-radius:5px}
+.chair-route{display:grid;grid-template-columns:minmax(80px,130px) 1fr;gap:10px;margin:5px 0}.chair-route span{white-space:pre-wrap;overflow-wrap:anywhere}
+#open-chair-drawers{font-size:.85rem;margin-left:8px;white-space:nowrap}
+#chair-live-tasks,#desk-shared-work{width:min(100%,800px);margin:0 auto;padding:0 0 12px}
+.chair-live{border-left:3px solid var(--accent,#517469)}
+.desk-artifact{border:1px solid var(--border,#ddd);padding:18px;border-radius:12px;margin:12px 0;overflow-wrap:anywhere}
+.desk-events{font-size:.85rem;margin:12px 0;color:var(--muted,#65716b)}
+.drawer-choices{display:flex;gap:12px;flex-wrap:wrap}.drawer-note{border-bottom:1px solid var(--border,#ddd);padding:12px 0}.drawer-note summary{font-weight:600}
+.drawer-log{white-space:pre-wrap;overflow-wrap:anywhere;max-height:55vh;overflow:auto;font-size:.8rem;background:var(--panel,#f5f5ef);padding:12px;border-radius:8px}

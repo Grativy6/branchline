@@ -42,19 +42,20 @@ export class PcFiles {
     });
   }
   async configure(input) {
-    fail(exact(input,['baseRevision','read','write','roots','denied','removeDenied']),'Invalid settings fields.');
+    fail(exact(input,['baseRevision','read','write','roots','denied','removeDenied',...(Object.hasOwn(input,'nav')?['nav']:[])]),'Invalid settings fields.');
+    if(input.nav!==undefined){fail(exact(input.nav,['enabled','timeZone'])&&typeof input.nav.enabled==='boolean'&&typeof input.nav.timeZone==='string','Choose a Nav switch and workspace timezone.');new Intl.DateTimeFormat('en',{timeZone:input.nav.timeZone}).format();}
     fail(typeof input.read==='boolean'&&typeof input.write==='boolean'&&(!input.write||input.read)&&Array.isArray(input.roots)&&input.roots.length<=16&&Array.isArray(input.denied)&&input.denied.length<=32&&Array.isArray(input.removeDenied),'Choose bounded folder permissions.');
     const previous=pcSettings(this.store.state);fail((previous?.id??null)===input.baseRevision,'Settings changed. Reopen Agents.');
-    const snapshot={id:uid(),at:new Date().toISOString(),workspaceId:this.store.workspaceId,workspacePath:this.store.dataDir,read:input.read,write:input.write,roots:[],denied:[]};
+    const snapshot={id:uid(),at:new Date().toISOString(),workspaceId:this.store.workspaceId,workspacePath:this.store.dataDir,read:input.read,write:input.write,roots:[],denied:[],...(input.nav?{nav:structuredClone(input.nav)}:{})};
     for(const r of input.roots){
-      fail(exact(r,['id','path','label','write','modelIds','modelSnapshots'])&&typeof r.label==='string'&&r.label.trim()&&r.label.length<=100&&typeof r.write==='boolean'&&Array.isArray(r.modelIds)&&Array.isArray(r.modelSnapshots),'Invalid folder entry.');
-      if(!input.read){const old=previous?.roots.find(x=>x.id===r.id);if(old)snapshot.roots.push({...old,write:false,destinations:[]});continue;}
-      const metadata=await this.native({mode:'inspect',path:r.path,directory:true});
+      fail(exact(r,['id','path','label','write','modelIds','modelSnapshots',...(Object.hasOwn(r,'frontDoor')?['frontDoor']:[])])&&(!Object.hasOwn(r,'frontDoor')||typeof r.frontDoor==='boolean')&&typeof r.label==='string'&&r.label.trim()&&r.label.length<=100&&typeof r.write==='boolean'&&Array.isArray(r.modelIds)&&Array.isArray(r.modelSnapshots),'Invalid folder entry.');
+      if(!input.read&&!input.nav?.enabled&&!this.store.state.pcAccess?.settings.some(s=>s.nav?.enabled)){const old=previous?.roots.find(x=>x.id===r.id);if(old)snapshot.roots.push({...old,write:false,destinations:[]});continue;}
+      const metadata=await this.native({mode:r.frontDoor?'inspect-nav':'inspect',path:r.path,directory:true});
       fail(!this.protectedPaths.some(p=>pcUnder(metadata.path,p)),'App data, credentials and runtime files cannot be granted.');
-      const destinations=input.read?r.modelIds.map(id=>{const m=this.store.state.models.find(m=>m.id===id);fail(m,'Choose an existing connection.');return pcDestination(m);}):[];
+      const destinations=r.modelIds.map(id=>{const m=this.store.state.models.find(m=>m.id===id);fail(m,'Choose an existing connection.');return pcDestination(m);});
       fail(digest(destinations)===digest(r.modelSnapshots),'A reviewed model connection changed. Reopen Agents before granting access.');
       const old=previous?.roots.find(x=>x.id===r.id);fail(!r.id||old&&old.path===metadata.path&&old.identity===metadata.identity,'A moved/replaced root needs a new folder entry.');
-      snapshot.roots.push({id:r.id||uid(),...metadata,label:r.label.trim(),write:r.write&&input.write,destinations});
+      snapshot.roots.push({id:r.id||uid(),...metadata,label:r.label.trim(),write:r.write&&input.write&&!r.frontDoor,destinations,...(r.frontDoor?{frontDoor:true}:{})});
     }
     for(const d of input.denied){
       fail(exact(d,['id','path','directory'])&&typeof d.directory==='boolean','Invalid excluded location.');

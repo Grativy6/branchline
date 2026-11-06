@@ -1,3 +1,4 @@
+import { isCloudModel, mayFollowProvider } from '../public/provider-routes.js';
 import { assertModelAvailable } from './model-archives.mjs';
 import crypto from 'node:crypto';
 import { digest, recordHandoff, prepareModelHandoff } from './handoff.mjs';
@@ -7,6 +8,7 @@ import { resolveSpeaker, currentAssignment, assertInferenceIdle, ordinaryInferen
 import { makeToolContract, connectionToolProtocol, toolBindings } from './tool-contract.mjs';
 import { ConversationTools } from './conversation-tools.mjs';
 import { activeImageIds } from './images.mjs';
+import { isPonyRun, PONY_RUN_PROFILE, linkPonyRun, startPonySend, settlePonyTrip } from './pony-state.mjs';
 import { prepareModelWrite } from './effect-boundary.mjs';
 import { agentSettings, parallelState, parallelBasis, ParallelBudget, PARALLEL_PROFILE, PARALLEL_LIMITS, liveRun, liveJob, openRun } from './parallel-state.mjs';
 
@@ -31,13 +33,13 @@ export class ParallelTasks {
   }
   options(chatId) {
     return { settings: agentSettings(this.store.state), basisHash: parallelBasis(this.store.state, chatId), limits: PARALLEL_LIMITS,
-      models: approachCandidates(this.store.state, chatId).map(c => ({ seat: c.seat, id: c.model.id, name: c.model.name, cloud: c.model.runtime === 'codex' })) };
+      models: approachCandidates(this.store.state, chatId).map(c => ({ seat: c.seat, id: c.model.id, name: c.model.name, cloud: isCloudModel(c.model) })) };
   }
   requestProfile(state, chatId, model, replyMode) {
     const settings = agentSettings(state);
     if (!settings.enabled || !settings.automaticRequests || replyMode === 'both' || !connectionToolProtocol(model)) return null;
     // A local request has no implicit permission to send its context to OpenAI.
-    const models = approachCandidates(state, chatId).filter(c => c.model.runtime !== 'codex' || model.runtime === 'codex')
+    const models = approachCandidates(state, chatId).filter(c => mayFollowProvider(c.model, model))
       .map(c => ({ id: c.model.id, name: c.model.name, hash: digest(c.model) }));
     return models.length ? { grant: 'explicit_user_agent_settings', settingsId: settings.id, models } : null;
   }
@@ -56,7 +58,7 @@ export class ParallelTasks {
     fail(exact(args, ['angle', 'reason', 'model_id']) && text(args.angle,1000) && text(args.reason,1000), 'Use only a bounded angle, reason and admitted model.');
     const requested = origin.contract.parallel.models.find(m => m.id === args.model_id);
     const candidate = approachCandidates(state, chatId).find(c => c.model.id === args.model_id && digest(c.model) === requested?.hash);
-    fail(candidate && (candidate.model.runtime !== 'codex' || origin.model.runtime === 'codex'), 'That model or data destination was not admitted for this task.');
+    fail(candidate && (mayFollowProvider(candidate.model, origin.model)), 'That model or data destination was not admitted for this task.');
     const fingerprint = digest({ source: origin.exchangeId, args });
     const prior = state.parallel?.runs.find(r => r.sourceExchangeId === origin.exchangeId);
     if (prior) { fail(prior.fingerprint === fingerprint, 'This task already used its additional approach allowance.'); return { runId: prior.id, status: prior.status, resultAvailable: !liveRun(prior) }; }
@@ -64,7 +66,7 @@ export class ParallelTasks {
     const run = await this.admit({ requestId: 'model_request_' + digest({ source: origin.exchangeId, callId }).slice(0,40), fingerprint,
       chatId, content: origin.content || state.handoffs.records.find(r => r.id === origin.handoff.requestId).detail.task.purpose,
       approaches: [{ seat: candidate.seat, angle: args.angle, reason: args.reason }], toolsEnabled: origin.contract.conversationEnabled === true,
-      cloudApproved: origin.model.runtime === 'codex', basisHash: origin.basisHash }, origin);
+      cloudApproved: isCloudModel(origin.model), basisHash: origin.basisHash }, origin);
     return { runId: run.id, status: 'queued', resultAvailable: false, message: 'The additional approach will run after this reply finishes. Continue without inventing its result.' };
   }
   async start(input) {
@@ -87,12 +89,13 @@ export class ParallelTasks {
     const chatEpoch = this.chatAdmissionEpochs.get(input.chatId) ?? 0;
     try {
       const before = this.store.state, settings = agentSettings(before), sourceExchangeId = origin?.exchangeId ?? null;
+      const basis = state => input.ponyTripId ? this.ponyBasis(state,input.ponyTripId,sourceExchangeId) : parallelBasis(state,input.chatId,sourceExchangeId);
       fail(settings.enabled && (!origin || settings.automaticRequests), 'Enable agents in Settings. Automatic requests require the separate checkbox.');
       fail(!(before.parallel?.runs ?? []).some(openRun), 'Another parallel task is already using the shared allowance.');
-      fail(input.basisHash === parallelBasis(before, input.chatId, sourceExchangeId), 'The task context changed. Review it before starting.');
+      fail(input.basisHash === basis(before), 'The task context changed. Review it before starting.');
       const candidates = input.approaches.map(a => {
         const c = approachCandidates(before,input.chatId).find(c => c.seat === a.seat);
-        fail(c && (c.model.runtime !== 'codex' || input.cloudApproved), 'Choose an available chair and explicitly allow any OpenAI context delivery.');
+        fail(c && (!isCloudModel(c.model) || input.cloudApproved), 'Choose an available chair and explicitly allow any OpenAI context delivery.');
         return c;
       });
       const root = before.roots.find(r => r.id === before.chats.find(c => c.id === input.chatId)?.rootId);
@@ -102,26 +105,26 @@ export class ParallelTasks {
       let run;
       await this.store.transact(state => {
         fail(epoch===this.admissionEpoch && chatEpoch===(this.chatAdmissionEpochs.get(input.chatId)??0) && !this.closed,'Preparation was stopped; start deliberately again.');
-        fail(settings.id === agentSettings(state).id && input.basisHash === parallelBasis(state,input.chatId,sourceExchangeId), 'Permissions or context changed while preparing the task.');
+        fail(settings.id === agentSettings(state).id && input.basisHash === basis(state), 'Permissions or context changed while preparing the task.');
         if (!origin) assertInferenceIdle(state);
-        else fail(state.exchanges.find(e => e.id === sourceExchangeId)?.status === 'pending', 'The requesting reply has ended.');
+        else if(!input.ponyTripId) fail(state.exchanges.find(e => e.id === sourceExchangeId)?.status === 'pending', 'The requesting reply has ended.');
         const p = parallelState(state);
         fail(!p.runs.some(openRun), 'Another parallel task already reserved the device.');
-        if (!origin) {
+        if (!origin && !input.ponyTripId) {
           state.messages.push({ id: uid('message'), chatId: input.chatId, role: 'user', content: input.content, createdAt: now(), kind: 'note', exchangeId: null,
             modelId: null, modelLabel: null, modelIdentifier: null, modelBaseUrl: null, instructionRevisionId: null });
           delete state.drafts[input.chatId];
         }
-        const sourceIds = state.messages.filter(m => m.chatId === input.chatId && !(sourceExchangeId && m.role === 'assistant' && m.exchangeId === sourceExchangeId)).map(m => m.id);
-        const basisHash = parallelBasis(state,input.chatId,sourceExchangeId);
-        run = { id: runId, profile: PARALLEL_PROFILE, requestId: input.requestId, fingerprint: input.fingerprint, origin: origin ? 'model' : 'user',
+        const sourceIds = input.ponyPrepared?.sourceIds ?? state.messages.filter(m => m.chatId === input.chatId && !(sourceExchangeId && m.role === 'assistant' && m.exchangeId === sourceExchangeId)).map(m => m.id);
+        const basisHash = basis(state);
+        run = { id: runId, profile: input.ponyTripId ? PONY_RUN_PROFILE : PARALLEL_PROFILE, requestId: input.requestId, fingerprint: input.fingerprint, origin: origin ? 'model' : 'user',
           chatId: input.chatId, rootId: root.id, sourceExchangeId, purpose: input.content, basisHash,
           contextHash: digest({ basisHash, purpose: input.content, sourceIds }), sourceIds, settingsId: settings.id,
           limits: { ...PARALLEL_LIMITS }, usage: { ...budget.usage }, deadline: new Date(budget.deadline).toISOString(),
           toolsEnabled: input.toolsEnabled, cloudApproved: input.cloudApproved, episodeIds: [], status: 'queued', error: null, createdAt: now(), endedAt: null };
         for (let i = 0; i < candidates.length; i++) {
           const { model, selection, seat } = candidates[i], a = input.approaches[i];
-          const messages = compileMessages(state,input.chatId,origin ? origin.content : '', { maxContextCharacters: Infinity, selection,
+          const messages = input.ponyPrepared ? structuredClone(input.ponyPrepared.messages) : compileMessages(state,input.chatId,origin ? origin.content : '', { maxContextCharacters: Infinity, selection,
             requestKind: origin ? origin.kind : 'ask', selectedFile: origin?.selectedFile ?? null });
           messages.push({ role: 'user', content: '[Branchline task view: this angle is a contribution to the shared purpose. Return findings, source references, assumptions and anything unresolved. It supplies no new permission.]\n' + JSON.stringify({
             purpose: input.content, angle: a.angle, reason: a.reason, requestedBy: origin ? 'model under user-enabled settings' : 'user',
@@ -131,14 +134,15 @@ export class ParallelTasks {
           fail(messages.reduce((n,m) => n + m.content.length,0) <= contextLimit, 'An approach exceeds its model context limit. Prepare a context handoff or choose a different model; nothing was trimmed.');
           const job = { id: uid('approach'), runId, chatId: input.chatId, index: i, seat, angle: a.angle, reason: a.reason,
             model: structuredClone(model), modelHash: digest(model), selection: structuredClone(selection), contextHash: digest(messages),
-            toolContract: makeToolContract(state,{chatId:input.chatId,model,selectedFile:origin?.selectedFile,enabled:input.toolsEnabled,seat:selection?.seat ?? 'visiting',ceiling:origin ? toolBindings(origin.contract) : null}),
+            toolContract: input.ponyPrepared ? structuredClone(input.ponyPrepared.toolContract) : makeToolContract(state,{chatId:input.chatId,model,selectedFile:origin?.selectedFile,enabled:input.toolsEnabled,seat:selection?.seat ?? 'visiting',ceiling:origin ? toolBindings(origin.contract) : null}),
             contextLimit, maxTokens, status: 'queued', output: null, error: null, finishReason: null, handoff: null, endedAt: null };
           run.episodeIds.push(job.id); p.jobs.push(job); prepared.set(job.id,messages);
+          if(input.ponyTripId)linkPonyRun(state,input.ponyTripId,run,job);
         }
         p.runs.push(run);
         const foundation = structuredClone(run);
         const admission = recordHandoff(state,{ kind:'parallel.admitted', taskId:run.id, scope:{ rootId:root.id,chatId:input.chatId }, from:origin?'model_request':'paired_local_ui',to:'app_task_queue',
-          payload:foundation, status:'WITHIN_LOCAL_PROFILE', detail:{ foundation, profile:PARALLEL_PROFILE, sourceExchangeId, settingsId:settings.id, execution:'sequential', authorityCreated:false, effect:'record_parallel_contribution' } });
+          payload:foundation, status:'WITHIN_LOCAL_PROFILE', detail:{ foundation, profile:run.profile, sourceExchangeId, settingsId:settings.id, execution:'sequential', authorityCreated:false, effect:'record_parallel_contribution' } });
         run.admissionId = admission.id; run.admissionHash = admission.hash;
         return state;
       });
@@ -148,6 +152,7 @@ export class ParallelTasks {
     } finally { this.preparing = false; }
   }
   check(run, entry) {
+    if(isPonyRun(run))return this.checkPony(run,entry);
     fail(!this.closed && !entry.stopped && liveRun(run), 'This parallel task is stopped.');
     const settings = agentSettings(this.store.state);
     fail(settings.enabled && (run.origin === 'user' || settings.automaticRequests && settings.id === run.settingsId), 'Agent permission changed.');
@@ -202,7 +207,7 @@ export class ParallelTasks {
     fail(messages && digest(messages) === job.contextHash, 'The original context is unavailable; no saved receipt can resume it.');
     const controller = new AbortController(); entry.controller = controller; entry.activeJobId = job.id; entry.liveText = '';
     let handoff, contract, tools, content = '', finishReason = null, problem = null;
-    const timeout = Math.min(this.modelOptions.timeoutMs ?? (job.model.runtime === 'codex' ? 300000 : 120000), entry.budget.deadline - Date.now());
+    const timeout = Math.min(this.modelOptions.timeoutMs ?? (isCloudModel(job.model) ? 300000 : 120000), entry.budget.deadline - Date.now());
     let expired = false;
     const timer = setTimeout(()=>{ expired=true; controller.abort(); }, Math.max(1,timeout));
     try {
@@ -215,11 +220,14 @@ export class ParallelTasks {
         live.status = 'pending'; state.parallel.runs.find(r=>r.id===run.id).status='running';
         preparedHandoff = prepareModelHandoff(state,{ taskId:job.id,chatId:run.chatId,kind:'parallel',messages,purpose:run.purpose,
           selection:job.selection,toolContract:contract,parallelRunId:run.id,sourceExchangeId:run.sourceExchangeId,workspaceId:this.store.workspaceId,workspacePath:this.store.dataDir });
-        live.handoff = preparedHandoff; return state;
+        live.handoff = preparedHandoff;
+        if(isPonyRun(run))startPonySend(state,run.pony.tripId);
+        return state;
       });
       handoff=preparedHandoff;
       const guard = () => this.check(this.store.state.parallel.runs.find(r=>r.id===run.id),entry);
-      tools = contract ? new ConversationTools({store:this.store,handoff,contract,signal:controller.signal,interactions:this.interactions,sharedBudget:entry.budget,guard,
+      tools = contract ? new ConversationTools({store:this.store,handoff,contract,signal:controller.signal,interactions:this.interactions,sharedBudget:entry.budget,guard,localRunner:this.modelOptions.localRunner,
+        ...(isPonyRun(run)?{ponyRequest:this.ponyRequestForJob(run,job,entry,handoff,contract)}:{}),
         ...(this.modelOptions.pageReader?{pageReader:this.modelOptions.pageReader}:{})}) : null;
       if (!tools) { entry.budget.take('modelRounds'); await this.store.transact(s=>{entry.budget.record(s);return s;}); }
       const stream = streamGenerate(job.model,messages,controller.signal,{ ...this.modelOptions,handoff,tools,maxTokens:job.maxTokens,maxContextCharacters:job.contextLimit,maxResponseBytes:80000 });
@@ -227,6 +235,9 @@ export class ParallelTasks {
         const step = await stream.next();
         if (step.done) { finishReason=step.value; break; }
         content += step.value.text; entry.liveText = content.slice(0,20000);
+        if(isPonyRun(run)&&content.length>Math.min(20000,entry.budget.limits.outputCharacters-entry.budget.usage.outputCharacters)){
+          controller.abort();await stream.return().catch(()=>{});throw new Error('This pony reply reached its output limit; received text is retained as incomplete.');
+        }
         if ((job.hearthActor || job.peerId) && content.length > Math.min(20000, entry.budget.limits.outputCharacters-entry.budget.usage.outputCharacters-(job.hearthActor==='hearth'?0:3000))) {
           controller.abort(); await stream.return(); throw new Error('This episode reached its shared output allowance; received text is retained as incomplete.');
         }
@@ -254,6 +265,7 @@ export class ParallelTasks {
       entry?.budget.record(state);
       for (const job of state.parallel.jobs.filter(j=>j.runId===runId&&liveJob(j))) { job.status=['completed','partial'].includes(status)?'held':status;job.error=error;job.endedAt=now(); }
       run.status=status;run.error=error;run.endedAt=now();
+      if(isPonyRun(run))settlePonyTrip(state,run.pony.tripId,error||'No provider reply was retained.');
       recordHandoff(state,{kind:'parallel.finished',taskId:run.id,scope:{rootId:run.rootId,chatId:run.chatId},from:'app_task_queue',to:'shared_task',payload:{status,error,usage:run.usage},status:status==='completed'?'OBSERVED':'UNRESOLVED',detail:{authorityCreated:false}});
       return state;
     });

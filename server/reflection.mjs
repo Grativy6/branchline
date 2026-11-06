@@ -2,9 +2,9 @@ import { prepareModelWrite } from './effect-boundary.mjs';
 import { beginReflection } from './continuity.mjs';
 import fs from 'node:fs/promises';
 import { beginMindReflection, MIND_LIMITS } from './mind.mjs';
-import { generateResult } from './model.mjs';
+import { generateResult,compileMessages } from './model.mjs';
 import { prepareModelHandoff, protocolMessages, digest } from './handoff.mjs';
-import { beginCarry, carryBasis, carryPreview, chatMessages, activeCarry, readyCarry, CARRY_OUTPUT_SCHEMA } from './context-carry.mjs';
+import { activateReadyCarry, beginCarry, carryBasis, carryPreview, chatMessages, activeCarry, readyCarry, CARRY_OUTPUT_SCHEMA } from './context-carry.mjs';
 import { resourceSettings, carrySettings } from '../public/resource-settings.js';
 import { contextBudget } from './context-budget.mjs';
 import { sharedContextPlan } from './shared-context.mjs';
@@ -19,7 +19,7 @@ export class ReflectionManager {
     this.store = store;
     this.modelOptions = modelOptions;
     this.active = new Map();
-    this.running = new Set();
+    this.running = new Set();this.tasks=new Map();
     this.queued = new Map();
     this.lastResult = new Map();
     this.suspended = new Set();
@@ -28,9 +28,22 @@ export class ReflectionManager {
 
   run(input, options) {
     const task = this.perform(input, options);
-    this.running.add(task);
-    task.finally(() => this.running.delete(task)).catch(() => {});
+    this.running.add(task);this.tasks.set(input.chatId,task);
+    task.finally(() => {this.running.delete(task);if(this.tasks.get(input.chatId)===task)this.tasks.delete(input.chatId);}).catch(() => {});
     return task;
+  }
+
+  async makeRoom(chatId,content,{limit,selection,signal}={}){
+    const fits=()=>{const view=structuredClone(this.store.state);activateReadyCarry(view,chatId);try{compileMessages(view,chatId,content,{selection,maxContextCharacters:limit});return true;}catch(error){if(!error.message.includes('working-context limit'))throw error;return false;}};
+    if(fits())return;const chat=this.store.state.chats.find(c=>c.id===chatId),settings=carrySettings(chat);if(chat.contextPolicy!==2||!settings.automatic)return;
+    if(this.tasks.has(chatId)){await this.tasks.get(chatId);if(fits())return;}
+    const writer=resolveRecorder(this.store.state,chatId,settings.speaker);if(chat.carryWriter!==digest(writer.model))throw new Error('The recorder connection changed. Review Conversation settings; your draft is retained.');
+    const budget=await contextBudget(writer.model,{...this.modelOptions,maxTokens:2048}),shared=await sharedContextPlan(this.store.state,chatId,this.modelOptions);
+    const preview=carryPreview(this.store.state,chatId,{maxContextCharacters:budget.characters,target:shared.target,recorder:writer.selection.recorder});
+    if(!preview.preparation||this.store.state.contextCarry?.jobs.some(j=>j.chatId===chatId&&j.baseId===preview.activeId&&j.through===preview.preparation.through))return;
+    this.suspended.delete(chatId);
+    const result=await this.run({target:'carry',chatId,speaker:settings.speaker,baseId:activeCarry(this.store.state,chatId)?.id??null,lastMessageId:chatMessages(this.store.state,chatId).at(-1)?.id},{signal});
+    if(result.status!==200)throw new Error(result.error??'Context preparation did not complete. The previous account and draft are retained.');
   }
 
   startCarry(input) {

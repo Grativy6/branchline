@@ -1,3 +1,4 @@
+import { rosterChair } from './chair-roster.js';
 import { LEGACY_COATS } from './legacy-coats.js';
 import { pocketContent } from './coat-pockets.js';
 // Published versions stay immutable: old turns must resolve their original text.
@@ -30,12 +31,15 @@ export const harnessChoice = chat => chat?.harnessSelections?.at(-1) ?? { id: nu
 
 // Stable identities, independent of display labels and occupied chair positions.
 export function coatIdentity(state, chat, seat) {
+  if (chat?.seating) { const c = rosterChair(state, chat, seat); return c?.personalId ? 'personal:' + c.personalId : c?.modelId ? 'model:' + c.modelId : 'unbound:' + seat; }
   const a = chat?.table?.assignments.at(-1);
   return seat === 'personal' ? (a?.personalId ? 'personal:' + a.personalId : 'unbound:personal')
     : (a?.visitorModelId ? 'model:' + a.visitorModelId : !a && state.roots?.find(r=>r.id===chat?.rootId)?.modelId ? 'model:' + state.roots.find(r=>r.id===chat.rootId).modelId : 'unbound:visiting');
 }
 export const usualCoat = (state, key) => state.coatUsuals?.filter(r=>r.key===key).at(-1) ?? null;
 export function resolvedCoat(state, chat, seat, key = coatIdentity(state, chat, seat)) {
+  const chair = chat?.seating && rosterChair(state, chat, seat);
+  if (chair?.coat) return { ref:chair.coat, source:chat.seating.revisionId, mode:'override', key };
   const choice = chat?.coatChoices?.filter(r=>r.key===key).at(-1);
   const usual = usualCoat(state,key);
   const legacy = harnessChoice(chat);

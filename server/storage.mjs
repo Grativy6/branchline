@@ -9,6 +9,11 @@ import { imageObjects } from './images.mjs';
 const HEX = /^[a-f0-9]{64}$/;
 const ID = /^[a-f0-9-]{20,80}$/;
 const FIXED = ['events.jsonl', 'workspace.json'];
+function backupFiles(manifest){
+  const memory=manifest.version===5?manifest.memoryFiles:[];
+  if(!Array.isArray(memory)||new Set(memory).size!==memory.length||memory.some(n=>!/^personal-memory\/[A-Za-z0-9_-]{1,100}\/(MEMORY\.md|sync\.json)$/.test(n)))throw new Error('Invalid memory backup paths.');
+  return [...FIXED,...(manifest.version>=4?['personal-context-store/.hearthline-store.sqlite3']:[]),...memory];
+}
 
 function digest(bytes) { return crypto.createHash('sha256').update(bytes).digest('hex'); }
 function safeId(id) { if (typeof id !== 'string' || !ID.test(id)) throw Object.assign(new Error('Invalid backup id.'), { status: 400 }); return id; }
@@ -57,7 +62,8 @@ export class StorageManager {
     return result.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
   }
 
-  async backup() {
+  backup(){return this.store.memoryFiles?this.store.memoryFiles.all(()=>this.backupCaptured()):this.backupCaptured();}
+  async backupCaptured() {
     const captured = await this.store.atQueueBoundary(async () => {
       await fs.mkdir(this.backupDir, { recursive: true });
       const id = crypto.randomUUID();
@@ -80,6 +86,35 @@ export class StorageManager {
         };
         const images = imageObjects(this.store.state);
         if (images.length) { manifest.version = 3; manifest.images = images; }
+        const continuityDatabase=path.join(this.store.dataDir,'personal-context-store','.hearthline-store.sqlite3');
+        if(await fs.stat(continuityDatabase).then(()=>true,e=>e.code==='ENOENT'?false:Promise.reject(e))){
+          // SQLite backup takes a consistent view even if a short-lived MCP
+          // process is appending. Never copy the live database without its WAL.
+          const {DatabaseSync,backup}=await import('node:sqlite');
+          const name='personal-context-store/.hearthline-store.sqlite3',destination=path.join(temporary,name);
+          await fs.mkdir(path.dirname(destination),{recursive:true});const db=new DatabaseSync(continuityDatabase,{readOnly:true});
+          try{await backup(db,destination);}finally{db.close();}
+          manifest.version=4;manifest.files[name]=await fingerprint(destination);
+          const memoryRoot=path.join(this.store.dataDir,'personal-memory');
+          if(await fs.stat(memoryRoot).then(()=>true,e=>e.code==='ENOENT'?false:Promise.reject(e))){
+            if((await fs.lstat(memoryRoot)).isSymbolicLink())throw new Error('Memory backup root cannot be a link.');
+            manifest.version=5;manifest.memoryFiles=[];
+            for(const profile of this.store.state.personalContext?.profiles??[]){
+              const dir=path.join(memoryRoot,profile.id);
+              if(!await fs.stat(dir).then(()=>true,e=>e.code==='ENOENT'?false:Promise.reject(e)))continue;
+              if((await fs.lstat(dir)).isSymbolicLink())throw new Error('Memory backup profile cannot be a link.');
+              for(const leaf of ['MEMORY.md','sync.json']){
+                const source=path.join(dir,leaf),name=`personal-memory/${profile.id}/${leaf}`;
+                if(!await fs.stat(source).then(()=>true,e=>e.code==='ENOENT'?false:Promise.reject(e)))continue;
+                const stat=await fs.lstat(source);if(!stat.isFile()||stat.isSymbolicLink())throw new Error('Memory backup contains a link.');
+                const before=await fingerprint(source),destination=path.join(temporary,name);await fs.mkdir(path.dirname(destination),{recursive:true});
+                const copied=await durableCopy(source,destination),after=await fingerprint(source);
+                if(before.sha256!==copied.sha256||after.sha256!==copied.sha256)throw new Error('Memory changed externally during backup. Retry after its editor finishes saving.');
+                manifest.memoryFiles.push(name);manifest.files[name]=copied;
+              }
+            }
+          }
+        }
         return { id, temporary, target, manifest };
       } catch (error) {
         // Retain partial copies for inspection. Failure is not a cleanup grant.
@@ -118,7 +153,7 @@ export class StorageManager {
     const root = path.join(this.backupDir, safeId(id));
     const manifest = JSON.parse(await fs.readFile(path.join(root, 'manifest.json'), 'utf8'));
     if (JSON.stringify(manifest) !== JSON.stringify(expected)) throw new Error('Backup manifest changed during publication.');
-    for (const name of FIXED) {
+    for (const name of backupFiles(expected)) {
       const actual = await fingerprint(path.join(root, name));
       if (actual.bytes !== expected.files[name].bytes || actual.sha256 !== expected.files[name].sha256) throw new Error('Backup file changed during publication.');
     }
@@ -136,9 +171,9 @@ export class StorageManager {
     let manifest;
     try { manifest = JSON.parse(await fs.readFile(path.join(root, 'manifest.json'), 'utf8')); }
     catch { throw Object.assign(new Error('Backup was not found or its manifest is unreadable.'), { status: 404 }); }
-    if (![1, 2, 3].includes(manifest.version) || manifest.id !== id || manifest.workspaceId !== this.store.workspaceId || !manifest.files) throw new Error('Backup manifest is invalid.');
+    if (![1, 2, 3, 4, 5].includes(manifest.version) || manifest.id !== id || manifest.workspaceId !== this.store.workspaceId || !manifest.files) throw new Error('Backup manifest is invalid.');
     const files = {};
-    for (const name of FIXED) {
+    for (const name of backupFiles(manifest)) {
       const expected = manifest.files[name];
       if (!expected || !Number.isSafeInteger(expected.bytes) || !HEX.test(expected.sha256)) throw new Error('Backup manifest is invalid.');
       files[name] = path.join(root, name);
@@ -146,6 +181,7 @@ export class StorageManager {
       if (actual.bytes !== expected.bytes || actual.sha256 !== expected.sha256) throw new Error('Backup file failed its integrity check.');
     }
     const parsed = await this.replayCopy(files['events.jsonl']);
+    if(parsed.hasPersonalContext&&manifest.version<4)throw new Error('Backup omits its personal continuity database.');
     const identity = parseIdentity(await fs.readFile(files['workspace.json'], 'utf8'));
     if (identity.workspaceId !== manifest.workspaceId) throw new Error('Backup identity does not match its manifest.');
     const logicalBytes = manifest.version >= 2 ? manifest.unpackedJournalBytes : manifest.journalBytes;
@@ -163,7 +199,8 @@ export class StorageManager {
     const target = path.join(this.recoveredDir, recoveredId);
     await fs.mkdir(target, { recursive: true });
     try {
-      for (const name of FIXED) {
+      for (const name of Object.keys(checked.files)) {
+        await fs.mkdir(path.dirname(path.join(target,name)),{recursive:true});
         const written = await durableCopy(checked.files[name], path.join(target, name));
         if (written.bytes !== checked.manifest.files[name].bytes || written.sha256 !== checked.manifest.files[name].sha256) throw new Error('Recovered copy failed its integrity check.');
       }

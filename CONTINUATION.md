@@ -1,3 +1,10 @@
+# Current continuation — private 0.8.16
+
+[Home and work tools](HOME-WORK-0816.md) records the new surface. A first deliberate
+send adopts quiet automatic preparation unless the conversation already has an
+explicit policy. The larger cloud default and limits are connection-specific.
+The following earlier guide remains useful where not amended by that update.
+
 # Keep a conversation going
 
 Version 0.8.8-preview.1. The thought cloud beside your message fills with the app's estimated input use. Its number is in characters, not tokenizer counts. Click it for the current account, original sources and preparation controls. A known local token window is distinguished from an unknown connection capacity.
@@ -63,3 +70,7 @@ Background refreshes preserve newer composer text. New handoff preparations bind
 the relevant branch journal and MIND account plus shared desk guidance. A sibling
 branch's unrelated reflection does not invalidate them. Previously prepared jobs
 retain their original binding rules and history.
+
+## Development 0.8.14 picture and opening behavior
+
+The + button opens one file picker for supported pictures and UTF-8 text. An ordinary picture clears from the composer after a successful reply and remains attached to its original message. Look again reselects that source; Keep in view deliberately retains it for later replies. Failed or incomplete replies preserve the picture selection. Activity is beside the composer. The development room launcher shows visible opening feedback and prepares the local model while saved work becomes available.

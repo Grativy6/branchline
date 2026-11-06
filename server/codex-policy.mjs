@@ -39,7 +39,14 @@ export const CODEX_CONFIG = Object.freeze({
 
 // Arguments are fixed data passed to CreateProcess with shell:false. No command text.
 export function codexArgs() {
-  return ['app-server', '--stdio', '--strict-config', ...Object.entries(CODEX_CONFIG).flatMap(([key, value]) =>
+  return profileArgs(CODEX_CONFIG);
+}
+// Easel gets one separately validated built-in capability. Ordinary conversation
+// retains CODEX_CONFIG; no browser, shell, plugin, file tool or delegate is added.
+export const CODEX_IMAGE_CONFIG = Object.freeze({ ...CODEX_CONFIG, features: { ...CODEX_CONFIG.features, image_generation: true } });
+export const codexImageArgs = () => profileArgs(CODEX_IMAGE_CONFIG);
+function profileArgs(config) {
+  return ['app-server', '--stdio', '--strict-config', ...Object.entries(config).flatMap(([key, value]) =>
     ['-c', `${key}=${toml(value)}`])];
 }
 function toml(value) {
@@ -48,17 +55,21 @@ function toml(value) {
 }
 
 export function verifyCodexConfig({ config, layers }) {
+  return verifyProfile({ config, layers }, CODEX_CONFIG);
+}
+export const verifyCodexImageConfig = result => verifyProfile(result, CODEX_IMAGE_CONFIG);
+function verifyProfile({ config, layers }, expected) {
   const matches = (expected, actual) => Object.entries(expected).every(([key, value]) =>
     value && !Array.isArray(value) && typeof value === 'object'
       ? actual?.[key] && (Object.keys(value).length ? matches(value, actual[key]) : Object.keys(actual[key]).length === 0)
       : JSON.stringify(actual?.[key]) === JSON.stringify(value));
   // This runtime omits the two tools toggles from its typed config response;
   // verify them in the final session-flags layer as well as the effective floor.
-  const { tools, ...visible } = CODEX_CONFIG;
+  const { tools, ...visible } = expected;
   // Empty skill overrides are also omitted by the typed read response. The
   // exact empty array remains required in the raw session flags below.
   visible.skills = { bundled: { enabled: false }, include_instructions: false };
-  if (!matches(visible, config) || !matches(CODEX_CONFIG, layers?.find(layer => layer.name.type === 'sessionFlags')?.config)) throw new Error('Codex connection held: its effective settings do not match the conversation-only profile.');
+  if (!matches(visible, config) || !matches(expected, layers?.find(layer => layer.name.type === 'sessionFlags')?.config)) throw new Error('Codex connection held: its effective settings do not match the selected capability profile.');
   if (config.developer_instructions || config.model_instructions_file || config.instructions || config.hooks || config.skills?.config?.length || Object.keys(config.model_providers || {}).length || config.notify || config.openai_base_url || config.chatgpt_base_url !== 'https://chatgpt.com/backend-api/') {
     throw new Error('Codex connection held: unexpected instructions, extensions, or provider settings were inherited.');
   }

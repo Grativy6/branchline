@@ -7,8 +7,8 @@ export const agentSettings = state => state.parallel?.settings.at(-1) ?? { id:nu
 const label = seat => seat === 'personal' ? 'Personal' : seat === 'visiting' ? 'Visiting' : 'Selected model';
 
 export function agentSettingsForm(state) {
-  const s = agentSettings(state);
-  return `<form id="agent-settings-form" data-revision="${e(s.id || '')}"><h3>Agents for the task at hand</h3><p class="field-help">Try another approach to the same task, with the conversation context carried into each episode. Approaches run one at a time on this device.</p><fieldset class="agent-choice"><legend>Allow your agent to create other agents for a task at hand?</legend><label><input type="radio" name="enabled" value="yes" ${s.enabled ? 'checked' : ''}> Yes</label><label><input type="radio" name="enabled" value="no" ${!s.enabled ? 'checked' : ''}> No</label></fieldset><p class="field-help">When enabled, you choose when to start a task from Conversation settings → Work together at the hearth.</p><label class="agent-opt-in"><input type="checkbox" name="automaticRequests" ${s.automaticRequests ? 'checked' : ''} ${s.enabled ? '' : 'disabled'}><span>Let the model request shared agent work without asking me first.</span></label><p class="field-help">Branchline checks each request against the task’s existing context, permissions and shared limits. This option starts off unchecked. It adds no file-editing or computer-control tools.</p><p class="field-help">The hearth opens two continuing peers with a shared allowance. Choose a quick task or explicitly allow a longer workday. These peers receive conversation tools from their Coats. PC file tools belong to a foreground chair and are not inherited by peers. A second approach may use the same model. Model requests can use local chairs, or the selected OpenAI chair when the original reply is already going to OpenAI.</p><div class="dialog-footer"><button class="primary-button" type="submit">Save agent settings</button></div></form>`;
+  const s = agentSettings(state), pony=s.pony??{enabled:false,mode:"limited",limit:1};
+  return `<form id="agent-settings-form" data-revision="${e(s.id || '')}"><h3>Agents for the task at hand</h3><p class="field-help">Try another approach to the same task, with the conversation context carried into each episode. Approaches run one at a time on this device.</p><fieldset class="agent-choice"><legend>Allow your agent to create other agents for a task at hand?</legend><label><input type="radio" name="enabled" value="yes" ${s.enabled ? 'checked' : ''}> Yes</label><label><input type="radio" name="enabled" value="no" ${!s.enabled ? 'checked' : ''}> No</label></fieldset><p class="field-help">When enabled, you choose when to start a task from Conversation settings → Work together at the hearth.</p><label class="agent-opt-in"><input type="checkbox" name="automaticRequests" ${s.automaticRequests ? 'checked' : ''} ${s.enabled ? '' : 'disabled'}><span>Let the model request shared agent work without asking me first.</span></label><p class="field-help">Branchline checks each request against the task’s existing context, permissions and shared limits. This option starts off unchecked. It adds no file-editing or computer-control tools.</p><p class="field-help">The hearth opens two continuing peers with a shared allowance. Choose a quick task or explicitly allow a longer workday. These peers receive conversation tools from their Coats. PC file tools belong to a foreground chair and are not inherited by peers. A second approach may use the same model. Model requests can use local chairs, or the selected OpenAI chair when the original reply is already going to OpenAI.</p><label class="agent-opt-in"><input type="checkbox" name="ponyEnabled" ${pony.enabled ? 'checked' : ''} ${s.enabled ? '' : 'disabled'}><span>Use a default Pony Post allowance for new tasks</span></label><div class="pony-default-fields"><label class="form-field">Round trips per task<input type="number" name="ponyLimit" min="0" step="1" required value="${pony.limit??1}" ${pony.enabled&&pony.mode!=='unlimited'?'':'disabled'}></label><label class="agent-opt-in"><input type="checkbox" name="ponyUnlimited" ${pony.mode==='unlimited'?'checked':''} ${pony.enabled?'':'disabled'}>No fixed round-trip limit</label><p class="field-help">One trip includes its send and matching return. Shared with subtasks; steering does not refill it. Saving starts no work. Other task resource limits still apply.</p></div><label class="agent-opt-in"><input type="checkbox" name="blackboard" ${s.blackboard ? 'checked' : ''}><span>Use a shared blackboard</span></label><p class="field-help">Let agents organize shared tasks and bring their findings back to one workboard. Applies to new shared hearths; saving this starts no work. Independent first-pass comparisons stay separate.</p><div class="dialog-footer"><button class="primary-button" type="submit">Save agent settings</button></div></form>`;
 }
 
 export function updateAgentForm(form, target) {
@@ -16,6 +16,14 @@ export function updateAgentForm(form, target) {
   automatic.disabled = !enabled;
   if (!enabled) { automatic.checked = false; form.dataset.confirmAutomatic = 'false'; }
   else if (target === automatic) form.dataset.confirmAutomatic = String(automatic.checked);
+  if(form.elements.ponyEnabled){
+    const pony=form.elements.ponyEnabled;
+    pony.disabled=!enabled;
+    if(!enabled||target===automatic&&!automatic.checked)pony.checked=false;
+    if(target===pony&&pony.checked){automatic.checked=true;form.dataset.confirmAutomatic='true';}
+    form.elements.ponyUnlimited.disabled=!pony.checked;
+    form.elements.ponyLimit.disabled=!pony.checked||form.elements.ponyUnlimited.checked;
+  }
 }
 
 export function approachForm(chatId, content, options, toolsEnabled) {
@@ -44,6 +52,7 @@ export function approachDetails(state, id) {
 export function createParallelMonitor({ container, getState, applyState, busy, refreshTools, reportError }) {
   let timer, ticking = false, viewChat = null, visible = false, failures = 0, lastRuntimeError = null;
   const snapshots = new Map(), dismissed = new Set();
+  const pendingPony = state => state?.ponyPost?.trips.find(t=>['reserved','sent'].includes(t.status));
   function paint() {
     const state = getState();
     const run = state?.parallel?.runs.filter(r => r.chatId === viewChat).at(-1);
@@ -52,7 +61,7 @@ export function createParallelMonitor({ container, getState, applyState, busy, r
     const live = liveParallel(run), jobs = state.parallel.jobs.filter(j => j.runId === run.id), snapshot = snapshots.get(run.id);
     const active = jobs.findIndex(j => j.status === 'pending');
     const hearth=isHearth(run), open=hearth?openHearthRun(run):live;
-    const heading = hearth ? run.status==='waiting'?'The hearth needs your input':live?active>=0?`${hearthActor(jobs[active].peerName||jobs[active].hearthActor)} · ${jobs[active].model.name}`:'Next episode queued':`Hearth · ${run.status}` : live ? active >= 0 ? `Approach ${active+1} of ${jobs.length} · ${jobs[active].model.name}` : 'Additional approach queued' : `Approaches ${run.status}`;
+    const heading = run.pony ? live?active>=0?`Pony task · ${jobs[active].model.name}`:'Pony task queued':`Pony task · ${run.status}` : hearth ? run.status==='waiting'?'The hearth needs your input':live?active>=0?`${hearthActor(jobs[active].peerName||jobs[active].hearthActor)} · ${jobs[active].model.name}`:'Next episode queued':`Hearth · ${run.status}` : live ? active >= 0 ? `Approach ${active+1} of ${jobs.length} · ${jobs[active].model.name}` : 'Additional approach queued' : `Approaches ${run.status}`;
     const key = JSON.stringify([run.id,run.status,active,run.error,jobs.map(j=>j.status)]);
     if (container.dataset.key !== key) {
       container.dataset.key = key;
@@ -62,22 +71,25 @@ export function createParallelMonitor({ container, getState, applyState, busy, r
     if (output) output.textContent = snapshot?.liveText || 'Waiting for the next contribution…';
   }
   function schedule() {
-    if (!timer && !ticking && getState()?.parallel?.runs.some(openHearthRun)) timer = setTimeout(tick,getState().parallel.runs.some(liveParallel)?650:2500);
+    const state=getState(),pony=pendingPony(state);
+    if (!timer && !ticking && (pony||state?.parallel?.runs.some(openHearthRun))) timer = setTimeout(tick,pony||state.parallel.runs.some(liveParallel)?650:2500);
   }
   async function tick() {
     timer = null; ticking = true;
     try {
-      const state = getState(), active = state?.parallel?.runs.find(openHearthRun);
-      if (!active || busy()) return;
-      const result = await api.parallelStatus(active.chatId);
+      const state = getState(), active = state?.parallel?.runs.find(openHearthRun),pony=pendingPony(state);
+      if ((!active&&!pony) || busy()) return;
+      const result = await api.parallelStatus(active?.chatId??pony.chatId);
       if (result.runtimeError && result.runtimeError !== lastRuntimeError) {
         lastRuntimeError = result.runtimeError; reportError('An approach could not be saved: '+result.runtimeError);
       }
       for (const s of result.runs) snapshots.set(s.id,s);
       const signature = run => JSON.stringify([run?.status,run?.error,run?.waitingForUser,run?.mailCount??run?.mail?.length??0,run?.jobs?.map(j=>[j.id,j.status])]);
-      const actual = result.runs.find(r=>r.id === active.id);
-      const local = { ...active, jobs:state.parallel.jobs.filter(j=>j.runId === active.id) };
-      if (actual && signature(actual) !== signature(local)) {
+      const actual = active&&result.runs.find(r=>r.id === active.id);
+      const local = active&&{ ...active, jobs:state.parallel.jobs.filter(j=>j.runId === active.id) };
+      const paired=result.pony?.trips.find(t=>t.id===pony?.id);
+      const ponyChanged=pony&&(paired?.status!==pony.status||paired?.runId!==pony.runId||paired?.return?.id!==pony.return?.id);
+      if (ponyChanged || actual && signature(actual) !== signature(local)) {
         const before = getState(), next = await api.state();
         if (getState() === before && !busy()) applyState(next);
       }

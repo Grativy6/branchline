@@ -1,0 +1,20 @@
+.peaches-dialog { width:min(760px,calc(100vw - 28px)); }
+.peaches-book fieldset { border:0;padding:0;margin:0;min-width:0; }
+.peaches-intro { display:flex;align-items:center;gap:18px;margin:2px 0 18px; }
+.peaches-intro h3 { margin:0 0 8px; }
+.peaches-intro p { margin:0;line-height:1.6; }
+.peaches-actions { display:flex;flex-wrap:wrap;gap:10px;margin:12px 0; }
+.peach-file { display:inline-flex;align-items:center;cursor:pointer; }
+.peaches-entries { display:grid;gap:12px;margin:24px 0; }
+.peach-entry { display:flex;flex-direction:column;align-items:start;gap:6px;text-align:left;padding:16px;border:1px solid var(--line);background:var(--panel);border-radius:12px;color:inherit;cursor:pointer;overflow-wrap:anywhere; }
+.peach-entry span,.peach-entry small { opacity:.8;font-size:.85rem; }
+.peach-entry:hover { border-color:var(--accent); }
+.peach-empty { padding:30px 10px;text-align:center;line-height:1.7; }
+.peaches-book details { margin:14px 0;border-top:1px solid var(--line);padding-top:10px; }
+.peaches-book details details { margin-left:10px; }
+.peaches-book summary { cursor:pointer;line-height:1.6; }
+.peach-code { white-space:pre-wrap;word-break:break-word;font:12px/1.6 ui-monospace,monospace;max-height:340px;overflow:auto;padding:12px;background:var(--canvas);border-radius:8px; }
+.peaches-book .dialog-footer { flex-wrap:wrap;gap:8px; }
+.peaches-book .harness-text { max-height:330px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;padding:12px 0;line-height:1.65; }
+.peach-status { font-size:.85rem;opacity:.8; }
+@media(max-width:520px){.peaches-intro{align-items:start;gap:10px}.peaches-intro img{width:48px;height:48px}.peach-entry{padding:12px}.peaches-book .dialog-footer>*{flex:1 1 auto}}

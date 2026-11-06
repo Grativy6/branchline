@@ -1,0 +1,7 @@
+.personal-context-panel { min-width: 0; overflow-wrap: anywhere; }
+.personal-context-controls { border: 0; padding: 0; margin: 0; min-width: 0; }
+.personal-context-panel textarea { width: 100%; box-sizing: border-box; resize: vertical; }
+.personal-context-panel .harness-text { white-space: pre-wrap; overflow-wrap: anywhere; max-width: 100%; }
+.personal-context-panel .check-line { flex-wrap: wrap; }
+.personal-context-panel details { margin-block: .8rem; }
+.personal-context-panel section { padding-block: .6rem; border-bottom: 1px solid var(--border); }

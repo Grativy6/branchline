@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { digest } from './integrity.mjs';
 import { assertInferenceIdle } from './table.mjs';
+import { profileSharedWith } from '../public/agent-sharing.js';
 
 export const AGENT_PROFILE_FORMAT = 'branchline.agent-profile/1';
 export const PROFILE_LIMITS = Object.freeze({ files: 64, fileBytes: 131072, totalBytes: 262144, contextCharacters: 24000 });
@@ -94,11 +95,12 @@ function destinations(state, models) {
     return profileDestination(model);
   });
 }
-const allowed = (state, selectionId, model) => library(state).sharing.some(r => r.selectionId === selectionId && r.destinations.some(d => digest(d) === digest(profileDestination(model))));
+const allowed = profileSharedWith;
 
 // A desk's derived continuity can carry profile material even after disconnect.
 // Check all prior profile-bearing calls in that desk, including compaction and
-// reflections. A new model/server therefore needs fresh human clearance.
+// reflections. A new model/server needs clearance for that material, but one
+// approval of an identical profile selection covers its earlier attachments.
 export function agentExposureIds(state, chatId, selection = null, kind = 'reply') {
   const rootId = state.chats.find(c => c.id === chatId)?.rootId;
   const ids = new Set((state.handoffs?.records ?? []).filter(r => r.kind === 'context.to_model' && r.scope.rootId === rootId)
@@ -113,7 +115,7 @@ export function assertAgentDisclosure(state, chatId, model, selection, kind) {
   for (const id of ids) fail(allowed(state, id, model), 'this desk carries agent material that is not cleared for this model connection. Open My Models → Agent profile → Review sharing.');
   // The Personal reply is shared with the desk, so clear both assigned chairs
   // before first use, even when this particular turn asks only Personal.
-  if (['reply', 'parallel'].includes(kind) && agentProfileSnapshot(state, selection)) {
+  if (!state.chats.find(c => c.id === chatId)?.seating && ['reply', 'parallel'].includes(kind) && agentProfileSnapshot(state, selection)) {
     const assignment = state.chats.find(c => c.id === chatId)?.table?.assignments.at(-1);
     const visitor = state.models.find(m => m.id === assignment?.visitorModelId);
     if (visitor) for (const id of ids) fail(allowed(state, id, visitor), 'the visiting model is not cleared for this agent material. Review sharing in My Models before taking this turn.');

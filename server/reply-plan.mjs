@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { digest } from './integrity.mjs';
 import { compileMessages } from './model.mjs';
 import { resolveSpeaker, lastMessageId } from './table.mjs';
+import {personalContextView,contextLibrary} from './personal-context.mjs';
 
 const fail = (ok, message) => { if (!ok) throw new Error(message); };
 const settingsHash = (state, chatId) => {
@@ -9,6 +10,8 @@ const settingsHash = (state, chatId) => {
   return digest({ replySettings: chat?.replySettings ?? null,
     agentSelections: state.agentProfiles?.selections ?? [], agentSharing: state.agentProfiles?.sharing ?? [],
     harnessRevision: chat?.harnessSelections?.at(-1)?.id ?? null,
+    personalContext:['personal','visiting'].map(seat=>personalContextView(state,chatId,seat)),
+    personalSharing:contextLibrary(state).sharing,
     resources: state.roots.find(root => root.id === chat?.rootId)?.resources ?? null });
 };
 

@@ -1,5 +1,8 @@
 import { assertModelAvailable, preserveModelArchives } from './model-archives.mjs';
 import crypto from 'node:crypto';
+import { rosterAssignment, rosterChair, chairView, CHAIR_PROFILE } from '../public/chair-roster.js';
+import { applyRosterCommand, validateRoster } from './chair-roster.mjs';
+import { resolvedCoat } from '../public/harness-catalog.js';
 import { digest } from './integrity.mjs';
 import { responseModeFor } from './response-mode.mjs';
 import { permitsDreamTransition, preserveDreamHistory } from './dream-history.mjs';
@@ -31,6 +34,12 @@ export function assertInferenceIdle(state) {
   fail(!inferencePending(state), 'A model is already working. Finish or stop that reply or reflection first.');
 }
 
+export function assertChairAvailable(state, chatId, chairId) {
+  fail(!state.exchanges.some(e => e.status === 'pending' && e.chatId === chatId && (!e.speaker?.chairId || e.speaker.chairId === chairId)), 'This chair is already working.');
+  fail(!(state.contextCarry?.jobs ?? []).some(j => j.chatId === chatId && j.status === 'pending') && !(state.mind?.jobs ?? []).some(j => j.chatId === chatId && j.status === 'pending')
+    && !state.roots.some(r => r.continuity?.jobs?.some(j => j.chatId === chatId && j.status === 'pending')), 'Waiting for this desk’s context preparation.');
+}
+
 // Only ordinary replies on compatible HTTP connections may overlap a recorder.
 // Every other mutation retains the global inference guard.
 export function assertReplyAvailable(state, model) {
@@ -42,7 +51,7 @@ export function assertReplyAvailable(state, model) {
 }
 
 export function currentAssignment(state, chatId) {
-  return state.chats.find(chat => chat.id === chatId)?.table?.assignments.at(-1) ?? null;
+  return rosterAssignment(state, state.chats.find(chat => chat.id === chatId));
 }
 
 export function lastMessageId(state, chatId) {
@@ -61,13 +70,16 @@ function activeChat(state, chatId) {
 }
 
 export function applyTableCommand(state, type, payload) {
-  assertInferenceIdle(state);
+  if (type.startsWith('table.roster.') && !['table.roster.select','table.roster.start'].includes(type)) {
+    fail(!state.exchanges.some(e=>e.chatId===payload.chatId&&e.status==='pending') && !(state.deskWork?.tasks??[]).some(t=>t.chatId===payload.chatId&&['queued','waiting','preparing','running','stopping'].includes(t.status)), 'Finish or stop this desk’s tasks before changing its chairs.');
+  } else if (!['table.roster.select','table.roster.start','table.replySettings'].includes(type)) assertInferenceIdle(state);
+  if (type.startsWith('table.roster.')) { applyRosterCommand(state, type, payload); const chat=state.chats.find(c=>c.id===payload.chatId);if(type==='table.roster.chair'&&payload.chairId===chat?.seating?.desk.id&&chat.contextPolicy===2&&chat.carrySettings?.automatic&&chat.carrySettings.speaker==='personal'){const writer=state.models.find(m=>m.id===chat.seating.desk.modelId);chat.carryWriter=writer?digest(writer):null;}return state; }
   if (type === 'personal.create') {
     fail(exact(payload, ['name', 'modelId', 'baseIdentity', 'baseRevision', 'manifestHash']), 'Personal setup accepts only its name, connection and declared base identity.');
     fail(text(payload.name, 200) && ref(payload.modelId), 'Give the personal participant a name and model connection.');
     const model = state.models.find(item => item.id === payload.modelId);
     fail(model, 'Model connection not found.'); assertModelAvailable(state,model.id);
-    fail(model.runtime !== 'codex', 'Codex subscription models use the Visiting chair. Personal models remain local.');
+    fail(!['codex','openai'].includes(model.runtime), 'Codex subscription models use the Visiting chair. Personal models remain local.');
     fail(text(payload.baseIdentity, 500), 'Declare the personal model base identity.');
     fail(payload.baseRevision === undefined || text(payload.baseRevision, 200), 'Invalid base revision.');
     fail(payload.manifestHash === undefined || /^[a-f0-9]{64}$/.test(payload.manifestHash), 'Invalid manifest digest.');
@@ -83,11 +95,12 @@ export function applyTableCommand(state, type, payload) {
     const participant = participantById(state, payload.participantId);
     const model = state.models.find(item => item.id === payload.modelId);
     fail(participant && model, 'Personal participant or model connection not found.'); assertModelAvailable(state,model.id);
-    fail(model.runtime !== 'codex', 'Codex subscription models use the Visiting chair.');
+    fail(!['codex','openai'].includes(model.runtime), 'Codex subscription models use the Visiting chair.');
     fail(participant.connections.at(-1).id === payload.baseConnectionId, 'Personal connection changed. Refresh before editing it.');
     const generation = participant.generations.find(item => item.id === participant.currentGenerationId);
     fail(model.model === generation.modelIdentifier, 'Changing the personal foundation needs a separate generation transition. This operation only repairs its connection.');
     participant.connections.push({ id: uid('connection'), modelId: model.id, createdAt: timestamp() });
+    for (const chat of state.chats) if (chat.seating?.desk.personalId === participant.id) { chat.seating.desk.modelId = model.id; chat.seating.revisionId = uid('seating'); }
     return state;
   }
   if (type === 'personal.nickname') {
@@ -102,6 +115,7 @@ export function applyTableCommand(state, type, payload) {
   if (type === 'table.assign') {
     fail(exact(payload, ['chatId', 'baseRevisionId', 'personalId', 'visitorModelId']), 'Unexpected table assignment fields.');
     const { chat } = activeChat(state, payload.chatId);
+    fail(!chat.seating, 'Use the Desk Model and visitor controls for this conversation.');
     const before = currentAssignment(state, chat.id);
     fail((before?.id ?? null) === (payload.baseRevisionId ?? null), 'The table changed. Refresh its chairs before saving.');
     fail(payload.personalId === null || participantById(state, payload.personalId), 'Personal participant not found.');
@@ -118,6 +132,12 @@ export function applyTableCommand(state, type, payload) {
     const assignment = currentAssignment(state, chat.id);
     fail(assignment && assignment.id === payload.baseRevisionId, 'The table changed. Review its chairs first.');
     fail(isReplyMode(payload.mode) && ['personal', 'visiting'].includes(payload.speaker), 'Choose a reply pattern and chair.');
+    if (chat.seating) {
+      fail(payload.mode !== 'both', 'Choose Select or Alternate for visiting replies.');
+      fail(payload.speaker !== 'visiting' || chat.seating.visitors.length, 'Add a visiting chair first.');
+      chat.seating.mode = payload.mode; chat.seating.speaker = payload.speaker;
+      return state;
+    }
     if (payload.mode !== 'single') { resolveSpeaker(state, chat.id, 'personal'); resolveSpeaker(state, chat.id, 'visiting'); }
     chat.replySettings = { mode: payload.mode, speaker: payload.speaker };
     return state;
@@ -127,8 +147,21 @@ export function applyTableCommand(state, type, payload) {
 
 // Resolves only a seat explicitly selected by a local application request.
 // A participant, receipt, or saved assignment has no ability to invoke a model.
-export function resolveSpeaker(state, chatId, seat = null) {
-  const { root } = activeChat(state, chatId);
+export function resolveSpeaker(state, chatId, seat = null, chairId = null) {
+  if (chairId) state = chairView(state, chatId, chairId);
+  const { root, chat } = activeChat(state, chatId);
+  if (chat.seating) {
+    fail(['personal', 'visiting'].includes(seat), 'Choose Desk Model or Visiting for this reply.');
+    const chair = rosterChair(state, chat, seat);
+    const model = state.models.find(m => m.id === chair?.modelId);
+    fail(model, 'Choose a model for the selected chair first.'); assertModelAvailable(state, model.id);
+    const participant = seat === 'personal' ? participantById(state, chair.personalId) : null;
+    const connection = participant?.connections.at(-1), generation = participant?.generations.find(g => g.id === participant.currentGenerationId);
+    if (participant) fail(connection?.modelId === model.id && generation?.modelIdentifier === model.model, 'The saved continuity connection changed. Review the Desk Model.');
+    return { model, selection: { profile: CHAIR_PROFILE, seat, assignmentId: chat.seating.revisionId, chairId: chair.id, displayName: chair.name, chairSnapshot: structuredClone(chair),
+      participantId: participant?.id ?? null, generationId: generation?.id ?? null, connectionId: connection?.id ?? null,
+      coat: structuredClone(resolvedCoat(state, chat, seat)), modelId: model.id, modelProfileHash: digest(model), modelSnapshot: structuredClone(model) } };
+  }
   const assignment = currentAssignment(state, chatId);
   if (!assignment) {
     fail(seat === null || seat === 'legacy', 'Set up the table before choosing a chair.');
@@ -161,7 +194,7 @@ export function requestFingerprint(body) {
     ...(body.followUpOf !== undefined ? { followUpOf: body.followUpOf } : {}) });
 }
 
-export function checkTurnRequest(state, body) {
+export function checkTurnRequest(state, body, admission = null) {
   fail(exact(body, ['chatId', 'content', 'kind', 'speaker', 'baseRevisionId', 'lastMessageId', 'requestId', 'selectedFile', 'stream', 'responseMode', 'replyMode', 'followUpOf', 'harnessRevisionId', 'toolsEnabled', 'imagePlanId']), 'Reply requests cannot add an actor, grant, tool, or other fields.');
   fail(body.imagePlanId === undefined || typeof body.imagePlanId === 'string' && /^imageplan_[a-f0-9-]{36}$/.test(body.imagePlanId), 'Invalid picture dispatch plan.');
   fail(body.toolsEnabled === undefined || typeof body.toolsEnabled === 'boolean', 'Invalid tool selection.');
@@ -179,14 +212,25 @@ export function checkTurnRequest(state, body) {
     fail(prior.request.fingerprint === fingerprint, 'That request identity already belongs to a different reply.');
     return { prior, fingerprint, kind };
   }
-  const nextSeat = body.replyMode === 'alternate' ? alternatingSeat(state, body.chatId) : body.speaker ?? null;
+  if (admission) {
+    const task = state.deskWork?.tasks.find(t => t.id === admission.taskId);
+    fail(task && ['preparing','running'].includes(task.status) && task.chatId === body.chatId && task.requestId === body.requestId && (task.kind==='ask'?(body.content??'')==='':task.content === (body.content ?? '')), 'The admitted chair task changed.');
+    const chosen = resolveSpeaker(state, body.chatId, task.selection.seat, task.chairId);
+    fail(digest(chosen.selection) === digest(task.selection) && digest(chosen.model) === digest(task.model), 'This chair changed after its task was assigned.');
+    assertChairAvailable(state, body.chatId, task.chairId);
+    return { fingerprint, kind, ...chosen, replyMode:task.input.replyMode??'single' };
+  }
+  const roster = state.chats.find(c => c.id === body.chatId)?.seating;
+  if (roster) fail(body.replyMode !== 'both' && !body.followUpOf, 'This conversation uses Desk Model or one selected visitor per reply.');
+  const nextSeat = !roster && body.replyMode === 'alternate' ? alternatingSeat(state, body.chatId) : body.speaker ?? null;
   assertReplyAvailable(state, resolveSpeaker(state, body.chatId, nextSeat).model);
   if (body.replyMode === 'both') for (const seat of ['personal','visiting']) assertReplyAvailable(state, resolveSpeaker(state, body.chatId, seat).model);
   fail(body.harnessRevisionId === undefined || body.harnessRevisionId === (state.chats.find(c => c.id === body.chatId)?.harnessSelections?.at(-1)?.id ?? null), 'The harness changed. Review its selection before sending.');
   fail(body.responseMode === undefined || body.responseMode === responseModeFor(state, body.chatId), 'The base Coat changed. Review Play / Create / Work before sending.');
   const assignment = currentAssignment(state, body.chatId);
   const replyMode = body.replyMode ?? 'single';
-  const settings = state.chats.find(chat => chat.id === body.chatId)?.replySettings;
+  const settings = roster ?? state.chats.find(chat => chat.id === body.chatId)?.replySettings;
+  if (roster) fail(body.speaker === roster.speaker, 'The selected reply chair changed. Review it before sending.');
   if (!body.followUpOf) fail(replyMode === (settings?.mode ?? 'single'), 'The reply pattern changed. Review the controls before sending.');
   if (assignment) {
     fail(ref(body.requestId), 'This table needs a reply request identity.');
@@ -194,8 +238,8 @@ export function checkTurnRequest(state, body) {
     fail(body.lastMessageId === lastMessageId(state, body.chatId), 'The conversation changed. Review the latest turn before replying.');
   } else fail(kind === 'send', 'Set up a table before asking another model to take a turn.');
   if (kind === 'ask') fail(lastMessageId(state, body.chatId), 'Start the conversation before asking for another reply.');
-  if (replyMode !== 'single') { resolveSpeaker(state, body.chatId, 'personal'); resolveSpeaker(state, body.chatId, 'visiting'); }
-  const seat = replyMode === 'alternate' ? alternatingSeat(state, body.chatId) : body.speaker ?? null;
+  if (!roster && replyMode !== 'single') { resolveSpeaker(state, body.chatId, 'personal'); resolveSpeaker(state, body.chatId, 'visiting'); }
+  const seat = nextSeat;
   const { model, selection } = resolveSpeaker(state, body.chatId, seat);
   return { fingerprint, kind, model, selection, replyMode };
 }
@@ -215,9 +259,10 @@ export function validateTables(state) {
     fail(participant.generations.some(item => item.id === participant.currentGenerationId), 'Current personal generation missing.');
     for (const connection of participant.connections) { fail(ref(connection.id) && !ids.has(connection.id) && ref(connection.modelId), 'Invalid personal connection.'); ids.add(connection.id); }
     const model = state.models.find(item => item.id === participant.connections.at(-1).modelId);
-    fail(model && model.runtime !== 'codex' && model.model === participant.generations.find(item => item.id === participant.currentGenerationId).modelIdentifier, 'Personal connection changed its base identity.');
+    fail(model && !['codex','openai'].includes(model.runtime) && model.model === participant.generations.find(item => item.id === participant.currentGenerationId).modelIdentifier, 'Personal connection changed its base identity.');
   }
   for (const chat of state.chats) {
+    validateRoster(state, chat);
     if (chat.replySettings !== undefined) fail(chat.table && exact(chat.replySettings, ['mode', 'speaker']) && isReplyMode(chat.replySettings.mode) && ['personal', 'visiting'].includes(chat.replySettings.speaker), 'Invalid reply settings.');
     if (chat.table === undefined) continue;
     fail(exact(chat.table, ['assignments']) && Array.isArray(chat.table.assignments) && chat.table.assignments.length > 0, 'Invalid table.');
@@ -250,6 +295,14 @@ export function validateTables(state) {
     }
     if (exchange.speaker === undefined || exchange.speaker === null) continue;
     const speaker = exchange.speaker;
+    if (speaker.profile === CHAIR_PROFILE) {
+      const c = speaker.chairSnapshot;
+      fail(['personal','visiting'].includes(speaker.seat) && ref(speaker.assignmentId) && ref(speaker.chairId) && c?.id === speaker.chairId && c.name === speaker.displayName && c.modelId === speaker.modelId && c.personalId === speaker.participantId, 'Reply chair snapshot changed.');
+      fail(speaker.modelId === exchange.modelId && speaker.modelSnapshot?.id === exchange.modelId && speaker.modelSnapshot.model === exchange.modelIdentifier && speaker.modelSnapshot.baseUrl === exchange.modelBaseUrl && digest(speaker.modelSnapshot) === speaker.modelProfileHash, 'Reply model snapshot changed.');
+      if (speaker.participantId) { const p = participantById(state, speaker.participantId); fail(speaker.seat === 'personal' && p?.generations.some(g => g.id === speaker.generationId && g.modelIdentifier === speaker.modelSnapshot.model) && p.connections.some(x => x.id === speaker.connectionId && x.modelId === speaker.modelId), 'Desk continuity lineage missing.'); }
+      else fail(speaker.generationId === null && speaker.connectionId === null, 'Unbound chair gained a lineage.');
+      continue;
+    }
     const assignment = state.chats.find(chat => chat.id === exchange.chatId)?.table?.assignments.find(item => item.id === speaker.assignmentId);
     fail(assignment && ['personal', 'visiting'].includes(speaker.seat), 'Reply chair assignment missing.');
     fail(speaker.modelSnapshot?.id === exchange.modelId && speaker.modelSnapshot.model === exchange.modelIdentifier && speaker.modelSnapshot.baseUrl === exchange.modelBaseUrl && digest(speaker.modelSnapshot) === speaker.modelProfileHash, 'Reply model snapshot changed.');

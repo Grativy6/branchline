@@ -1,3 +1,6 @@
+import { createDeskWorkUI, routingFor } from './desk-work.js';
+import {resourceSettings} from './resource-settings.js';
+import {workPanel,readWorkForm,commandRow,outputsPanel,hydrateOutputs,mountEditRegion} from './work-tools.js';
 import { createModelArchivePanel } from './model-archive-panel.js';
 import { activeModels } from './model-archives.js';
 import { allowanceFrom,updateAllowance } from './continuing-hearth.js';
@@ -8,10 +11,10 @@ import { ORIENTATIONS, effectiveOrientation, recordedOrientationLabel } from './
 import { resourcesForm, conversationSettings, RESOURCE_DEFAULTS, createWelcomeTour, DREAM_PREPARATION } from './desktop-controls.js';
 import { carrySettings } from './resource-settings.js';
 import { recorderHint } from './recorder.js';
-import { createSettingsSize } from './settings-size.js';
 import { createDreamReview } from './dream-review.js';
 import { createSketchBook } from './sketch-book.js';
-import { createToyShelf, shelfSettings, SHELF_APPS } from './toy-shelf.js';
+import { createToyShelf, toyShelf as toyShelfMarkup, shelfSettings, refreshShelfOrderButtons, SHELF_APPS } from './toy-shelf.js';
+import { blackboardBrowser } from './blackboard.js';
 import { replyBusy } from './table.js';
 import { renderMarkdown } from './markdown.js';
 import { createToolPanel, toolHistory } from './tools.js';
@@ -22,6 +25,8 @@ import { escapeHtml as e, currentInstruction, selected, isPending, branchList, c
 import { reflectionDialogContent, continuityExchangeSummary, setContinuityTab } from './continuity.js';
 import { storagePanel } from './storage.js';
 import { createFilePicker } from './files.js';
+import { createAttachmentPicker } from './attachments.js';
+import { createStartupProgress } from './startup-progress.js';
 import { createImagePicker, hydrateImages } from './images.js';
 import { tableInfo, tableSetup, turnOptions, modelsBusy, replySettings, replyControls, replyPatternLabel, hasRecordedReply } from './table.js';
 import { accountFor, mindInspection, packetPreview } from './mind.js';
@@ -29,15 +34,24 @@ import { initializeAppearance, saveAppearance, appearanceSettings } from './appe
 import { messageInfoKeys, messageInfoSettings, messageInfoDetails } from './message-info.js';
 import { licencesSettings, loadLicences } from './licenses.js';
 import { downloadExport } from './session.js';
+import {homePanel,homeSourceRow,readHomeForm} from './home-sources.js';
+import { openaiPanel } from './openai.js';
+import { chairRoster } from './chair-roster.js';
+import { chairEditor } from './roster-views.js';
 import { deskBar, modelPicker, deskPicker, branchDialog } from './desks.js';
 import { harnessPreview, pocketSummary } from './harness-views.js';
 import { harnessRef } from './harness-catalog.js';
 import { createHarnessEditor } from './harness-editor.js';
+import {createPersonalContext} from './personal-context.js';
+import {createPlans} from './plans.js';
+import {createPeaches} from './peaches.js';
+import {createEasel} from './easel.js';
 import { createAgentProfiles } from './agent-profiles.js';
 import { personalSettings, personalNicknameForm } from './table.js';
-import { codexPanel } from './codex.js';
+import { codexPanel, codexConnection } from './codex.js';
 import { activeAccount, contextBar, contextDialog, sourceDialog, preparationHint, budgetHint, contextSize } from './context-carry.js';
 import { agentSettings, agentSettingsForm, updateAgentForm, approachForm, updateApproachForm, approachDetails, createParallelMonitor, liveParallel } from './parallel.js';
+import { ponySummary, ponyDetails, ponyNewForm, ponyAmendForm, ponySendForm, updatePonyForm } from './pony.js';
 import { mountPcAccess } from './pc-access.js';
 import { isHearth, hearthForm, updateHearthForm, hearthDetails } from './hearth.js';
 initializeAppearance();
@@ -55,34 +69,67 @@ const harnessEditor = createHarnessEditor({ getState: () => state, refreshState:
   if (epoch === pollEpoch) { state = next; render(); }
 }, command, openDialog:(title,content,className,surface)=>surface === 'chat' ? openDialog(title,content,className) : openSettings('coats',null,{title,content}), closeDialog, toast });
 let screen = 'home';
+const personalContext=createPersonalContext({getState:()=>state,refresh:async()=>{state=await api.state();pollEpoch++;render();},openDialog,toast});
+const plans=createPlans({getState:()=>state,refresh:async()=>{state=await api.state();pollEpoch++;render();},openDialog,toast});
+document.addEventListener('submit',safe(async event=>{await plans.submit(event);}));
+const peaches=createPeaches({getState:()=>state,refresh:async()=>{state=await api.state();pollEpoch++;render();},openDialog,toast,openProfile:(id,chat)=>personalContext.openProfile(id,chat),newProfile:(chat,back)=>personalContext.newForBook(chat,back)});
+const easel=createEasel({getChatId:()=>selected(state).chat?.id,onAttached:async()=>{state=await api.state();pollEpoch++;render();},openConnection:()=>showCodex(),toast});
+document.addEventListener('submit',safe(async event=>{if(event.target.id?.startsWith('peaches-'))await peaches.submit(event);}));
+document.addEventListener('change',safe(async event=>{await peaches.change(event);}));
+document.addEventListener('submit',safe(async event=>{if(event.target.id?.startsWith('personal-context-'))await personalContext.submit(event);}));
+document.addEventListener('change',safe(async event=>{await personalContext.change(event);}));
 let modelCheck;
 let dreamParticipantId;
 let codexStatus, codexAuthUrl, codexPoll, codexView = 0;
-async function openCodex() {
-  openDialog('ChatGPT subscription', codexPanel(), 'codex-dialog');
+let codexRefresh = null, codexStatusEpoch = 0, codexEmptyPolls = 0;
+async function updateCodexStatus() {
+  if (codexRefresh) return codexRefresh;
+  const epoch = codexStatusEpoch;
+  codexRefresh = (async () => {
+    let result;
+    try { result = await api.codexStatus(); }
+    catch (err) { result = { error: err.message }; }
+    if (epoch === codexStatusEpoch) {
+      codexStatus = result;
+      if (result.connected) codexAuthUrl = null;
+      if (state && !closingPage) render();
+    }
+    return codexStatus;
+  })().finally(() => {
+    codexRefresh = null;
+    clearTimeout(codexPoll);
+    if (closingPage || document.hidden) return;
+    if (epoch !== codexStatusEpoch) { codexPoll = setTimeout(refreshCodexConnection, 0); return; }
+    const waitingForSignIn = !codexStatus?.connected && (codexStatus?.pending || codexAuthUrl && $('dialog').open && $('dialog').classList.contains('codex-dialog'));
+    const waitingForModels = codexStatus?.connected && !codexStatus.models?.length;
+    if (!waitingForModels) codexEmptyPolls = 0;
+    // A short post-login gap must not become a permanent empty model list.
+    // After twelve empty results, leave the visible refresh action available.
+    if (!codexStatus?.error && (waitingForSignIn || waitingForModels && codexEmptyPolls++ < 12))
+      codexPoll = setTimeout(refreshCodexConnection, 2500);
+  });
+  return codexRefresh;
+}
+async function refreshCodexConnection() {
   const view = codexView;
-  try { codexStatus = await api.codexStatus(); }
-  catch (err) { codexStatus = { error: err.message }; }
-  if (view !== codexView || !$('dialog').open) return;
-  showCodex();
+  await updateCodexStatus();
+  if (!closingPage && view === codexView && $('dialog').open && $('dialog').classList.contains('codex-dialog')) showCodex();
+}
+async function openCodex() {
+  codexEmptyPolls = 0;
+  openDialog('ChatGPT subscription', codexPanel(), 'codex-dialog');
+  await refreshCodexConnection();
 }
 function showCodex() {
   openDialog('ChatGPT subscription', codexPanel(codexStatus, codexAuthUrl), 'codex-dialog');
-  if (codexStatus?.connected) codexAuthUrl = null;
-  if (codexAuthUrl && !codexStatus?.connected && !codexStatus?.error) {
-    const view = codexView;
-    const poll = async () => {
-      try {
-        const status = await api.codexStatus(); if (view !== codexView || !$('dialog').open) return;
-        codexStatus = status;
-        if (status.connected || status.error || !status.pending) showCodex();
-        else codexPoll = setTimeout(poll, 2500);
-      }
-      catch (err) { if (view === codexView) { codexStatus = { error: err.message }; showCodex(); } }
-    };
-    codexPoll = setTimeout(poll, 2500);
-  }
 }
+function returnedToBranchline() {
+  if (closingPage || document.hidden || !state || !(codexAuthUrl || codexStatus?.connected || state.models.some(m => m.runtime === 'codex'))) return;
+  codexEmptyPolls = 0;
+  void refreshCodexConnection();
+}
+window.addEventListener('focus', returnedToBranchline);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) returnedToBranchline(); });
 let query = '';
 let detailsOpen = false;
 let detailsRootId;
@@ -97,7 +144,7 @@ let pollTimer;
 let closingPage = false;
 let pollEpoch = 0, pollInFlight = false;
 let polledState = null, pollRevision = null;
-let liveRenderFrame = null;
+
 let draftSaveChain = Promise.resolve();
 let storageInfo;
 let storageBusy = false;
@@ -112,10 +159,10 @@ let heartDraft = null;
 let heartSaveChain = Promise.resolve();
 let heartDirty = false;
 const pendingDrafts = new Map();
-const sending = new Set();
+
 const submitting = new Set();
-const liveReplies = new Map();
-const stoppedReplies = new Set();
+let deskUI = null;
+
 const replyRequests = new Map();
 let preparedLearningPacket = null;
 let appearanceSaveChain = Promise.resolve();
@@ -131,7 +178,7 @@ function refreshContextStatus(root, chat, busy) {
     state.drafts[chat.id]?.length, root?.instructions.at(-1)?.id, root?.continuity?.heart.at(-1)?.id,
     root?.continuity?.journal.map(j => [j.id, j.removedAt]), state.mcpContext?.[chat.id],
     state.mind?.accounts.length, chat.harnessSelections?.at(-1)?.id, chat.responseMode, root?.resources, chat.carrySettings, state.contextCarry?.ready, chosenModel(root, chat), nextSpeaker(chat),
-    chat.table?.assignments.at(-1)?.id, state.models, state.modelArchives, state.personalParticipants?.map(p => [p.id, p.currentGenerationId, p.connections.at(-1)?.id]), state.agentProfiles?.selections.at(-1)?.id, state.agentProfiles?.sharing.at(-1)?.id]);
+    chat.seating?.revisionId, chat.table?.assignments.at(-1)?.id, state.models, state.modelArchives, state.personalParticipants?.map(p => [p.id, p.currentGenerationId, p.connections.at(-1)?.id]), state.agentProfiles?.selections.at(-1)?.id, state.agentProfiles?.sharing.at(-1)?.id]);
   $('context-status').innerHTML = contextBar(contextStatus, false, carrySettings(chat).showCount);
   if (busy || key === contextStatusKey) return;
   contextStatusKey = key;
@@ -163,13 +210,21 @@ function chosenModel(root, chat, speaker = nextSpeaker(chat)) {
   const table = tableInfo(state, chat);
   return table ? (speaker === 'personal' ? table.personalModel : speaker === 'visiting' ? table.visitorModel : null) : state.models.find(m => m.id === root?.modelId);
 }
+function replyConnection(root, chat, model = chosenModel(root, chat)) {
+  const visitor = tableInfo(state, chat)?.visitorModel;
+  const cloud = model?.runtime === 'codex' ? model : replySettings(state, chat).mode === 'both' && visitor?.runtime === 'codex' ? visitor : null;
+  return cloud ? codexConnection(codexStatus, cloud) : null;
+}
 function refreshComposerButtons(root, chat) {
   const table = tableInfo(state, chat), model = chosenModel(root, chat);
-  const busy = replyBusy(state, chosenModel(root, chat)) || submitting.size > 0 || continuityBusy || responseModeSaving || replySettingsSaving;
+  const busy = submitting.has(chat?.id) || responseModeSaving || replySettingsSaving;
   const draft = $('message-input').value, file = filePicker.get(chat?.id);
-  const unavailable = table && (!model || (replySettings(state, chat).mode !== 'single' && !(table.personalModel && table.visitorModel)));
-  $('send-button').disabled = busy || unavailable || !draft.trim() || !!file?.loading;
-  $('send-button').textContent = unavailable ? 'Choose the required models' : model ? 'Send message ↑' : 'Save note ↑';
+  const parsed=chat?routingFor(state,chat,draft):null;
+  const unavailable = !parsed?.routed && table && !model;
+  const connection = replyConnection(root, chat);
+  $('send-button').disabled = busy || unavailable || (!parsed?.routed && connection && !connection.ready) || !draft.trim() || !!file?.loading || !!parsed?.errors.length;
+  if(!parsed?.routed)$('send-button').disabled ||= (replySettings(state, chat).mode === 'both' ? [table?.personalModel, table?.visitorModel] : [model]).some(connection => startupProgress.blocks(connection));
+  $('send-button').textContent = unavailable ? 'Choose the required models' : model || parsed?.routed ? 'Send message ↑' : 'Save note ↑';
   $('save-note').hidden = !table;
   $('save-note').disabled = busy || !draft.trim() || !!file;
   return unavailable;
@@ -179,10 +234,15 @@ const sketchBook = createSketchBook({getState:()=>state,command,beforeNavigation
   navigate:(rootId,chatId)=>navigate(rootId,chatId,state.roots.find(r=>r.id===rootId).mode),showCoats:()=>openSettings('coats'),api,toast,reportError:message=>error(message)});
 const modelArchivePanel = createModelArchivePanel({ getState:()=>state, api, command, openDialog, beforeNavigation });
 const dreamReview = createDreamReview({getState:()=>state,command,beforeNavigation,api,applyState:next=>{state=next;pollEpoch++;render();},reportError:message=>error(message)});
-$('open-sketch-book').addEventListener('click',safe(()=>sketchBook.open()));
+$('open-toy-shelf').addEventListener('click',safe(()=>openToyShelf()));
 const imagePicker = createImagePicker({ getState: () => state, selection: () => selected(state), updateState: value => { state = value; }, changed: () => render(), reportError: message => error(message), openDialog });
+const attachmentPicker = createAttachmentPicker({ selection: () => selected(state), filePicker, imagePicker, changed: () => render(), reportError: message => error(message) });
+const startupProgress = createStartupProgress({ changed: () => { if (state) render(); } });
+deskUI = createDeskWorkUI({getState:()=>state,selection:()=>state?selected(state):{},
+  sync:async()=>{const epoch=pollEpoch;const next=await api.state();if(epoch!==pollEpoch)return;state=next;pollEpoch++;render();},
+  navigate,openDialog,reportError:error,toast});
 const parallelMonitor = createParallelMonitor({ container:$('parallel-activity'), getState:()=>state,
-  applyState:next=>{ pollEpoch++; state=next; render(); }, busy:()=>sending.size > 0 || submitting.size > 0,
+  applyState:next=>{ pollEpoch++; state=next; render(); }, busy:()=>submitting.size > 0,
   refreshTools:()=>toolPanel.refresh(), reportError:error });
 async function openApproaches() {
   await beforeNavigation();
@@ -211,6 +271,18 @@ async function openHearth(id=null) {
   const options=await api.parallelOptions(chat.id);
   openDialog('Work together at the hearth',hearthForm(chat.id,$('message-input').value,options),'settings-dialog');
   updateHearthForm($('hearth-start-form'));
+}
+
+async function openPony() {
+  const {chat}=selected(state);if(!chat)return;
+  const next=await api.state();pollEpoch++;state=next;render();
+  openDialog('Pony Post',ponyDetails(state,chat.id),'settings-dialog');
+}
+async function openPonySend(ponyTaskId=null) {
+  const {chat}=selected(state);if(!chat||modelsBusy(state)||submitting.size)return;
+  const options=await api.parallelOptions(chat.id);
+  openDialog('Send pony task',ponySendForm(state,chat.id,options,ponyTaskId),'settings-dialog');
+  updatePonyForm($('pony-send-form'));
 }
 
 function error(message) {
@@ -249,23 +321,44 @@ async function command(type, payload, { renderNow = true } = {}) {
   if (renderNow) render();
   return state;
 }
-const settingsSize = createSettingsSize({ dialog: $('dialog'), getPreference: () => state?.ui.settingsSize,
-  save: settingsSize => command('ui.update', { settingsSize }, { renderNow: false }), onError: message => toast(message) });
 const toyShelf = createToyShelf({ container: $('home-screen'), getPreference: () => state?.ui.toyShelf,
   save: toyShelf => command('ui.update', { toyShelf }, { renderNow: false }), onError: message => error(message) });
-window.addEventListener('resize', () => toyShelf.resize());
+const shelfWindow = createToyShelf({ container: $('dialog-content'), getPreference: () => state?.ui.toyShelf,
+  save: toyShelf => command('ui.update', { toyShelf }, { renderNow: false }), onError: message => error(message) });
+function fitToyWindow() {
+  const dialog=$('dialog');
+  if(!dialog.open||!dialog.matches('.toy-shelf-dialog,.blackboard-dialog'))return;
+  const scale=dialog.getBoundingClientRect().width/parseFloat(getComputedStyle(dialog).width)||1;
+  dialog.style.setProperty('--toy-window-height',Math.max(1,innerHeight/scale-24)+'px');
+}
+window.addEventListener('resize', () => { toyShelf.resize(); shelfWindow.resize(); fitToyWindow(); });
+async function openToyShelf() {
+  await beforeNavigation();
+  $('app-shell').classList.remove('nav-open');
+  syncNavigationAccessibility();
+  openDialog('Toy Shelf',toyShelfMarkup(state.ui.toyShelf,{popup:true}),'toy-shelf-dialog');
+  shelfWindow.attach();
+}
+async function openBlackboard(id=null) {
+  await beforeNavigation();
+  const next=await api.state();pollEpoch++;state=next;render();
+  openDialog('Blackboard',blackboardBrowser(state,selected(state).chat?.id,id),'settings-dialog blackboard-dialog');
+}
 let homeMarkup = '';
 function openDialog(title, content, className = '') {
-  settingsSize.detach();
-  clearTimeout(codexPoll); codexView++;
+  const hearthForm=$('hearth-message-form');
+  if(hearthForm)hearthDrafts.set(hearthForm.dataset.runId,hearthForm.elements.message.value);
+  shelfWindow.detach();
+  codexView++;
   if (!$('dialog').open) dialogReturnFocus = document.activeElement;
   $('dialog').className = `app-dialog ${className}`;
   $('dialog-content').innerHTML = `<div class="dialog-header"><h2 id="dialog-title">${e(title)}</h2><button class="icon-button" type="button" data-action="close-dialog" aria-label="Close dialog">×</button></div><div class="dialog-body">${content}</div>`;
+  $('work-controls').open=false;
   $('dialog').append($('work-controls'));
   $('dialog').setAttribute('aria-labelledby', 'dialog-title');
   if (!$('dialog').open) $('dialog').showModal();
+  fitToyWindow();
   $('dialog').scrollTop = 0;
-  if ($('dialog').classList.contains('settings-window')) settingsSize.attach();
   const focusAtOpen = document.activeElement;
   requestAnimationFrame(() => { if (document.activeElement === focusAtOpen) $('dialog').querySelector('[autofocus]')?.focus(); });
 }
@@ -291,30 +384,93 @@ function closeDialog() { if (coatWarningOpen) return dismissCoatWarning(); if (h
 function returnToPersonalModels(form) {
   if (form.dataset.returnView === 'settings') openSettings('models');
   else openDialog('My Models', personalSettings(state));
-  $('dialog').querySelector(`[data-action="personal-rename"][data-id="${CSS.escape(form.dataset.id)}"]`)?.focus();
+  (form.dataset.returnView==='settings'?$('settings-page'):$('dialog')).querySelector(`[data-action="personal-rename"][data-id="${CSS.escape(form.dataset.id)}"]`)?.focus();
 }
 $('dialog').addEventListener('cancel', event => { if (coatWarningOpen) { event.preventDefault(); dismissCoatWarning().catch(err => error(err.message)); } else if (continuityBusy || carryBusy || harnessEditor.busy || agentProfiles.busy) event.preventDefault(); else { harnessEditor.keepDraft(); agentProfiles.keepDraft(); } });
 $('dialog').addEventListener('close', () => {
-  settingsSize.detach();
-  $('activity-home').append($('work-controls'));
+  shelfWindow.detach();
+  void shelfWindow.flush().catch(err=>error(err.message));
+  placeActivity();
   imageProviderPanel.cancel();
-  clearTimeout(codexPoll); codexView++;
-  if (dialogReturnFocus?.isConnected) dialogReturnFocus.focus();
+  codexView++;
+  if (!$('dialog').open && dialogReturnFocus?.isConnected && !dialogReturnFocus.closest('[inert]')) dialogReturnFocus.focus({preventScroll:true});
   if (guidanceReview) {
     const review = guidanceReview; guidanceReview = null;
     api.decideAction({ actionId: review.plan.id, reviewHash: review.reviewHash, token: review.token, decision: 'cancel' }).catch(err => error(err.message));
   }
 });
 
+const settingsCategories=[['conversation','Conversation'],['resources','Resources'],['models','Models'],['memory','Memory'],['plans','Plans'],['coats','Coats & pockets'],['toy-shelf','Toy Shelf'],['agents','Agents'],['appearance','Appearance'],['message-info','Message info'],['workspace','Workspace'],['advanced','Advanced'],['licences','About & licences']];
+let settingsMenu = null, settingsReturnScroll = null;
+const settingsInert = new Map();
+function syncSettingsSurface(){
+  const open=!!settingsMenu, pageOpen=!$('settings-page').hidden;
+  document.body.classList.toggle('settings-open',open);
+  document.body.classList.toggle('settings-page-open',pageOpen);
+  $('settings-button').textContent=open?'× Close':'⚙ Settings';
+  $('settings-button').setAttribute('aria-label',open?'Close Settings':'Settings');
+  $('settings-button').setAttribute('aria-expanded',String(open));
+  $('settings-button').setAttribute('aria-controls','settings-category-menu');
+  const hidden=[...(open?[$('branch-list'),document.querySelector('.sidebar-bottom')]:[]),...(pageOpen?[...document.querySelector('.workspace').children].filter(el=>el.id!=='settings-page'&&!el.classList.contains('topbar')).concat($('details-panel')):[])];
+  for(const el of hidden)if(el&&!settingsInert.has(el)){settingsInert.set(el,el.inert);el.inert=true;}
+  for(const [el,inert] of settingsInert)if(!hidden.includes(el)){el.inert=inert;settingsInert.delete(el);}
+  settingsMenu?.querySelectorAll('[data-action="settings-tab"]').forEach(button=>{
+    if(pageOpen&&button.dataset.id===settingsTab)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current');
+  });
+  $('skip-link').href=pageOpen?'#settings-page-title':screen==='home'?'#home-heading':'#message-input';
+  $('skip-link').textContent=pageOpen?'Skip to settings':screen==='home'?'Skip to Home':'Skip to message';
+  placeActivity();syncNavigationAccessibility();
+}
+function closeSettingsMenu({focus=true}={}){
+  harnessEditor.keepDraft();settingsMenu?.remove();settingsMenu=null;
+  $('settings-page').hidden=true;$('settings-page-content').replaceChildren();
+  if(window.innerWidth<760)$('app-shell').classList.remove('nav-open');
+  syncSettingsSurface();
+  if(settingsReturnScroll){
+    $('home-screen').scrollTop=settingsReturnScroll.home;
+    if(selected(state).chat?.id===settingsReturnScroll.chatId)$('conversation').scrollTop=settingsReturnScroll.follow?$('conversation').scrollHeight:settingsReturnScroll.conversation;
+  }
+  settingsReturnScroll=null;
+  if(focus)(window.innerWidth<760||state.ui.sidebarCollapsed?$('toggle-sidebar'):$('settings-button')).focus();
+}
+async function leaveSettings(){
+  if(harnessEditor.busy||agentProfiles.busy)return;
+  await harnessEditor.persist();await beforeNavigation();closeSettingsMenu();
+}
+function openSettingsMenu({focus=true}={}){
+  if(settingsMenu)return;
+  const nav=document.createElement('nav');nav.id='settings-category-menu';nav.setAttribute('aria-label','Settings categories');
+  nav.innerHTML='<h2>Settings</h2><div class="settings-categories">'+settingsCategories.map(([id,label])=>`<button type="button" data-action="settings-tab" data-id="${id}" aria-controls="settings-page">${label}</button>`).join('')+'</div>';
+  settingsMenu=nav;$('sidebar').append(nav);
+  if(window.innerWidth<760)$('app-shell').classList.add('nav-open');
+  syncSettingsSurface();if(focus)nav.querySelector('button').focus();
+}
+document.addEventListener('keydown',safe(async event=>{if(event.key==='Escape'&&settingsMenu&&!$('dialog').open&&!event.defaultPrevented){event.preventDefault();await leaveSettings();}}));
+const settingsLayoutObserver=new ResizeObserver(()=>{
+  const bar=document.querySelector('.topbar'),side=document.querySelector('.brand-row'),footer=document.querySelector('.sidebar-footer');
+  document.documentElement.style.setProperty('--settings-top',bar.offsetHeight+'px');
+  document.documentElement.style.setProperty('--settings-nav-top',(side.offsetTop+side.offsetHeight)+'px');
+  document.documentElement.style.setProperty('--settings-nav-bottom',($('sidebar').clientHeight-footer.offsetTop)+'px');
+});
+for(const el of [$('app-shell'),$('sidebar'),document.querySelector('.topbar'),document.querySelector('.brand-row'),document.querySelector('.sidebar-footer')])settingsLayoutObserver.observe(el);
 function openSettings(tab = settingsTab, editing = null, coatView = null) {
+  if(harnessEditor.busy||agentProfiles.busy)return;
   harnessEditor.keepDraft();
+  if($('dialog').open)closeDialog();
+  openSettingsMenu({focus:false});
+  if(!settingsReturnScroll){const c=$('conversation');settingsReturnScroll={chatId:selected(state).chat?.id,home:$('home-screen').scrollTop,conversation:c.scrollTop,follow:c.scrollHeight-c.scrollTop-c.clientHeight<40};}
   if (tab === 'mcp') tab = 'advanced';
   settingsTab = tab;
-  openDialog('Settings', `<div class="dialog-tabs" role="tablist" aria-label="Settings">${[['conversation', 'Conversation'], ['resources', 'Resources'], ['models', 'Models'], ['coats', 'Coats & pockets'], ['toy-shelf', 'Toy Shelf'], ['agents', 'Agents'], ['appearance', 'Appearance'], ['message-info', 'Message info'], ['workspace', 'Workspace'], ['advanced', 'Advanced'], ['licences', 'About & licences']].map(([id, label]) => `<button type="button" role="tab" aria-selected="${tab === id}" data-action="settings-tab" data-id="${id}">${label}</button>`).join('')}</div><div class="settings-content">${tab === 'conversation' ? conversationSettings(state, selected(state).root, selected(state).chat) : tab === 'resources' ? resourcesForm(selected(state).root) : tab === 'coats' ? coatWarningSetting() + (coatView ? `<h3>${e(coatView.title)}</h3>${coatView.content}` : harnessEditor.markup()) : tab === 'toy-shelf' ? shelfSettings(state.ui.toyShelf) : tab === 'models' ? modelsSettings(state, editing, discoveredModels) : tab === 'agents' ? agentSettingsForm(state) : tab === 'appearance' ? appearanceSettings() : tab === 'message-info' ? messageInfoSettings(state.ui.messageInfo) : tab === 'workspace' ? workspaceSettings(state, storageInfo) : tab === 'licences' ? licencesSettings() : advancedSettings(state, mcpCapabilities)}</div>`, 'settings-dialog settings-window');
+  $('settings-page-title').textContent=settingsCategories.find(([id])=>id===tab)?.[1]??'Settings';
+  $('settings-page-content').innerHTML=`${tab === 'conversation' ? conversationSettings(state, selected(state).root, selected(state).chat) : tab === 'resources' ? resourcesForm(selected(state).root,chosenModel(selected(state).root,selected(state).chat)) : tab === 'coats' ? coatWarningSetting() + (coatView ? `<h3>${e(coatView.title)}</h3>${coatView.content}` : harnessEditor.markup()) : tab === 'toy-shelf' ? shelfSettings(state.ui.toyShelf) : tab === 'models' ? modelsSettings(state, editing, discoveredModels) : tab === 'agents' ? agentSettingsForm(state) : tab === 'plans' ? '<h3>Plans</h3><p>Schedule a task for a local or subscription model, with its own Coat and limits.</p><button type="button" class="primary-button" data-action="plans-open">Manage Plans</button>' : tab === 'memory' ? '<h3>Memory</h3><p>Keep selected history across conversations. Save a response, edit MEMORY.md, or choose whether your model can suggest or keep notes.</p><button type="button" class="primary-button" data-action="personal-context">Manage memories</button>' : tab === 'appearance' ? appearanceSettings() : tab === 'message-info' ? messageInfoSettings(state.ui.messageInfo) : tab === 'workspace' ? workspaceSettings(state, storageInfo) : tab === 'licences' ? licencesSettings() : advancedSettings(state, mcpCapabilities)}`;
+  $('settings-page').hidden=false;$('settings-page-content').scrollTop=0;
+  syncSettingsSurface();
+  if(window.innerWidth<760){$('app-shell').classList.remove('nav-open');syncNavigationAccessibility();}
+  $('settings-page-title').focus({preventScroll:true});
   if (tab === 'licences') loadLicences($('licences-panel'));
   if (tab === 'agents') {
     const panel=document.createElement('section');panel.id='pc-access-panel';panel.innerHTML='<p>Loading PC access…</p>';
-    $('dialog').querySelector('.settings-content').prepend(panel);mountPcAccess(panel,state,message=>error(message));
+    $('settings-page-content').prepend(panel);mountPcAccess(panel,state,message=>error(message));
   }
   if (tab === 'workspace') {
     refreshStoragePanel();
@@ -329,7 +485,7 @@ async function loadStorage({ preserveMessage = false } = {}) {
     if (token !== storageLoadToken) return;
     storageInfo = result;
     if (!preserveMessage) storageMessage = '';
-    if ($('dialog').open && settingsTab === 'workspace') {
+    if (!$('settings-page').hidden && settingsTab === 'workspace') {
       const panel = $('storage-panel');
       if (panel) panel.outerHTML = storagePanel(storageInfo, { busy: storageBusy, busyLabel: storageBusyLabel, message: storageMessage });
     }
@@ -350,7 +506,12 @@ function refreshStoragePanel() {
 }
 
 function hasWorkActivity() {
-  return state && (modelsBusy(state) || sending.size > 0 || continuityBusy || carryBusy);
+  return state && (modelsBusy(state) || submitting.size > 0 || continuityBusy || carryBusy || state.deskWork?.tasks.some(t=>['queued','waiting','preparing','running','stopping'].includes(t.status)));
+}
+function placeActivity() {
+  if ($('dialog').open) return;
+  const target = !$('settings-page').hidden ? $('activity-home') : screen === 'chat' ? $('activity-composer') : $('activity-home');
+  if (target && $('work-controls').parentElement !== target) target.append($('work-controls'));
 }
 function refreshWorkActivity() {
   const active = Boolean(hasWorkActivity()), controls = $('work-controls');
@@ -377,6 +538,7 @@ function refreshWorkActivity() {
 }
 function render({ scroll = false, refreshDetails = false } = {}) {
   if (!state) return;
+  if (!closingPage && !codexStatus && !codexRefresh && state.models.some(m => m.runtime === 'codex')) void refreshCodexConnection();
   sketchBook.refresh();
   dreamReview.refresh();
   refreshWorkActivity();
@@ -401,9 +563,14 @@ function render({ scroll = false, refreshDetails = false } = {}) {
   $('details-toggle').hidden = atHome || detailsOpen;
   $('skip-link').href = atHome ? '#home-heading' : chat ? '#message-input' : '#conversation';
   $('skip-link').textContent = atHome ? 'Skip to Home' : chat ? 'Skip to message' : 'Skip to workspace';
+  if(settingsMenu)syncSettingsSurface();
   parallelMonitor.show(chat?.id, !atHome);
+  $('pony-activity').innerHTML=!atHome&&chat?ponySummary(state,chat.id):'';
+  $('pony-activity').hidden=!$('pony-activity').innerHTML;
   toolPanel.show(chat?.id, !atHome);
-  $('configure-model').setAttribute('aria-label', 'Attachments');
+  $('configure-model').setAttribute('aria-label', 'Attach file');
+  startupProgress.render();
+  placeActivity();
   if (atHome) {
     if (dreamParticipantId === undefined) dreamParticipantId = recentDreamParticipant(state);
     const markup = home(state, { modelCheck, dreamParticipantId });
@@ -413,7 +580,7 @@ function render({ scroll = false, refreshDetails = false } = {}) {
   }
   const globalBusy = modelsBusy(state) || submitting.size > 0 || continuityBusy || carryBusy || responseModeSaving || replySettingsSaving;
   const table = tableInfo(state, chat);
-  const chairMarkup = deskBar(state, root, chat, globalBusy);
+  const chairMarkup = deskBar(state, root, chat, globalBusy, codexStatus);
   if ($('table-bar').innerHTML !== chairMarkup) $('table-bar').innerHTML = chairMarkup;
   $('arrange-chairs').hidden = !chat;
   $('arrange-chairs').disabled = globalBusy;
@@ -424,18 +591,19 @@ function render({ scroll = false, refreshDetails = false } = {}) {
   $('details-toggle').disabled = !root;
   $('details-toggle').setAttribute('aria-expanded', String(detailsOpen));
   const atBottom = $('conversation').scrollHeight - $('conversation').scrollTop - $('conversation').clientHeight < 100;
-  const markup = conversation(state, root, chat, chat ? liveReplies.get(chat.id) : null);
+  const markup = conversation(state, root, chat);
   if ($('conversation').innerHTML !== markup) $('conversation').innerHTML = markup;
   if (scroll || atBottom) requestAnimationFrame(() => { $('conversation').scrollTop = $('conversation').scrollHeight; });
   $('composer-form').hidden = !chat;
   const busy = chat && (isPending(state, chat.id) || submitting.has(chat.id));
-  const rootBusy = root && state.chats.some(c => c.rootId === root.id && (isPending(state, c.id) || sending.has(c.id)));
+  const rootBusy = root && state.chats.some(c => c.rootId === root.id && (isPending(state, c.id) || submitting.has(c.id)));
   const modelOptions = `<option value="">No model · save notes</option>${activeModels(state).map(m => `<option value="${e(m.id)}">${e(m.name)}</option>`).join('')}`;
   if ($('model-select').innerHTML !== modelOptions) $('model-select').innerHTML = modelOptions;
   $('model-select').value = root?.modelId || '';
   $('model-select').disabled = !root || !!rootBusy;
   $('model-select').hidden = !!table;
-  const replyMarkup = replyControls(state, chat, globalBusy);
+  const connection = replyConnection(root, chat);
+  const replyMarkup = replyControls(state, chat, submitting.has(chat.id)||replySettingsSaving, !!connection && !connection.ready);
   if ($('table-reply-controls').innerHTML !== replyMarkup) $('table-reply-controls').innerHTML = replyMarkup;
   $('table-reply-controls').hidden = !table;
   const responseMode = effectiveOrientation(chat?.responseMode);
@@ -456,12 +624,15 @@ function render({ scroll = false, refreshDetails = false } = {}) {
   $('message-input').disabled = !!busy;
   filePicker.render(root ? { ...root, modelId: selectedModel?.id ?? null } : root, chat, globalBusy);
   imagePicker.render(chat, replyingModels, globalBusy);
+  attachmentPicker.render(chat, globalBusy);
+  placeActivity();
   hydrateImages();
   const chairUnavailable = refreshComposerButtons(root, chat);
   $('cancel-button').hidden = !chat || (!isPending(state, chat.id) && !submitting.has(chat.id) && !state.parallel?.runs.some(r=>r.chatId === chat.id && liveParallel(r)) && !state.contextCarry?.jobs.some(j=>j.chatId === chat.id && j.status === 'pending') && !state.contextCarry?.ready?.[chat.id] && !['queued','preparing'].includes(contextStatus?.preparationState?.phase));
-  const cloudInTurn = selectedModel?.runtime === 'codex' || (replySettings(state, chat).mode === 'both' && table?.visitorModel?.runtime === 'codex');
-  const patternHint = replySettings(state, chat).mode === 'both' ? `${nextSpeaker(chat) === 'personal' ? 'Personal then Visiting' : 'Visiting then Personal'} · second reads the first reply` : replySettings(state, chat).mode === 'alternate' ? `Alternate · ${nextSpeaker(chat) === 'personal' ? 'Personal' : 'Visiting'} next` : 'Local model · Enter to send · Shift+Enter for a new line';
-  $('composer-hint').textContent = globalBusy ? (replyBusy(state, selectedModel) ? 'Connection busy · Stop also cancels queued work.' : 'Preparing an earlier handoff · You can keep chatting.') : chairUnavailable ? 'Arrange the required chairs, turn off Both / Alternate, or save a note.' : selectedModel ? (cloudInTurn ? 'OpenAI receives selected context · ' + patternHint.replace('Local model · ', '') : patternHint) : 'Saved notes join this chat’s context when you choose a model.';
+  const cloudInTurn = ['codex','openai'].includes(selectedModel?.runtime) || (replySettings(state, chat).mode === 'both' && table?.visitorModel?.runtime === 'codex');
+  const patternHint = nextSpeaker(chat) === 'personal' ? 'Desk Model · Enter to send · Shift+Enter for a new line' : `${table?.roster.visitors.find(c=>c.id===table.roster.selectedVisitorId)?.name ?? 'Visiting'} · ${replySettings(state, chat).mode === 'alternate' ? 'next visitor after a complete reply' : 'selected visitor stays'}`;
+  $('composer-hint').textContent = globalBusy ? 'Tasks continue in Activity · Send to another chair, or queue more work with @chair.' : chairUnavailable ? 'Choose a model for this chair, or save a note.' : selectedModel ? (cloudInTurn ? 'OpenAI receives selected context · ' + patternHint.replace('Local model · ', '') : patternHint) : 'Saved notes join this chat’s context when you choose a model.';
+  if (!globalBusy && connection && !connection.ready) $('composer-hint').innerHTML = `${e(connection.label)}. Your draft stays here. <button type="button" class="text-button" data-action="codex-open">${e(connection.action)}</button>`;
   refreshContextStatus(root, chat, globalBusy);
   $('details-panel').hidden = !detailsOpen;
   if (detailsOpen && (detailsRootId !== root?.id || detailsChatId !== chat?.id || refreshDetails || !detailsDirty)) {
@@ -472,19 +643,7 @@ function render({ scroll = false, refreshDetails = false } = {}) {
       detailsChatId = chat?.id;
     }
   }
-}
-
-function renderLiveReply(chatId, live) {
-  if (liveRenderFrame !== null) return;
-  liveRenderFrame = requestAnimationFrame(() => {
-    liveRenderFrame = null;
-    if (screen !== 'chat' || selected(state).chat?.id !== chatId || liveReplies.get(chatId) !== live) return;
-    const container = $('conversation'), body = container.querySelector('.live-reply .message-body');
-    if (!body) return; // A saved result or navigation has already replaced it.
-    const atBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
-    body.innerHTML = renderMarkdown(live.text || live.status || '…');
-    if (atBottom) container.scrollTop = container.scrollHeight;
-  });
+  deskUI?.render();
 }
 
 function flushDrafts() {
@@ -533,6 +692,8 @@ function saveHeartDraft() {
   return heartSaveChain;
 }
 async function beforeNavigation() {
+  await easel.flush();
+  await shelfWindow.flush();
   await toyShelf.flush();
   await flushDrafts();
   if (detailsDirty) await saveDetails(false);
@@ -541,6 +702,7 @@ async function beforeNavigation() {
 }
 async function navigate(rootId, chatId, mode = state.ui.mode) {
   await beforeNavigation();
+  if(settingsMenu){await harnessEditor.persist();closeSettingsMenu({focus:false});}
   const root = state.roots.find(r => r.id === rootId);
   if (root && !chatId) chatId = state.chats.find(c => c.rootId === root.id && !c.archivedAt)?.id || null;
   await command('ui.update', { mode, selected: { ...state.ui.selected, [mode]: { rootId: rootId || null, chatId: chatId || null } } }, { renderNow: false });
@@ -552,6 +714,7 @@ async function navigate(rootId, chatId, mode = state.ui.mode) {
 async function showHome(event) {
   const fromTab = event?.currentTarget === $('mode-home');
   await beforeNavigation();
+  if(settingsMenu){await harnessEditor.persist();closeSettingsMenu({focus:false});}
   if (screen !== 'home') dreamParticipantId = undefined;
   screen = 'home';
   detailsOpen = false;
@@ -600,11 +763,12 @@ $('toggle-sidebar').addEventListener('click', safe(async () => {
   if (window.innerWidth < 760) {
     $('app-shell').classList.toggle('nav-open');
     syncNavigationAccessibility();
-    if ($('app-shell').classList.contains('nav-open')) $('branch-search').focus();
-  } else await command('ui.update', { sidebarCollapsed: !state.ui.sidebarCollapsed });
+    if ($('app-shell').classList.contains('nav-open')) (settingsMenu?.querySelector('[aria-current=page]') || settingsMenu?.querySelector('button') || $('branch-search')).focus();
+  } else if(settingsMenu) await leaveSettings();
+  else await command('ui.update', { sidebarCollapsed: !state.ui.sidebarCollapsed });
 }));
 function syncNavigationAccessibility() {
-  const open = window.innerWidth < 760 ? $('app-shell').classList.contains('nav-open') : !state?.ui.sidebarCollapsed;
+  const open = window.innerWidth < 760 ? $('app-shell').classList.contains('nav-open') : !!settingsMenu || !state?.ui.sidebarCollapsed;
   $('sidebar').inert = !open;
   $('toggle-sidebar').setAttribute('aria-expanded', String(open));
   $('toggle-sidebar').setAttribute('aria-controls', 'sidebar');
@@ -613,11 +777,8 @@ function closeNavigation() { $('app-shell').classList.remove('nav-open'); syncNa
 window.addEventListener('resize', syncNavigationAccessibility);
 $('close-sidebar').addEventListener('click', closeNavigation);
 $('nav-backdrop')?.addEventListener('click', closeNavigation);
-$('settings-button').addEventListener('click', safe(async () => { await beforeNavigation(); openSettings(); }));
-$('configure-model').addEventListener('click', () => {
-  const menu=$('attachment-menu'); menu.hidden=!menu.hidden;
-  $('configure-model').setAttribute('aria-expanded',String(!menu.hidden));
-});
+$('settings-button').addEventListener('click', safe(async () => { if(settingsMenu)return leaveSettings();await beforeNavigation();openSettingsMenu(); }));
+
 $('details-toggle').addEventListener('click', safe(async () => {
   if (detailsDirty) await saveDetails(false);
   await saveHeartDraft();
@@ -646,9 +807,13 @@ $('model-select').addEventListener('change', safe(async event => {
   catch (err) { render(); throw err; }
   toast(modelId ? 'Model set for the next exchange' : 'Note mode selected');
 }));
+async function ensureRoster(chat) {
+  if (chat && !chat.seating) await command('table.roster.start', {chatId:chat.id});
+  return state.chats.find(c => c.id === chat?.id);
+}
 async function setReplySettings(mode, speaker) {
-  const chat = selected(state).chat, table = tableInfo(state, chat);
-  if (!table || replySettingsSaving || submitting.size || modelsBusy(state)) return;
+  const chat = await ensureRoster(selected(state).chat), table = tableInfo(state, chat);
+  if (!table || replySettingsSaving || submitting.has(chat.id)) return;
   replySettingsSaving = true; render();
   try { await command('table.replySettings', { chatId: chat.id, baseRevisionId: table.assignment.id, mode, speaker }); }
   finally { replySettingsSaving = false; render(); }
@@ -688,94 +853,45 @@ $('message-input').addEventListener('keydown', event => {
   if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); if (!$('send-button').disabled) $('composer-form').requestSubmit(); }
 });
 async function sendTurn(kind = 'send', requestedSpeaker = null) {
-  const { root, chat } = selected(state);
+  let { root, chat } = selected(state);
   const content = kind === 'ask' ? '' : $('message-input').value;
-  if (!chat || (kind === 'send' && !content.trim()) || submitting.size || replyBusy(state, chosenModel(root, chat)) || responseModeSaving || replySettingsSaving) return;
-  const speaker = requestedSpeaker || nextSpeaker(chat);
-  const model = chosenModel(root, chat, speaker);
-  if (tableInfo(state, chat) && speaker !== 'note' && !model) throw new Error('That chair has no available model. Arrange the chairs first.');
-  const attached = kind === 'send' ? filePicker.get(chat.id) : null;
-  const toolsEnabled = $('tools-enabled').checked;
-  if (attached?.loading || imagePicker.busy) return;
-  if (attached && !model) throw new Error('Choose a local model or remove the attached file before saving a note.');
-  submitting.add(chat.id);
-  stoppedReplies.delete(chat.id);
-  render();
-  try {
+  if (!chat || (kind === 'send' && !content.trim()) || submitting.has(chat.id) || responseModeSaving || replySettingsSaving) return;
+  if(requestedSpeaker !== 'note'){chat=await ensureRoster(chat);if(chat.contextPolicy!==2){await command('chat.contextPolicy',{id:chat.id,policy:2});chat=state.chats.find(c=>c.id===chat.id);}}
+  const speaker=requestedSpeaker||nextSpeaker(chat),model=chosenModel(root,chat,speaker),parsed=routingFor(state,chat,content);
+  if(kind==='send'&&parsed.errors.length)throw new Error(parsed.errors.join(' '));
+  const attached=kind==='send'?filePicker.get(chat.id):null;
+  if(attached?.loading||imagePicker.busy)return;
+  submitting.add(chat.id);render();
+  try{
     await beforeNavigation();
-    if (!model) {
-      await command('message.note', { chatId: chat.id, content });
-      pendingDrafts.delete(chat.id);
-      toast('Note saved');
-    } else {
-      sending.add(chat.id);
-      refreshWorkActivity();
-      const requestKey = JSON.stringify({ chatId: chat.id, content, kind, speaker, toolsEnabled, replyMode: replySettings(state, chat).mode, responseMode: effectiveOrientation(chat.responseMode), harnessRevision: chat.harnessSelections?.at(-1)?.id ?? null, file: attached?.base64 ?? null, images: imagePicker.selected(chat.id) });
-      let request = replyRequests.get(chat.id);
-      if (request?.key !== requestKey) {
-        request = { key: requestKey, options: turnOptions(state, chat, speaker, kind) };
-        const picturePlan = await imagePicker.prepare(chat.id, tableInfo(state, chat) ? speaker : null, replySettings(state, chat).mode);
-        if (picturePlan) request.options.imagePlanId = picturePlan.id;
-        replyRequests.set(chat.id, request);
+    if(requestedSpeaker==='note'||(!model&&!parsed.routed)){
+      await command('message.note',{chatId:chat.id,content});pendingDrafts.delete(chat.id);toast('Note saved');
+    }else{
+      const toolsEnabled=$('tools-enabled').checked;
+      const key=JSON.stringify({chatId:chat.id,content,kind,speaker,toolsEnabled,file:attached?.base64??null,images:imagePicker.selected(chat.id)});
+      let request=replyRequests.get(chat.id);
+      if(request?.key!==key){
+        const options=turnOptions(state,chat,speaker,kind);
+        const pictures=imagePicker.selected(chat.id);
+        if(parsed.sections.length>1&&pictures.length)throw new Error('Send pictures to one chair at a time. Your draft and pictures are kept.');
+        const imagePlan=await imagePicker.prepare(chat.id,tableInfo(state,chat)?speaker:null,replySettings(state,chat).mode);
+        if(imagePlan)options.imagePlanId=imagePlan.id;
+        request={key,options};replyRequests.set(chat.id,request);
       }
-      const imagePlanId = request.options.imagePlanId;
-      let options = { ...request.options }, turnModel = model;
-      // At most two human-requested replies. Each call still crosses the normal
-      // host boundary; the second needs the first call's exact live follow-up.
-      for (let step = 0; step < 2; step++) {
-        if (stoppedReplies.has(chat.id)) break;
-        const live = { text: '', modelLabel: turnModel.name, speaker: tableInfo(state, chat) ? { seat: options.speaker } : null };
-        liveReplies.set(chat.id, live); render({ scroll: true });
-        const streamedState = await api.exchangeStream(chat.id, step === 0 ? content : '', { ...options, toolsEnabled, selectedFile: step === 0 && attached ? { name: attached.name, base64: attached.base64 } : undefined, onEvent: event => {
-          if (event.type === 'started') { live.exchangeId = event.exchangeId; live.modelLabel = event.modelLabel || live.modelLabel; live.speaker = event.speaker; if (step === 0 && kind === 'send') filePicker.clear(chat.id, attached); }
-          if (event.type === 'delta') { live.text += event.text || ''; renderLiveReply(chat.id, live); return; }
-          if (event.type === 'model_status') { live.status = event.message; renderLiveReply(chat.id, live); return; }
-          if (event.type === 'tool_question' || event.type === 'tool') void toolPanel.refresh().catch(()=>{});
-          if (event.type === 'tool' && event.name === 'write_sketch' && event.status === 'completed') toast('Sketch saved · available in Sketch Book');
-          if (event.type === 'error' && event.error) live.text += live.text ? `\n\n${event.error}` : event.error;
-          if (event.type !== 'done' && screen === 'chat' && selected(state).chat?.id === chat.id) render({ scroll: true });
-        } });
-        pollEpoch++;
-        state = streamedState || await api.state();
-        liveReplies.delete(chat.id);
-        if (step === 0 && kind === 'send') pendingDrafts.delete(chat.id);
-        const completed = state.exchanges.find(turn => turn.request?.id === options.requestId);
-        if (step === 0 && completed) replyRequests.delete(chat.id);
-        const followUp = completed?.request?.followUp;
-        if (step || !followUp || completed.status !== 'completed' || stoppedReplies.has(chat.id)) break;
-        turnModel = chosenModel(root, chat, followUp.speaker);
-        if (!turnModel) throw new Error('The follow-up chair is no longer available. Arrange its model before asking again.');
-        options = { ...turnOptions(state, chat, followUp.speaker, 'ask'), requestId: followUp.requestId, replyMode: 'single', followUpOf: completed.id, ...(imagePlanId ? { imagePlanId } : {}) };
-      }
-      replyRequests.delete(chat.id);
+      const result=await api.deskTasks({chatId:chat.id,content,...request.options,toolsEnabled,...(attached?{selectedFile:{name:attached.name,base64:attached.base64}}:{})});
+      pendingDrafts.delete(chat.id);filePicker.clear(chat.id,attached);replyRequests.delete(chat.id);
+      if(selected(state).chat?.id===chat.id)$('message-input').value='';
+      pollEpoch++;state=await api.state();
+      toast(result.taskIds.length===1?'Task started · follow it in Activity':`${result.taskIds.length} chair tasks admitted · follow them in Activity`);
+      await deskUI.refresh();
     }
-  } catch (err) {
-    pollEpoch++;
-    error(err.message);
-    try {
-      state = await api.state();
-      const request = replyRequests.get(chat.id);
-      if (request?.options.imagePlanId && !state.exchanges.some(exchange => exchange.request?.id === request.options.requestId)) replyRequests.delete(chat.id);
-    } catch { /* Keep the current draft and state in view. */ }
-    const live = liveReplies.get(chat.id);
-    if (live) live.problem = 'The connection ended before this text was confirmed saved. Copy it before closing.';
-  } finally {
-    pollEpoch++;
-    const live = liveReplies.get(chat.id);
-    const saved = live?.exchangeId && state.messages.some(m => m.role === 'assistant' && m.exchangeId === live.exchangeId);
-    if (!live?.problem || saved) liveReplies.delete(chat.id);
-    sending.delete(chat.id);
-    submitting.delete(chat.id);
-    stoppedReplies.delete(chat.id);
-    await toolPanel.refresh().catch(()=>{});
-    render({ scroll: true, refreshDetails: !detailsDirty });
-    if (screen === 'chat' && selected(state).chat?.id === chat.id) $('message-input').focus();
-  }
+  }catch(err){error(err.message);try{pollEpoch++;state=await api.state();}catch{}}
+  finally{submitting.delete(chat.id);render({scroll:true});if(screen==='chat'&&selected(state).chat?.id===chat.id)$('message-input').focus();}
 }
 $('composer-form').addEventListener('submit', safe(async event => { event.preventDefault(); await sendTurn(); }));
 $('cancel-button').addEventListener('click', safe(async () => {
   const chatId = selected(state).chat.id;
-  stoppedReplies.add(chatId);
+
   try { await api.stopWork({scope:'episode',chatId}); }
   catch (err) { if (!err.message.includes('There is no active reply')) throw err; }
   contextStatusKey = ''; state = await api.state(); render(); toast('Stop requested. Partial replies remain; remote compute cancellation is not confirmed.');
@@ -789,40 +905,73 @@ document.addEventListener('click', safe(async event => {
   const { action, id } = target.dataset;
   if (action === 'sketch-access') { await harnessEditor.persist(); closeDialog(); return sketchBook.openAccess(); }
   if (action === 'save-sketch') return sketchBook.saveReply(id);
+  if(action==='transparency-reset'){const slider=$('background-transparency');slider.value='0';slider.dispatchEvent(new Event('input',{bubbles:true}));slider.dispatchEvent(new Event('change',{bubbles:true}));return;}
+  if (action === 'save-memory') return personalContext.saveMemory(id);
+  if (action === 'view-memory') return personalContext.openProfile(id,selected(state).chat?.id);
   if (action === 'open-sketch') { await refreshState(); closeDialog(); return sketchBook.open(id); }
   if (action === 'tour-replay') { closeDialog(); welcomeTour.start(); return; }
 
-  if (action === 'resources-reset') { const root=selected(state).root; if(root) await command('root.resources',{id:root.id,resources:{...RESOURCE_DEFAULTS}}); openSettings('resources'); return; }
+  if (action === 'resources-reset') { const root=selected(state).root; if(root) await command('root.resources',{id:root.id,resources:resourceSettings(null,chosenModel(root,selected(state).chat))}); openSettings('resources'); return; }
   if (action === 'dream-prepare') { openDialog('Prepare a Dream', '<p>Copy this into a conversation with a model you choose. This button does not send material or start training.</p><textarea id="dream-preparation" rows="13" readonly>'+e(DREAM_PREPARATION)+'</textarea><button class="primary-button" type="button" data-action="dream-copy">Copy preparation prompt</button>'); return; }
   if (action === 'dream-copy') { await navigator.clipboard.writeText(DREAM_PREPARATION); toast('Preparation prompt copied'); return; }
   if (action === 'carry-approve' || action === 'carry-cancel-ready') { const chat=selected(state).chat; await command(action === 'carry-approve' ? 'carry.approve' : 'carry.cancelReady', {chatId:chat.id,baseId:activeAccount(state,chat.id)?.id??null,...(action==='carry-approve'?{recordId:id}:{})}); contextStatusKey=''; await openContext(); return; }
   if (target.disabled) return;
+  if(action==='personal-context'){await harnessEditor.persist();return personalContext.open(selected(state).chat?.id);}
+  if(await plans.action(action,target))return;
+  if(await personalContext.action(action,target))return;
   if (await imagePicker.action(action, target)) return;
   if (await imageProviderPanel.action(action)) return;
   if (await harnessEditor.action(action, target)) return;
   if (await agentProfiles.action(action, target)) return;
   if (await modelArchivePanel.action(action,id)) return;
   if (action === 'shelf-manage') { await beforeNavigation(); return openSettings('toy-shelf'); }
-  if (action === 'peaches-open') { await beforeNavigation(); return openDialog('Book of PEACHES', '<div class="peaches-placeholder"><img src="/assets/book-of-peaches.svg" alt="A peach resting beside a gold-trimmed Book of PEACHES" width="150" height="150"><p>Coming later.</p></div><div class="dialog-footer"><button type="button" class="primary-button" data-action="close-dialog">Got it</button></div>'); }
+  if (action === 'toy-shelf-open') return openToyShelf();
+  if (action === 'easel-open') { await beforeNavigation(); closeDialog(); return easel.open(); }
+  if (action === 'sketch-book-open') { closeDialog(); $('open-toy-shelf').focus(); return sketchBook.open(); }
+  if (action === 'blackboard-open') return openBlackboard();
+  if (action === 'blackboard-refresh') return openBlackboard(id);
+  if (action === 'peaches-open') { await beforeNavigation(); return peaches.open(selected(state).chat?.id,target.dataset.personal??null); }
+  if(await peaches.action(action,target))return;
   if (action === 'shelf-up' || action === 'shelf-down') {
     const row = target.closest('.shelf-setting-row'), other = action === 'shelf-up' ? row.previousElementSibling : row.nextElementSibling;
-    if (other) { action === 'shelf-up' ? other.before(row) : other.after(row); target.focus(); }
+    if (row.dataset.shelfId !== 'peaches' && other && other.dataset.shelfId !== 'peaches') { action === 'shelf-up' ? other.before(row) : other.after(row); target.focus(); }
+    refreshShelfOrderButtons(row.closest('form'));
     return;
   }
   if (action === 'shelf-defaults') {
     const list = target.closest('form').querySelector('.shelf-arrangement');
     for (const app of SHELF_APPS) { const row = list.querySelector(`[data-shelf-id="${app.id}"]`); row.querySelector('input').checked = true; list.append(row); }
+    refreshShelfOrderButtons(target.closest('form'));
     target.closest('form').querySelector('.shelf-settings-status').textContent = 'Default arrangement ready. Choose Save shelf to keep it.';
     return;
   }
   if (action === 'shelf-height-reset') { await toyShelf.resetHeight(); render(); toast('Shelf height reset'); return; }
   if (action === 'parallel-open') return openHearth();
+  if(action==='pony-open')return openPony();
+  if(action==='pony-new'){
+    const {chat}=selected(state);if(!chat)return;
+    return openDialog('New task',ponyNewForm(chat.id,$('message-input').value),'settings-dialog');
+  }
+  if(action==='pony-send')return openPonySend();
+  if(action==='pony-followup')return openPonySend(id);
+  if(action==='pony-amend')return openDialog('Change round-trip allowance',ponyAmendForm(state,selected(state).chat.id),'settings-dialog');
+  if(['pony-stop','pony-complete','pony-resume'].includes(action)){
+    await command('pony.task.'+action.slice(5),{taskId:id});await openPony();return;
+  }
   if(action==='peer-source-more')return showPeerSource(target.closest('form'),Number(target.dataset.offset));
+  if(action==='blackboard-source'){
+    const panel=target.closest('.blackboard-panel'),result=await api.peerSource({runId:target.dataset.runId,peer:'peer-a',sourceId:target.dataset.source,offset:Number(target.dataset.offset||0)});
+    const pre=panel.querySelector('.blackboard-source-result');pre.hidden=false;pre.textContent=result.author+' · '+result.boardHandle+'\n'+result.text;
+    const old=panel.querySelector('[data-board-more]');old?.remove();
+    if(result.nextOffset!==null){const more=document.createElement('button');more.type='button';more.className='text-button';more.textContent='Next source passage';Object.assign(more.dataset,{action:'blackboard-source',runId:target.dataset.runId,source:target.dataset.source,offset:String(result.nextOffset),boardMore:'true'});pre.after(more);}
+    pre.scrollIntoView({block:'nearest'});return;
+  }
   if(action==='hearth-stop-peer'){await api.stopPeer({runId:id,peer:target.dataset.peer});await openHearth(id);return;}
   if (action === 'hearth-open') return openHearth();
   if (action === 'hearth-details') return openHearth(id);
   if (action === 'parallel-details') {
     const jobs = state.parallel?.jobs.filter(j=>j.id === id || j.runId === id) ?? [];
+    if(jobs.some(j=>state.parallel.runs.find(r=>r.id===j.runId)?.profile==='branchline.pony-approach/1'))return openPony();
     if(jobs.some(j=>j.hearthActor||j.peerId))return openHearth(jobs[0].runId);
     return openDialog('Approach details', approachDetails(state,id)+jobs.map(j=>`<h3>${e(j.model.name)} · recorded episode</h3>${handoffSummary(state,j.id,e)}${toolHistory(state,j.id)}`).join(''));
   }
@@ -845,22 +994,22 @@ document.addEventListener('click', safe(async event => {
   if (action === 'codex-open') return openCodex();
   if (action === 'codex-login') {
     target.disabled = true;
-    try { const result = await api.codexLogin(); codexAuthUrl = result.authUrl; codexStatus = { connected: false, pending: true }; showCodex(); }
+    try { codexStatusEpoch++; const result = await api.codexLogin(); codexAuthUrl = result.authUrl; codexStatus = { connected: false, pending: true }; render(); showCodex(); void refreshCodexConnection(); }
     finally { target.disabled = false; }
     return;
   }
-  if (action === 'codex-logout') { await api.codexLogout(); codexAuthUrl = null; return openCodex(); }
+  if (action === 'codex-logout') { codexStatusEpoch++; await api.codexLogout(); codexStatusEpoch++; codexStatus = { connected: false, models: [] }; codexAuthUrl = null; render(); return openCodex(); }
   if (action === 'codex-save') {
     if (!codexStatus?.connected || !codexStatus.models.some(m => m.id === id)) throw new Error('Refresh your subscription connection first.');
     const existing = state.models.find(m => m.runtime === 'codex' && m.model === id);
     if (!existing) await command('model.save', { name: target.dataset.name + ' · Codex', model: id, baseUrl: 'codex://chatgpt', runtime: 'codex', inputFormat: 'chat', thinking: false });
-    toast('Model saved. Select it in the Visiting chair.'); return openSettings('models');
+    toast('Model saved. Choose it for the Desk Model or a visiting chair.'); return openSettings('models');
   }
   if (action === 'personal-rename') {
     if (modelsBusy(state) || submitting.size) return;
     const participant = state.personalParticipants?.find(p => p.id === id);
     if (!participant) return;
-    const returnView = $('dialog').classList.contains('settings-dialog') ? 'settings' : 'library';
+    const returnView = target.closest('#settings-page') ? 'settings' : 'library';
     return openDialog('Rename personal model', personalNicknameForm(participant, returnView));
   }
   if (action === 'personal-original-name') {
@@ -875,7 +1024,9 @@ document.addEventListener('click', safe(async event => {
   if (action === 'choose-model' || action === 'harnesses') {
     await beforeNavigation(); const { root, chat } = selected(state);
     if (!chat || (action !== 'harnesses' && (modelsBusy(state) || submitting.size))) return;
-    return action === 'harnesses' ? harnessEditor.openPicker(chat) : openDialog(id === 'personal' ? 'My Models' : 'Visiting Models', modelPicker(state, root, chat, id));
+    if (action === 'harnesses') return harnessEditor.openPicker(chat);
+    const ready = await ensureRoster(chat);
+    return openDialog(id === 'personal' ? 'Desk Model' : 'Visiting chair', modelPicker(state, root, ready, id));
   }
   if (action === 'library') {
     await beforeNavigation();
@@ -885,14 +1036,46 @@ document.addEventListener('click', safe(async event => {
     if (id === 'visiting') return openSettings('models');
     return openDialog('My Branches', `<div class="library-list">${state.chats.filter(c => !c.archivedAt && state.roots.some(r => r.id === c.rootId && !r.archivedAt)).map(c => `<div><button class="quiet-button" data-action="select-chat" data-id="${e(c.id)}"><strong>${e(c.title)}</strong><small>${e(state.roots.find(r => r.id === c.rootId).name)}</small></button><button type="button" class="text-button" data-action="archive-current-chat" data-id="${e(c.id)}">Add to archive</button></div>`).join('') || '<p>No branches yet.</p>'}</div><div class="dialog-footer"><button class="primary-button" data-action="new-branch">New branch</button></div>`);
   }
+  if (action.startsWith('visitor-')) {
+    if (target.disabled || replySettingsSaving) return;
+    let focusId = null;
+    replySettingsSaving = true; render();
+    try {
+      await beforeNavigation();
+      const chat = await ensureRoster(selected(state).chat), r = chat.seating;
+      if (action === 'visitor-add' || action === 'visitor-edit') return openDialog(action === 'visitor-add' ? 'Add visiting chair' : 'Edit visiting chair', chairEditor(state,chat,action === 'visitor-add' ? null : r.selectedVisitorId));
+      const base = {chatId:chat.id,baseRevisionId:r.revisionId};
+      if (action === 'visitor-select') await command('table.roster.select',{...base,chairId:id});
+      if (action === 'visitor-remove') await command('table.roster.remove',{...base,chairId:r.selectedVisitorId});
+      if (action === 'visitor-undo') await command('table.roster.undo',base);
+      if (action === 'visitor-up' || action === 'visitor-down') await command('table.roster.move',{...base,chairId:r.selectedVisitorId,direction:action === 'visitor-up' ? -1 : 1});
+      if ($('dialog').open) closeDialog();
+      focusId = state.chats.find(c=>c.id===chat.id).seating.selectedVisitorId;
+    } finally {
+      replySettingsSaving = false; render();
+      if (focusId) { const row = document.querySelector(`.visitor-row[data-id="${CSS.escape(focusId)}"]`); row?.focus(); row?.scrollIntoView({block:'nearest'}); }
+    }
+    return;
+  }
   if (action === 'table-setup') { await beforeNavigation(); const { chat } = selected(state); if (chat) openDialog('Arrange the table', tableSetup(state, chat)); return; }
+  if(action==='work-tools'){await beforeNavigation();openDialog('Work tools',workPanel(state,await api.workStatus(),selected(state).chat?.id),'settings-dialog');mountEditRegion($('work-tools-form'),state);return;}
+  if(action==='work-add-command'){document.getElementById('work-commands').insertAdjacentHTML('beforeend',commandRow());return;}
+  if(action==='work-remove-command'){target.closest('[data-command-id]').remove();return;}
+  if(action==='work-windows'){const list=await api.workWindows();const select=target.closest('form').elements.window;const keep=select.value;select.innerHTML='<option value="">None</option>'+(list.windows??list).map(w=>`<option value="${e(JSON.stringify(w))}">${e(w.title||w.executable)} · ${w.processId}</option>`).join('');if([...select.options].some(o=>o.value===keep))select.value=keep;return;}
+  if(action==='work-outputs'){await beforeNavigation();state=await api.state();const chat=selected(state).chat;if(!chat)return;openDialog('Outputs and pictures',outputsPanel(state,chat.id),'settings-dialog');await hydrateOutputs(document.getElementById('dialog'));return;}
+  if(action==='work-stop'){await api.workStop(selected(state).chat.id);toast('Stop requested; confirmed outputs remain here.');return;}
+  if (action === 'home-sources') {await beforeNavigation();return openDialog('Home sources',homePanel(state,await api.homeStatus()),'settings-dialog');}
+  if (action === 'home-add-root') {const form=target.closest('form'),list=form.querySelector('#home-source-list');list.insertAdjacentHTML('beforeend',homeSourceRow({id:'source_'+crypto.randomUUID().slice(0,8)},list.children.length));return;}
+  if (action === 'home-remove-root') {target.closest('[data-home-root]').remove();return;}
+  if (action === 'openai-open') { await beforeNavigation(); return openDialog('OpenAI API',openaiPanel(await api.openaiStatus())); }
+  if (action === 'openai-add') { const status=await api.openaiStatus(); if(!status.configured||!status.models.some(m=>m.id===id))throw new Error('Choose an available configured API connection.'); if(!state.models.some(m=>m.runtime==='openai'&&m.model===id))await command('model.save',{name:target.dataset.name+' · API',model:id,runtime:'openai',baseUrl:'https://api.openai.com/v1',inputFormat:'chat',thinking:false});toast('API model saved. Choose its chair when you want to use it.');return openSettings('models'); }
   if (action === 'ask-now') return sendTurn('ask');
   if (action === 'save-note') return sendTurn('send', 'note');
   if (action === 'select-chair' || action === 'reply-pattern') {
     if (target.disabled) return;
     const chat = selected(state).chat, settings = replySettings(state, chat);
-    if (action === 'select-chair') { if (settings.mode !== 'alternate') await setReplySettings(settings.mode, id); }
-    else await setReplySettings(settings.mode === id ? 'single' : id, settings.speaker);
+    if (action === 'select-chair') await setReplySettings(settings.mode, id);
+    else await setReplySettings(id, settings.speaker);
     return;
   }
   if (action === 'close-dialog') { if (!coatWarningOpen && (continuityBusy || carryBusy)) return; return closeDialog(); }
@@ -910,6 +1093,7 @@ document.addEventListener('click', safe(async event => {
     const model = state.models.find(item => item.id === id);
     if (!model || modelCheck?.status === 'checking') return;
     if (model.runtime === 'codex') return openCodex();
+    if (model.runtime === 'openai') return openDialog('OpenAI API',openaiPanel(await api.openaiStatus()));
     if (model.runtime === 'bundled') {
       const status = await api.localModelStatus();
       modelCheck = { modelId: id, status: status.available ? 'available' : 'unavailable', checkedAt: new Date().toISOString(), message: status.message };
@@ -934,6 +1118,7 @@ document.addEventListener('click', safe(async event => {
   if (action === 'select-chat') { closeDialog(); const chat = state.chats.find(c => c.id === id); return navigate(chat.rootId, id, state.roots.find(r => r.id === chat.rootId).mode); }
   if (action === 'root-menu') { await beforeNavigation(); return manageRoot(id); }
   if (action === 'models') { await beforeNavigation(); return openSettings('models'); }
+  if (action === 'settings-menu-close') return leaveSettings();
   if (action === 'settings-tab') { if (id === 'workspace') await beforeNavigation(); return openSettings(id); }
   if (action === 'storage-retry') { if (storageBusy) return; storageMessage = ''; refreshStoragePanel(); return loadStorage(); }
   if (action === 'storage-refresh') { if (storageBusy) return; storageLoadToken++; storageMessage = ''; refreshStoragePanel(); return loadStorage(); }
@@ -1007,9 +1192,9 @@ document.addEventListener('click', safe(async event => {
   }
   if (action === 'local-model' || action === 'local-model-control') {
     const status = action === 'local-model-control' ? await api.localModelControl(id) : await api.localModelStatus();
-    return openDialog('Included Qwen', `<p>${e(status.message)}</p><p class="field-help">Stock Qwen3.5-4B · runs on this computer. It loads when you send a message. Stop remains available while loading and replying. To repair missing or damaged files, run the full Setup again.</p><p class="field-help">Mode: ${status.preference === 'cpu' ? 'CPU' : 'Automatic graphics / CPU fallback'} · ${status.contextTokens.toLocaleString()} token context.</p>${status.available && !state.models.some(m => m.runtime === 'bundled') ? '<button type="button" class="primary-button" data-action="local-model-add">Add to my models</button>' : ''}<div class="dialog-footer"><button type="button" class="quiet-button" data-action="local-model-control" data-id="auto" ${status.busy ? 'disabled' : ''}>Automatic</button><button type="button" class="quiet-button" data-action="local-model-control" data-id="cpu" ${status.busy ? 'disabled' : ''}>Use CPU</button><button type="button" class="quiet-button" data-action="local-model-control" data-id="unload" ${status.busy ? 'disabled' : ''}>Unload</button><button type="button" class="primary-button" data-action="close-dialog">Done</button></div>`);
+    return openDialog('Included Qwen', `<p>${e(status.message)}</p><p class="field-help">Stock Qwen3.5-4B · runs on this computer. It loads when you send a message. Stop remains available while loading and replying. To repair missing or damaged files, run the full Setup again.</p><p class="field-help">Mode: ${status.preference === 'cpu' ? 'CPU' : 'Automatic graphics / CPU fallback'} · selected ${status.contextTokens.toLocaleString()} token window${status.loadedContextTokens == null ? ' (not loaded)' : ' · loaded ' + status.loadedContextTokens.toLocaleString() + ' tokens'}.</p>${status.available && !state.models.some(m => m.runtime === 'bundled') ? '<button type="button" class="primary-button" data-action="local-model-add">Add to my models</button>' : ''}<div class="dialog-footer"><button type="button" class="quiet-button" data-action="local-model-control" data-id="auto" ${status.busy ? 'disabled' : ''}>Automatic</button><button type="button" class="quiet-button" data-action="local-model-control" data-id="cpu" ${status.busy ? 'disabled' : ''}>Use CPU</button><button type="button" class="quiet-button" data-action="local-model-control" data-id="unload" ${status.busy ? 'disabled' : ''}>Unload</button><button type="button" class="primary-button" data-action="close-dialog">Done</button></div>`);
   }
-  if (action === 'edit-model') { const model = state.models.find(m => m.id === id); if (model?.runtime === 'bundled') { const status = await api.localModelStatus(); return openDialog('Included Qwen', `<p>${e(status.message)}</p><button type="button" class="primary-button" data-action="local-model">Model controls</button>`); } return model?.runtime === 'codex' ? openCodex() : openSettings('models', model); }
+  if (action === 'edit-model') { const model = state.models.find(m => m.id === id); if(model?.runtime==='openai')return openDialog('OpenAI API',openaiPanel(await api.openaiStatus())); if (model?.runtime === 'bundled') { const status = await api.localModelStatus(); return openDialog('Included Qwen', `<p>${e(status.message)}</p><button type="button" class="primary-button" data-action="local-model">Model controls</button>`); } return model?.runtime === 'codex' ? openCodex() : openSettings('models', model); }
   if (action === 'delete-model') {
     await command('model.delete', { id }); openSettings('models'); return toast('Model profile removed; branch histories retained');
   }
@@ -1117,6 +1302,9 @@ document.addEventListener('click', safe(async event => {
 }));
 
 document.addEventListener('change', safe(async event => {
+  if(event.target.id==='pony-task-choice'&&event.target.value){await command('pony.task.attach',{chatId:selected(state).chat.id,taskId:event.target.value,requestId:'pony_attach_'+crypto.randomUUID()});await openPony();return;}
+  const ponyForm=event.target.closest('#pony-send-form,#pony-amend-form');if(ponyForm){updatePonyForm(ponyForm);return;}
+  if (event.target.id === 'blackboard-choice') return openBlackboard(event.target.value);
   if (event.target.name === 'speaker') {
     const hint = event.target.closest('#carry-prepare-form, #conversation-settings-form')?.querySelector('.recorder-role');
     if (hint) hint.textContent = recorderHint(event.target.value);
@@ -1205,8 +1393,24 @@ document.addEventListener('submit', safe(async event => {
   if (form.id === 'agent-settings-form') {
     await command('parallel.settings',{ baseRevisionId:form.dataset.revision || null,
       enabled:form.elements.enabled.value === 'yes', automaticRequests:form.elements.automaticRequests.checked,
-      confirmAutomatic:form.dataset.confirmAutomatic === 'true' });
+      confirmAutomatic:form.dataset.confirmAutomatic === 'true', blackboard:form.elements.blackboard.checked,
+      pony:{enabled:form.elements.ponyEnabled.checked,mode:form.elements.ponyUnlimited.checked?'unlimited':'limited',limit:form.elements.ponyUnlimited.checked?null:Number(form.elements.ponyLimit.value)} });
     openSettings('agents'); toast('Agent settings saved'); return;
+  }
+  if(form.id==='pony-new-form'){
+    await command('pony.task.new',{chatId:form.dataset.chatId,purpose:form.elements.purpose.value.trim(),requestId:form.dataset.requestId});await openPony();return;
+  }
+  if(form.id==='pony-amend-form'){
+    const change=form.elements.change.value;
+    await command('pony.task.amend',{taskId:form.dataset.taskId,requestId:form.dataset.requestId,baseRevision:Number(form.dataset.revision),change,value:change==='unlimited'?null:Number(form.elements.value.value),note:form.elements.note.value});await openPony();return;
+  }
+  if(form.id==='pony-send-form'){
+    const button=form.querySelector('button[type="submit"]');button.disabled=true;
+    try{
+      await api.ponySend({requestId:form.dataset.requestId,chatId:form.dataset.chatId,assignment:form.elements.assignment.value.trim(),reason:'Requested in the task controls.',modelId:form.elements.modelId.value,
+        allowSubtasks:form.elements.allowSubtasks.checked,ponyTaskId:form.dataset.ponyTaskId||null,toolsEnabled:form.elements.toolsEnabled.checked,cloudApproved:form.elements.cloudApproved.checked,basisHash:form.dataset.basis});
+      state=await api.state();pollEpoch++;closeDialog();render();toast('Round trip reserved; the return is included');
+    }finally{if(button.isConnected)button.disabled=false;}return;
   }
   if (form.id === 'hearth-start-form') {
     if(modelsBusy(state)||submitting.size)return;
@@ -1249,6 +1453,28 @@ document.addEventListener('submit', safe(async event => {
         basisHash:form.dataset.basis });
       pendingDrafts.delete(form.dataset.chatId); pollEpoch++; state = result.state;
       closeDialog(); render({scroll:true}); toast('Two approaches started');
+    } finally { if (button.isConnected) button.disabled = false; }
+    return;
+  }
+  if (form.id === 'context-window-form') {
+    if (selected(state).chat?.id !== form.dataset.chatId) throw new Error('The conversation changed. Reopen Context and try again.');
+    const button = form.querySelector('button[type="submit"]'); button.disabled = true;
+    try {
+      await api.localModelControl('context', { contextTokens: Number(form.elements.contextTokens.value), expectedTokens: Number(form.dataset.expected) });
+      state = await api.state(); pollEpoch++; contextStatusKey = ''; render(); await openContext(); toast('Included Qwen window saved');
+    } finally { if (button.isConnected) button.disabled = false; }
+    return;
+  }
+  if (form.id === 'context-ceiling-form') {
+    const { root, chat } = selected(state);
+    if (!root || root.id !== form.dataset.rootId || chat?.id !== form.dataset.chatId) throw new Error('The desk changed. Reopen Context and try again.');
+    const model = state.models.find(item => item.id === form.dataset.modelId) ?? null;
+    const resources = resourceSettings(root, model);
+    if (resources.inputCharacters !== Number(form.dataset.expected)) throw new Error('The desk ceiling changed. Reopen Context and try again.');
+    const button = form.querySelector('button[type="submit"]'); button.disabled = true;
+    try {
+      await command('root.resources', { id: root.id, resources: { ...resources, inputCharacters: Number(form.elements.inputCharacters.value) } }, { renderNow: false });
+      contextStatusKey = ''; render(); await openContext(); toast('Desk input ceiling saved');
     } finally { if (button.isConnected) button.disabled = false; }
     return;
   }
@@ -1351,10 +1577,18 @@ document.addEventListener('submit', safe(async event => {
   if (form.id === 'new-root-form' && (submit?.disabled || !form.isConnected)) return;
   if (submit) submit.disabled = true;
   try {
-    if (form.id === 'harness-form') {
+    if(form.id==='work-tools-form'){await api.workConfigure(readWorkForm(form,state));state=await api.state();closeDialog();render();toast('Work choices saved for the next reply.');return;}
+    if(form.id==='work-picture-form'){const chatId=selected(state).chat.id;await api.workPicture({chatId,action:form.elements.action.value,prompt:form.elements.prompt.value});state=await api.state();openDialog('Outputs and pictures',outputsPanel(state,chatId),'settings-dialog');await hydrateOutputs(document.getElementById('dialog'));const timer=setInterval(async()=>{const box=document.getElementById('work-outputs');if(!document.getElementById('dialog').open||!box||box.dataset.chatId!==chatId){clearInterval(timer);return;}try{state=await api.state();const latest=[...new Map((state.workAccess?.jobs??[]).filter(j=>j.chatId===chatId).map(j=>[j.jobId,j])).values()];if(!latest.some(j=>j.status==='running')){clearInterval(timer);openDialog('Outputs and pictures',outputsPanel(state,chatId),'settings-dialog');await hydrateOutputs(document.getElementById('dialog'));render();}}catch{clearInterval(timer);}},1500);return;}
+    if(form.id==='home-settings-form'){const status=await api.configureHome(readHomeForm(form,state));state=await api.state();openDialog('Home sources',homePanel(state,status),'settings-dialog');toast('Home sources and sharing saved');render();
+    } else if (form.id === 'harness-form') {
       const shared = form.elements.shared.checked;
       await command('harness.select', { chatId: form.dataset.chatId, baseRevisionId: form.dataset.baseRevisionId || null, baseDefaultId: form.dataset.baseDefaultId || null, shared, personal: harnessRef(data.personal), visiting: harnessRef(shared ? data.personal : data.visiting), saveAsDefault: form.elements.saveAsDefault.checked });
       closeDialog(); toast('Coat choices saved for future replies');
+    } else if (form.id === 'roster-chair-form') {
+      const chat = state.chats.find(c=>c.id===form.dataset.chatId), desk = form.dataset.chairId === chat.seating.desk.id;
+      const participant = desk && (data.modelId === form.dataset.modelId ? state.personalParticipants?.find(p=>p.id===form.dataset.personalId) : state.personalParticipants?.find(p=>p.connections.at(-1).modelId===data.modelId));
+      await command('table.roster.chair',{chatId:chat.id,baseRevisionId:form.dataset.revision,chairId:form.dataset.chairId || null,modelId:data.modelId || null,personalId:participant?.id ?? null,name:data.name.trim(),coat:data.coat ? harnessRef(data.coat) : null});
+      closeDialog(); toast('Chair saved');
     } else if (form.id === 'chair-picker-form') {
       const personal = form.dataset.seat === 'personal';
       await command('table.assign', { chatId: form.dataset.chatId, baseRevisionId: form.dataset.baseRevisionId || null, personalId: (personal ? data.modelChoice : form.dataset.otherId) || null, visitorModelId: (personal ? form.dataset.otherId : data.modelChoice) || null });
@@ -1395,7 +1629,7 @@ document.addEventListener('submit', safe(async event => {
   } finally { if (submit?.isConnected) submit.disabled = false; }
 }));
 window.addEventListener('beforeunload', event => {
-  if (!closingPage && (toyShelf.unsaved || pendingDrafts.size || filePicker.pending.size || detailsDirty || heartDirty || harnessEditor.unsaved || sketchBook.unsaved || dreamReview.unsaved || agentProfiles.hasDraft || continuityBusy || carryBusy)) { event.preventDefault(); event.returnValue = ''; }
+  if (!closingPage && (easel.unsaved || toyShelf.unsaved || shelfWindow.unsaved || pendingDrafts.size || filePicker.pending.size || detailsDirty || heartDirty || harnessEditor.unsaved || sketchBook.unsaved || dreamReview.unsaved || agentProfiles.hasDraft || continuityBusy || carryBusy)) { event.preventDefault(); event.returnValue = ''; }
 });
 // The native host waits for this explicit acknowledgement before stopping storage.
 // A Coat edit remains a draft; closing never selects it or adopts its instructions.
@@ -1403,7 +1637,7 @@ window.branchlineCloseState = { status: 'idle' };
 window.branchlineCancelClose = () => { closingPage = false; window.branchlineCloseState = { status: 'idle' }; if (state) render(); };
 window.branchlinePrepareClose = (discardSelections = false) => {
   if (window.branchlineCloseState.status === 'saving') return;
-  closingPage = true; pollEpoch++; clearInterval(pollTimer); pollTimer = null;
+  closingPage = true; pollEpoch++; clearInterval(pollTimer); pollTimer = null; clearTimeout(codexPoll);
   window.branchlineCloseState = { status: 'saving' };
   void (async () => {
     const deadline = Date.now() + 15000;
@@ -1437,6 +1671,7 @@ document.addEventListener('keydown', safe(async event => {
 
 try {
   state = await api.state(); initializeAppearance(state.ui.appearance); await toolPanel.refresh(); render();
+  void startupProgress.start();
   if (!state.ui.welcomeTour) welcomeTour.start();
   void api.startupStatus().then(status => { if (status.warnings?.length) error(status.warnings.join('\n')); }).catch(() => {});
 }
@@ -1466,4 +1701,22 @@ async function stopAllEpisodes(){const result=await api.stopWork({scope:'all'});
 $('stop-all-episodes').addEventListener('click',safe(stopAllEpisodes));
 document.addEventListener('keydown',event=>{if(event.ctrlKey&&event.altKey&&!event.shiftKey&&!event.metaKey&&event.code==='Period'){event.preventDefault();if(!event.repeat)void safe(stopAllEpisodes)();}});
 
-$('activity-home').append($('work-controls'));
+placeActivity();
+
+
+document.addEventListener('keydown', safe(async event => {
+  const row = event.target.closest('.visitor-row');
+  if (!row || row.disabled || !['ArrowUp','ArrowDown','Home','End'].includes(event.key)) return;
+  event.preventDefault();
+  const list = [...row.parentElement.querySelectorAll('.visitor-row')], i = list.indexOf(row);
+  const next = event.key === 'Home' ? 0 : event.key === 'End' ? list.length - 1 : Math.max(0,Math.min(list.length-1,i+(event.key==='ArrowDown'?1:-1)));
+  list[next]?.click();
+}));
+document.addEventListener('change', event => {
+  if (event.target.id !== 'chair-model-select') return;
+  const form = event.target.form, input = form.elements.name, model = state.models.find(m=>m.id===event.target.value);
+  const old = state.models.find(m=>m.id===form.dataset.modelId);
+  if (!input.value.trim() || input.value === old?.name || input.value === 'Desk Model') input.value = model?.name ?? 'Desk Model';
+});
+
+document.addEventListener('input',event=>{if(event.target.id==='background-transparency'){const form=event.target.closest('form');saveAppearance(Object.fromEntries(new FormData(form)));$('transparency-value').textContent=event.target.value+'%';}});

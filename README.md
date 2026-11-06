@@ -1,106 +1,45 @@
-# Branchline v0.8.12-preview.5 Preview
+# Branchline 0.9.1-preview.2 Preview
 
-A local home for conversations, ideas and shared work with AI. Keep personal
-and visiting model chairs, organize branches into desks, and return to your
-saved context when you change models.
+A local home for conversations, ideas and shared work with AI. Keep your desks, branches and history while choosing the models you work with.
 
-This is a Windows x64 preview. The downloadable app includes its application
-runtimes. The full installer also includes stock Qwen3.5-4B for local conversation and pictures. Start with [START-HERE.md](START-HERE.md).
+[Download the Windows preview](https://github.com/Grativy6/branchline/releases/tag/v0.9.1-preview.2) or start with [START-HERE.md](START-HERE.md). The normal installer includes stock Qwen3.5-4B. It needs no Branchline account or purchased stamp. This is an unsigned Windows x64 preview.
 
-[Download the Windows preview](https://github.com/Grativy6/branchline/releases/tag/v0.8.12-preview.5)
-or [give an AI assistant the installation guide](INSTALL-WITH-AI.md).
-The download helper gathers and verifies the full installer; the offline parts
-and app-only portable ZIP remain available. Read the release verification report
-for tested systems and remaining limits. This is an unsigned early preview.
+## Work at the same desk
 
-See [VERIFICATION.md](VERIFICATION.md) for the actual Windows 10/11 checks,
-real model results, fixtures and known limits. Release notes record the public
-download checks separately. Keep an active workspace on local NTFS storage;
-the included guides explain how to add Qwen to an existing Personal chair.
+Each chair has a drawer for its unfinished work. Chairs can inspect another chair's recorded log without treating that record as their own experience. Work brought onto the desk becomes shared context.
 
-## What works
+Address chairs in one message with `@chair` sections. For example, `@qwen Draft a greeting. @astra Check the greeting.` sends each section to its named chair. Independent connections can work at the same time. Activity shows tasks across desks, their waiting reasons, individual Stop controls and recent results.
 
-- Personal model Dream journals, explicit earlier-entry organization, notes and local origin records. See [DREAM-REVIEW.md](DREAM-REVIEW.md).
-- Streaming conversations, desks, branches, personal and visiting chairs.
-- Included Qwen with CPU / Vulkan acceleration, plus local LM Studio connections and a separately signed-in ChatGPT visitor.
-- Versioned Coats with selectable tool pockets and per-chair choices.
-- Sketch Book: saved project memories, archives, source links and optional model tools. See [SKETCH-BOOK.md](SKETCH-BOOK.md).
-- Selected text agent profiles, with sharing review.
-- Selected text and still-image attachments for compatible model connections.
-- Shared context accounts, original-message references and saved history.
-- Bounded conversation tools and optional sequential approaches at the hearth.
-- Guarded PC text-file tools with explicit folders, recipients and exclusions.
-  See [PC-ACCESS.md](PC-ACCESS.md) before enabling them.
-- Local backups, workspace export/restore, themes and optional reply statistics.
+The included local runner has one active request slot. The current ChatGPT bridge also has one active tool-handler slot. Work using the same slot queues; a local chair and an independent connected chair can overlap. Multiple chairs do not create extra hardware or provider capacity.
 
-Dream training and scheduling, executable external agents and screen control
-remain future work. Tend and Finis Solutus are retired from the active app;
-existing conversations keep their saved history and instructions. Hearth approaches use recorded conversation and run sequentially; they
-are not parallel inference or snapshots of a model's internal state.
+## Also included
 
-See [COATS.md](COATS.md) for pocket choices and upgrade/rollback guidance.
+- Desks, branches, streaming replies, Coats, selected sources and saved original history.
+- Sketch Book, Blackboard, Easel and Plans on the Toy Shelf.
+- Memory controls and a selected Home directory for continuing personal context.
+- Context controls directly from the desk's cloud indicator, including the desk ceiling and the included Qwen's 8K, 16K or 32K window. A selected size is distinguished from one actually loaded.
+- Optional context handoffs, local backups and export/restore.
+- Local Qwen and separately chosen provider connections, including the existing ChatGPT sign-in route.
 
-## Build from this source
+Read [PREVIEW-LIMITS.md](PREVIEW-LIMITS.md) and [VERIFICATION.md](VERIFICATION.md) for practical boundaries and the checks actually performed. Back up an existing workspace before updating. Using drawers creates workspace format 3; an older app needs the preserved older workspace copy for rollback.
 
-Use Windows x64, Node.js **24.19.0**, the .NET SDK (tested with **10.0.302**, targeting .NET 8), and PowerShell 7.
-This source snapshot is a deliberate public export, not the private development
-repository or its Git history. `source-manifest.json` identifies the files and
-their hashes. No conversations, account credentials or model weights are included.
+## Development and packaging
+
+Use Node.js 22 or later. `npm ci`, `npm test`, and `npm run test:browser` run the supplied source checks with synthetic data. Browser tests use Edge on Windows and the pinned Playwright Chromium headless shell on Linux. Install the latter with `node node_modules/playwright-core/cli.js install chromium --only-shell` after installing its normal system dependencies.
+
+The native host targets .NET 8.0.29 and WebView2 SDK 1.0.3296.44. The release was built with .NET SDK 10.0.302. Its recovered desktop source is identified in `provenance/desktop-source.json`; the version change is recorded there. This source is an allowlisted public snapshot, not the private development repository or its full history.
+
+The Windows binary payload keeps hash-pinned Node, Python, Codex, dependency and optional model inputs in `provenance/runtime-files.json`. An extracted Windows package supplies those input bytes; the native host and first-party application are rebuilt from this source. Keep Windows runtime inputs separate from Linux `node_modules`.
 
 ```powershell
-npm ci --ignore-scripts
-dotnet restore desktop/Branchline.Preview.csproj --configfile desktop/NuGet.Config
-dotnet build desktop/Branchline.Preview.csproj --no-restore --configuration Release
-npm test
-node scripts/Fetch-Release-Inputs.mjs
-node scripts/verify-codex-runtime.mjs
-node scripts/verify-conversation-tools-runtime.mjs
-npm run licenses:check
-pwsh -File scripts/Build-Preview.ps1
+pwsh -File scripts/Build-Preview.ps1 -RuntimeFolder C:\BuildInputs\Branchline -WithModel
+pwsh -File scripts/Build-Installer.ps1 -PackageFolder releases/Branchline-v0.9.1-preview.2-Windows-x64 -InputFolder C:\BuildInputs\Prerequisites -Compiler C:\BuildTools\Inno\ISCC.exe -OutputFolder releases/Installer
 ```
 
-The input fetch downloads only named, hash-pinned public components. The build
-does not sign in, run a model, replace an existing package, or publish anything.
-The exact .NET and WebView2 SDK versions are pinned in the desktop project.
-Source archives for native libraries are a separate release companion; the
-build verifies the copies identified in `provenance/licensing/native-sources.json`.
-
-For development, `npm start` opens a loopback server with its own `.local`
-workspace. Follow the local address it prints. Never point a development run
-or test at your everyday workspace. The test suite uses synthetic conversations
-and preserves its `.test-data` files for inspection.
+The installer inputs and their hashes are in `provenance/installer-inputs.json`. Existing outputs are never merged by the build scripts. The native-library source companion accompanies the binary downloads. No personal workspace, account credential, Home selection, private memory or trained adapter is part of this release.
 
 ## Licence and support
 
-Copyright 2026 Christopher Daniel Pang. The first-party application is
-[Apache-2.0](LICENSE); see [NOTICE](NOTICE) and [LICENSE-SCOPE.md](LICENSE-SCOPE.md).
-Included components retain their own terms in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+Copyright 2026 Christopher Daniel Pang. The first-party application is [Apache-2.0](LICENSE); retain [NOTICE](NOTICE) and [LICENSE-SCOPE.md](LICENSE-SCOPE.md). Included components keep their own terms in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) and the offline licence viewer.
 
-Use [BUG-REPORT.md](BUG-REPORT.md) for a small, inspectable report. The app does
-not automatically upload conversations or diagnostics. See
-[PREVIEW-LIMITS.md](PREVIEW-LIMITS.md) before relying on this preview for important work.
-See [SECURITY.md](SECURITY.md) for private reporting and [ORIGIN.md](ORIGIN.md)
-for the publisher and the scope of the future optional stamp service.
-
-## Build the full installer
-
-Run the app-only build steps above first if you only need a portable build. For the full package, use a new output folder name:
-
-```powershell
-node scripts/Fetch-Bundled-Inputs.mjs .local/bundled-inputs
-pwsh -File scripts/Build-Preview.ps1 -OutputName Branchline-v0.8.12-preview.5-Full -BundledInputFolder .local/bundled-inputs
-```
-
-Obtain the exact Inno Setup, WebView2 and VC runtime inputs in `provenance/installer-inputs.json` from their recorded public URLs. Verify their SHA-256 and publisher signatures. Install the selected Inno Setup locally, then pass its `ISCC.exe` to:
-
-```powershell
-pwsh -File scripts/Build-Installer.ps1 -PackageFolder releases/Branchline-v0.8.12-preview.5-Full -InputFolder .local/installer-inputs -Compiler 'PATH-TO-INNO/ISCC.exe' -OutputFolder releases/Branchline-v0.8.12-preview.5-Installer
-```
-
-The builder rejects altered payloads and prerequisite inputs. It embeds data-part checksums and checks the final part bytes against them, with a bounded rebind if the Setup header shifts a part boundary. All parts are below 2 GB. Keep the generated `build-inputs` directory private: it contains local build paths. Distribute only Setup, its `.bin` parts, reviewed instructions, checksums and the public verification report. The builder does not sign or publish the result.
-
-The complete source for Branchline is in the Source companion; corresponding native-library archives remain in Native-Sources. Model weights and pinned upstream runtime binaries are separate inputs, recorded by URL, revision and hash in `provenance/bundled-model-inputs.json`.
-
-## Conversation and resources
-
-See [CONTINUATION.md](CONTINUATION.md) for the thought cloud, handoff preparation, sharing across intentional model changes, Resources, bounded text reading, Stop and the welcome tour. This candidate uses newer tool receipts; keep a backup and a separate workspace when comparing it with an older release.
+[Report a problem](BUG-REPORT.md). Branchline does not automatically upload your conversations or diagnostics. [Earlier public release](https://github.com/Grativy6/branchline/releases/tag/v0.8.12-preview.5).

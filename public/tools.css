@@ -9,3 +9,10 @@
 .tool-url { overflow-wrap:anywhere; font-family:monospace; }
 .tool-receipt { border-bottom:1px solid var(--line); padding:8px 0; }
 .tool-receipt pre { white-space:pre-wrap; overflow-wrap:anywhere; max-height:260px; overflow:auto; }
+
+.nav-settings { padding-bottom: 1.1rem; margin-bottom: 1.1rem; border-bottom: 1px solid var(--border, #41505b); }
+.nav-enable { display: flex; align-items: baseline; gap: .55rem; }
+.nav-help-wrap { position: relative; display: inline-block; }
+.nav-term { font: inherit; text-decoration: underline dotted; text-underline-offset: .2em; }
+.nav-tooltip { position: absolute; z-index: 20; left: 50%; transform: translateX(-50%); top: 1.8em; width: min(340px, 65vw); padding: .85rem; border: 1px solid var(--border, #627786); border-radius: .6rem; background: var(--panel, #21323d); color: var(--text, #f5f3e9); box-shadow: 0 6px 22px #0006; font-size: .9rem; line-height: 1.5; }
+.nav-tooltip[hidden] { display: none; }

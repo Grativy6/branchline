@@ -2,7 +2,9 @@
 // process argument, executable path, or credential comes from conversation data.
 export const BUNDLED_PROFILE = Object.freeze({ name: 'Qwen3.5-4B · Local', model: 'branchline-qwen35-4b',
   baseUrl: 'http://127.0.0.1:0/v1', runtime: 'bundled', thinking: false, inputFormat: 'chat' });
-export const BUNDLED_CONTEXT = 8192;
+export { isBundledContext, BUNDLED_CONTEXT_PRESETS } from '../public/resource-settings.js';
+import { BUNDLED_CONTEXT_DEFAULT } from '../public/resource-settings.js';
+export const BUNDLED_CONTEXT = BUNDLED_CONTEXT_DEFAULT;
 export const BUNDLED_IMAGE_TOKENS = 1024;
 export function assertBundledProfile(model) {
   if (model?.runtime !== 'bundled' || model.model !== BUNDLED_PROFILE.model || model.baseUrl !== BUNDLED_PROFILE.baseUrl

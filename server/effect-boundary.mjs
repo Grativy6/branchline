@@ -8,6 +8,8 @@ import { completeCarry, parseCarryResult } from './context-carry.mjs';
 import { completeParallelJob, interruptParallel } from './parallel-state.mjs';
 import { parseHearthOutput, hearthDisplay } from './hearth-state.mjs';
 import { bindReplyRecord } from './reply-provenance.mjs';
+import { completeVisitorTurn } from './chair-roster.mjs';
+import { consumeCompletedImages } from './images.mjs';
 
 const writes = new WeakMap();
 const fail = (ok, message) => { if (!ok) throw new Error('Write boundary: ' + message); };
@@ -116,7 +118,7 @@ export function prepareModelWrite(before, handle, { content = '', finishReason =
   let next = copy(before), wake = null, carry = null, issue = problem;
   const complete = !issue && !cancelled && !['length', 'max_tokens'].includes(finishReason);
   const parallelJob = handle.kind === 'parallel' && next.parallel?.jobs.find(j => j.id === handle.taskId);
-  if(parallelJob?.peerId && complete){try{if(parallelJob.recordKind){const run=next.parallel.runs.find(r=>r.id===parallelJob.runId);parsePeerAccount(next,run,run.peers.find(p=>p.id===parallelJob.peerId),parallelJob.accountPlan,content);}else parsePeerOutput(content);}catch(error){issue=error.message;}}
+  if(parallelJob?.peerId && complete){try{if(parallelJob.recordKind){const run=next.parallel.runs.find(r=>r.id===parallelJob.runId);parsePeerAccount(next,run,run.peers.find(p=>p.id===parallelJob.peerId),parallelJob.accountPlan,content);}else parsePeerOutput(content,!!parallelJob.boardAssignment);}catch(error){issue=error.message;}}
   if (parallelJob?.hearthActor && complete) {
     try { parseHearthOutput(parallelJob.hearthActor, content); } catch (error) { issue = error.message; }
   }
@@ -150,6 +152,7 @@ export function prepareModelWrite(before, handle, { content = '', finishReason =
       : { status: cancelled ? 'cancelled' : 'failed', error: (issue || 'The output was held. No memory or proposal was adopted.').slice(0, 2000) });
   }
   checkDelta(before, next, handle, content, review.accepted);
+  if (handle.kind === 'reply' && review.accepted) { consumeCompletedImages(next, handle.taskId); completeVisitorTurn(next, handle.taskId); }
   return { state: seal(before, next), accepted: review.accepted, issue };
 }
 

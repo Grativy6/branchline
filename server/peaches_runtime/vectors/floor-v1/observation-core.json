@@ -1,0 +1,12 @@
+{
+  "schema": "peaches.floor.observation/1",
+  "floor": "peaches.floor/1",
+  "stamp_id": "peaches:stamp:v1:88603320a62b1ab08ecb02b22729dbaac0f6a74eaf24b46f685e391cca6c13f2",
+  "observed_no_later_than": "2000-01-02T03:04:05Z",
+  "method_id": "peaches:rubric:v1:436d930cf0b89f5bf68363274ccc859ea2eb81147d60d6752f0e4bccc9b698eb",
+  "evidence": {
+    "media_type": "text/plain;charset=utf-8",
+    "bytes": "ZXh0ZXJuYWwgb2JzZXJ2YXRpb24gY2FsY3VsYXRpb24gdmVjdG9yIG9ubHku",
+    "sha256": "sha256:3d87be8e3ad3c6d9a1d01f249848b0e76a491256ef1a0412daa605e6705881fb"
+  }
+}

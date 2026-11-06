@@ -1,9 +1,11 @@
 import { isContinuing } from './continuing-state.mjs';
+import { chairView } from '../public/chair-roster.js';
 import crypto from 'node:crypto';
 import { PAL_INSTRUCTION, PAL_GUIDE_PROFILE } from './pal-guide.mjs';
 import { assertMediaClearance, mediaReferences } from './model-media.mjs';
 import { digest } from './integrity.mjs';
 import { agentSettings, runLimits, taskBasis, openRun } from './parallel-state.mjs';
+import { isPonyRun } from './pony-state.mjs';
 import { validToolContract } from './tool-contract.mjs';
 import { carryContextView } from './context-carry.mjs';
 import { resolveRecorder } from './carry-recorder.mjs';
@@ -13,11 +15,15 @@ import { selectedAccount } from './mind.mjs';
 import { responseModeFor, responseModeEvidence, capturedPeerOrientation } from './response-mode.mjs';
 import { makeReview, reviewAllowsEffect, validateRecordedReview, validateReviewSources } from './review.mjs';
 import { transportReceipt } from './model-format.mjs';
+import {assertWorkDisclosure} from './work-access.mjs';
+import {assertHomeDisclosure,homeSettings} from './home-state.mjs';
+import { stateBeforeVisitorAdvance } from './chair-roster.mjs';
 import { harnessSnapshot } from './harnesses.mjs';
 import { agentProfileSnapshot, agentExposureIds, assertAgentDisclosure } from './agent-profiles.mjs';
 import { assertSketchDisclosure, sketchDestination } from './sketches.mjs';
 import { assertPcDisclosure } from './pc-permissions.mjs';
 import { SPEAKER_CONTEXT_PROFILE, chairIdentitySnapshot, validateChairIdentityRecord } from './speaker-context.mjs';
+import {personalContextView,assertContextDisclosure,contextProcessCapability} from './personal-context.mjs';
 export { digest } from './integrity.mjs';
 
 // Branchline's finite application profile. These checks do not claim complete
@@ -112,6 +118,8 @@ export function scopeFor(state, chatId) {
 }
 
 function contextView(state, scope, selection = null, kind = 'reply', taskId = null, capturedOrientation = null) {
+  state = chairView(state,scope.chatId,selection?.chairId);
+  if (kind === 'parallel' && taskId) { const job=state.parallel?.jobs.find(j=>j.id===taskId); const run=state.parallel?.runs.find(r=>r.id===job?.runId); if(run?.sourceExchangeId)state=stateBeforeVisitorAdvance(state,run.sourceExchangeId); }
   const conversational = kind === 'reply' || kind === 'parallel';
   const root = state.roots.find(r => r.id === scope.rootId);
   const instruction = root.instructions.at(-1) ?? null;
@@ -129,6 +137,7 @@ function contextView(state, scope, selection = null, kind = 'reply', taskId = nu
   fail(results.every(r => r && r.rootId === scope.rootId && r.chatId === scope.chatId), 'selected tool result escaped scope');
   return {
     workingMethod: PAL_GUIDE_PROFILE,
+    ...(state.home?.arrivals.findLast(a=>a.chatId===scope.chatId&&a.settingsId===homeSettings(state)?.id)?{home:{settingsId:homeSettings(state).id,arrivalHash:digest(state.home.arrivals.findLast(a=>a.chatId===scope.chatId&&a.settingsId===homeSettings(state)?.id))}}:{}),
     instruction: instruction ? { id: instruction.id, hash: digest(instruction.text), role: 'user_adopted_guidance' } : null,
     ...(conversational ? { harness: peer?.coat || (taskId && state.exchanges.find(e=>e.id===taskId)?.harness) || harnessSnapshot(state, scope.chatId, selection?.seat ?? 'visiting') } : {}),
     ...(conversational && agentProfileSnapshot(state, selection) ? { agentProfile: agentProfileSnapshot(state, selection) } : {}),
@@ -143,6 +152,7 @@ function contextView(state, scope, selection = null, kind = 'reply', taskId = nu
     ...(selection && conversational ? { speakerContextProfile: SPEAKER_CONTEXT_PROFILE, chairIdentity: chairIdentitySnapshot(state, scope.chatId, chosen.selection) } : {}),
     ...(state.mind ? { mind: selectedAccount(state, scope.chatId) } : {}),
     ...(state.contextCarry ? { carriedContext: carryContextView(state, scope.chatId) } : {}),
+    ...(!peer && conversational && personalContextView(state,scope.chatId,selection?.seat??'visiting') ? {personalContext:personalContextView(state,scope.chatId,selection?.seat??'visiting')} : {}),
   };
 }
 
@@ -152,9 +162,12 @@ export function prepareModelHandoff(state, { taskId, chatId, kind, messages, pur
   fail(['reply', 'journal', 'heart', 'agents', 'mind', 'carry', 'parallel'].includes(kind), 'unknown model operation');
   fail(typeof purpose === 'string' && purpose.trim(), 'whole-task purpose is required');
   const scope = scopeFor(state, chatId);
-  const view = contextView(state, scope, selection, kind);
+  const view = contextView(state, scope, selection, kind, taskId);
   const transportModel = selection ? selection.modelSnapshot : state.models.find(model => model.id === view.model?.id);
   assertAgentDisclosure(state, chatId, transportModel, selection, kind);
+  assertContextDisclosure(state,chatId,transportModel);
+  assertHomeDisclosure(state,chatId,transportModel,workspaceId,workspacePath);
+  assertWorkDisclosure(state,chatId,transportModel,workspaceId,workspacePath);
   const sketchDisclosure = assertSketchDisclosure(state,chatId,transportModel,workspaceId);
   assertPcDisclosure(state,chatId,transportModel,workspaceId,workspacePath);
   assertMediaClearance(mediaClearance, messages, transportModel, chatId);
@@ -171,12 +184,14 @@ export function prepareModelHandoff(state, { taskId, chatId, kind, messages, pur
     ...(mediaClearance ? { images: { ...mediaClearance.capability, sourceRole: 'image_evidence', imagesHash: mediaClearance.imagesHash } } : {}),
     modelInterface: toolContract ? 'text_generation_with_app_owned_tools' : 'text_generation_without_tools', modelServiceIsolation: 'NOT_ASSESSED',
     hostWriter: { effects: allowedEffects, boundary: scope, enforcement: 'fixed_application_code_paths' },
-    externalProcessDispatch: isCodex(transportModel) ? 'PINNED_CODEX_TEXT_BRIDGE_ONLY' : 'DISABLED',
+    externalProcessDispatch: toolContract?.personalContext ? (isCodex(transportModel)?'PINNED_CODEX_AND_PERSONAL_CONTEXT_ONLY':'PINNED_PERSONAL_CONTEXT_ONLY') : isCodex(transportModel) ? 'PINNED_CODEX_TEXT_BRIDGE_ONLY' : 'DISABLED',
+    ...(toolContract?.personalContext?{personalContextBridge:contextProcessCapability(toolContract)}:{}),
     ...(isCodex(transportModel) ? { codex: codexCapability(Boolean(toolContract)) } : {}),
     ...(toolContract ? { tools: structuredClone(toolContract) } : {}),
   };
   const task = { purpose, kind, scope, view, sourceExchangeId, allowedEffects, capability, ...(selection ? { selection } : {}), ...(turnRequest ? { turnRequest } : {}), ...(inputReceipts.length ? { inputReceipts: [...inputReceipts] } : {}),
     ...(parallelRun ? { parallel: { profile: parallelRun.profile, runId: parallelRun.id, contextHash: parallelRun.contextHash, basisHash: parallelRun.basisHash,
+      ...(isPonyRun(parallelRun)?{pony:structuredClone(parallelRun.pony)}:{}),
       settingsId: parallelRun.settingsId, admissionHash: parallelRun.admissionHash, origin: parallelRun.origin, sourceExchangeId: parallelRun.sourceExchangeId, limits: parallelRun.limits, authorityCreated: false,
       ...(parallelJob.hearthActor ? { turnAdmissionHash: parallelJob.admissionHash, actor: parallelJob.hearthActor } : parallelJob.peerId ? { turnAdmissionHash:parallelJob.admissionHash,actor:parallelJob.peerName,peerId:parallelJob.peerId,allowanceHashes:parallelRun.extensions.map(x=>state.handoffs.records.find(a=>a.id===x.receiptId).hash) } : {}) } } : {}),
     whyThisCapability: kind === 'parallel' ? 'Read the shared task context from one declared angle and retain an attributed contribution. This adds no execution authority.' : kind === 'reply' ? 'Generate a response to this request and retain the exchange.' : kind === 'carry' ? 'Read attributed original conversation and write one derived context account with checked source references. This does not carry or grant permission.' : kind === 'mind' ? 'Read selected source turns and propose a bounded, fallible account revision or a no-change outcome.' : `Read the selected exchange and return ${kind === 'journal' ? 'a fallible journal entry' : 'a proposal for human review'}.`,
@@ -186,7 +201,7 @@ export function prepareModelHandoff(state, { taskId, chatId, kind, messages, pur
   const request = recordHandoff(state, { kind: 'ui.intent', taskId, scope, from: parallelRun ? 'app_task_queue' : 'local_ui', to: 'shared_task', payload: task,
     status: 'REQUEST_RECORDED', parents: [...inputReceipts,...(parallelRun ? [parallelRun.admissionId, ...((parallelJob.hearthActor||parallelJob.peerId) ? [parallelJob.admissionId] : [])] : [])], detail: { task, localIdentityAssumption: parallelRun ? 'app admission under recorded local user settings; not independently authenticated human identity' : 'local UI request; not independently authenticated human identity' } });
   const outgoing = recordHandoff(state, { kind: 'context.to_model', taskId: request.taskId, scope, from: 'shared_task', to: 'model_episode', payload: messages, parents: [request.id],
-    checks: ['branch_and_chat_scope', 'source_roles_retained', 'messages_bound'], unresolved: ['Model interpretation is fallible.', isCodex(transportModel) ? 'Selected context is sent to OpenAI. The pinned capability profile is not an OS container or a full PPPS conformance claim.' : 'The local model service is independently operated; its process isolation has not been assessed.'], detail: { inputMessages: structuredClone(messages), transport, contextView: view, capability, effectCeiling: task.allowedEffects, taskReceipt: request.id, ...(sketchDisclosure?{sketchDestination:sketchDestination(transportModel)}:{}) } });
+    checks: ['branch_and_chat_scope', 'source_roles_retained', 'messages_bound'], unresolved: ['Model interpretation is fallible.', transportModel?.runtime==='openai' ? 'Selected context is sent to the separately billed OpenAI API; Branchline retains its own source history.' : isCodex(transportModel) ? 'Selected context is sent to OpenAI. The pinned capability profile is not an OS container or a full PPPS conformance claim.' : 'The local model service is independently operated; its process isolation has not been assessed.'], detail: { inputMessages: structuredClone(messages), transport, contextView: view, capability, effectCeiling: task.allowedEffects, taskReceipt: request.id, ...(sketchDisclosure?{sketchDestination:sketchDestination(transportModel)}:{}) } });
   const handle = Object.freeze({ taskId: request.taskId, requestId: request.id, contextId: outgoing.id, contextHash: outgoing.contentHash, scope: Object.freeze({ ...scope }), kind, viewHash: digest(view), modelHash: view.model?.hash ?? null });
   invocations.add(handle);
   return handle;
@@ -238,13 +253,13 @@ export function receiveModelOutput(state, handle, content, { complete = true, pr
     purpose_bound: typeof task.purpose === 'string' && Boolean(task.purpose.trim()),
     context_bound: context.contentHash === handle.contextHash,
     scope_current: current,
-    capability_bounded: (task.capability?.externalProcessDispatch === 'DISABLED' || (task.capability?.externalProcessDispatch === 'PINNED_CODEX_TEXT_BRIDGE_ONLY' && digest(task.capability.codex) === digest(codexCapability(Boolean(task.capability.tools))) && context.detail.transport?.format === 'codex-app-server-v1')) && digest(task.capability.hostWriter) === digest({ effects: [effect], boundary: handle.scope, enforcement: 'fixed_application_code_paths' }),
+    capability_bounded: (task.capability?.externalProcessDispatch === 'DISABLED' || (task.capability?.externalProcessDispatch === 'PINNED_CODEX_TEXT_BRIDGE_ONLY' && digest(task.capability.codex) === digest(codexCapability(Boolean(task.capability.tools))) && context.detail.transport?.format === 'codex-app-server-v1') || (['PINNED_PERSONAL_CONTEXT_ONLY','PINNED_CODEX_AND_PERSONAL_CONTEXT_ONLY'].includes(task.capability?.externalProcessDispatch)&&task.capability.tools?.personalContext&&digest(task.capability.personalContextBridge)===digest(contextProcessCapability(task.capability.tools))&&(task.capability.externalProcessDispatch==='PINNED_PERSONAL_CONTEXT_ONLY'||digest(task.capability.codex)===digest(codexCapability(Boolean(task.capability.tools)))&&context.detail.transport?.format==='codex-app-server-v1'))) && digest(task.capability.hostWriter) === digest({ effects: [effect], boundary: handle.scope, enforcement: 'fixed_application_code_paths' }),
     authority_applicable: task.authority?.mayDelegate === false && digest(task.allowedEffects) === digest([effect]) && digest(task.authority.effectCeiling) === digest([effect]),
     invocation_dispatched: wasDispatched, output_complete: complete, output_bounded: withinSize, operation_clean: problem === null,
     ...(handle.kind === 'parallel' ? {
       shared_task_bound: !!run && openRun(run) && sharedCurrent && run.episodeIds.includes(handle.taskId) && task.purpose === run.purpose,
       shared_budget_bound: !!run && digest(run.limits) === digest(runLimits(run)) && Object.entries(run.usage).every(([key,n])=>n<=runLimits(run)[key]),
-      initiation_permission: !!run && settings.enabled && (run.origin === 'user' || settings.automaticRequests && settings.explicitAutomaticOptIn && settings.id === run.settingsId),
+      initiation_permission: !!run && settings.enabled && (run.origin === 'user' || settings.automaticRequests && settings.explicitAutomaticOptIn && (isPonyRun(run)||settings.id === run.settingsId)),
     } : {}),
   }, problem ? [[8, 4, digest(problem)]] : []);
   const accepted = reviewAllowsEffect(review);
@@ -270,6 +285,7 @@ export function protocolMessages(messages) {
 
 export function recordUiCommand(before, after, command) {
   fail(object(command) && Object.keys(command).every(k => ['type', 'payload'].includes(k)), 'UI command cannot supply an actor or grant');
+  if (command.type.startsWith('table.roster.') || command.type === 'table.replySettings' && after.chats.find(c => c.id === command.payload?.chatId)?.seating) return null; // Quiet seating: ordinary saved configuration, no context event.
   if (['ui.update', 'draft.save'].includes(command.type)) return null; // No trust/capability transfer; ordinary snapshots suffice.
   const p = command.payload || {};
   const appliedChat = ['harness.create', 'harness.revise'].includes(command.type) ? p.use?.chatId : null;

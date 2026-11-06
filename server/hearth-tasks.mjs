@@ -1,3 +1,4 @@
+import { isCloudModel, mayFollowProvider } from '../public/provider-routes.js';
 import crypto from 'node:crypto';
 import { ParallelTasks, approachCandidates } from './parallel-tasks.mjs';
 import { agentSettings, parallelState, parallelBasis, taskBasis, ParallelBudget, openRun, liveRun } from './parallel-state.mjs';
@@ -45,7 +46,7 @@ export class HearthTasks extends ParallelTasks {
     fail(candidate && origin.basisHash === parallelBasis(state,chatId,origin.exchangeId),'The original connection or conversation changed.');
     const purpose = origin.content || state.handoffs.records.find(r=>r.id === origin.handoff.requestId).detail.task.purpose;
     const run = await this.admitHearth({ requestId:'hearth_request_' + digest({ source:origin.exchangeId,callId }).slice(0,40),fingerprint,
-      chatId,content:purpose,directions:args.directions,seat:candidate.seat,cloudApproved:origin.model.runtime === 'codex',basisHash:origin.basisHash },origin);
+      chatId,content:purpose,directions:args.directions,seat:candidate.seat,cloudApproved:isCloudModel(origin.model),basisHash:origin.basisHash },origin);
     return { runId:run.id,status:'queued',message:'The hearth and two peers will work after this reply finishes, using this connection and one shared allowance. Do not invent their results.' };
   }
   async startHearth(input) {
@@ -81,7 +82,7 @@ export class HearthTasks extends ParallelTasks {
       const basis = state => parent ? taskBasis(state,parent) : parallelBasis(state,input.chatId,sourceExchangeId);
       fail(input.basisHash === basis(before),'The starting conversation changed. Reopen the task.');
       const candidate = approachCandidates(before,input.chatId).find(c=>c.seat === input.seat);
-      fail(candidate && (candidate.model.runtime !== 'codex' || input.cloudApproved),'Choose an available connection and allow any OpenAI context delivery.');
+      fail(candidate && (!isCloudModel(candidate.model) || input.cloudApproved),'Choose an available connection and allow any OpenAI context delivery.');
       fail(!parent || digest(candidate.model) === parent.modelHash && digest(candidate.selection) === digest(parent.selection),'The original connection changed. Start a new task.');
       const maxTokens = 1500, capacity = await contextBudget(candidate.model,{ ...this.modelOptions,maxTokens });
       const budget = origin?.budget ?? new ParallelBudget(HEARTH_LIMITS); budget.limits = HEARTH_LIMITS;

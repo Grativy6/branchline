@@ -13,6 +13,7 @@ internal static class Program
     private static void Main(string[] args)
     {
         if (args.SequenceEqual(new[] { "--pc-files" })) { PcFiles.Run(); return; }
+        if (args.SequenceEqual(new[] { "--work-host" })) { WorkHost.Run(); return; }
         ApplicationConfiguration.Initialize();
         bool smoke = args.Contains("--smoke-test");
         // Patch releases retain this workspace identity; opening an update must not create an empty replacement.
@@ -59,14 +60,15 @@ internal sealed class PreviewWindow : Form
         this.data = data; this.smoke = smoke; this.setupApertus = setupApertus; this.smokeHistory = smokeHistory;
         this.setupHearthline = setupHearthline;
         var releaseVersion = System.Reflection.CustomAttributeExtensions.GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>(typeof(PreviewWindow).Assembly)?.InformationalVersion.Split('+')[0];
-        Text = $"Branchline · v{releaseVersion}"; Width = 1280; Height = 900;
+        var roomLabel = Environment.GetEnvironmentVariable("BRANCHLINE_ROOM_LABEL");
+        Text = $"Branchline{(string.IsNullOrWhiteSpace(roomLabel) ? "" : " · " + roomLabel[..Math.Min(roomLabel.Length, 80)])} · v{releaseVersion}"; Width = 1280; Height = 900;
         MinimumSize = new Size(780, 580); StartPosition = FormStartPosition.CenterScreen;
         BackColor = Color.FromArgb(244, 242, 234);
         if (smoke) { ShowInTaskbar = false; Opacity = 0; }
         string icon = Path.Combine(appRoot, "public", "assets", "branchline.ico");
         if (File.Exists(icon)) Icon = new Icon(icon);
         Controls.Add(web); Controls.Add(status);
-        Shown += async (_, _) => await StartAsync();
+        Shown += async (_, _) => { RecordOpening("window_visible"); await StartAsync(); };
         FormClosing += async (_, e) => {
             if (canClose) return;
             e.Cancel = true;
@@ -95,6 +97,17 @@ internal sealed class PreviewWindow : Form
         };
     }
 
+    private void RecordOpening(string phase)
+    {
+        try {
+            Directory.CreateDirectory(data);
+            File.AppendAllText(Path.Combine(data, "opening-timing.jsonl"),
+                JsonSerializer.Serialize(new { phase, elapsedMs = startupWatch.Elapsed.TotalMilliseconds,
+                    at = DateTimeOffset.UtcNow, room = Environment.GetEnvironmentVariable("BRANCHLINE_ROOM_LABEL") }) + "\n");
+        } catch (IOException) { /* Diagnostic failure must not stop an otherwise usable room. */ }
+          catch (UnauthorizedAccessException) { }
+    }
+
     private async Task StartAsync()
     {
         try {
@@ -110,6 +123,7 @@ internal sealed class PreviewWindow : Form
             start.ArgumentList.Add(Path.Combine(appRoot, "server", "desktop.mjs"));
             start.Environment["BRANCHLINE_DATA_DIR"] = Path.Combine(data, "workspace");
             start.Environment["BRANCHLINE_PUBLIC_DIR"] = Path.Combine(appRoot, "public");
+            if (!start.Environment.ContainsKey("OPENAI_API_KEY") || string.IsNullOrWhiteSpace(start.Environment["OPENAI_API_KEY"])) { var apiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY", EnvironmentVariableTarget.User); if (!string.IsNullOrWhiteSpace(apiKey)) start.Environment["OPENAI_API_KEY"] = apiKey; }
             start.Environment["BRANCHLINE_NATIVE_FILES"] = Environment.ProcessPath;
             if (setupApertus && !smoke) start.Environment["BRANCHLINE_SETUP_APERTUS"] = "1";
             else start.Environment.Remove("BRANCHLINE_SETUP_APERTUS");
@@ -151,7 +165,20 @@ internal sealed class PreviewWindow : Form
             if (closing) return;
             await web.EnsureCoreWebView2Async(environment);
             web.CoreWebView2.Settings.AreHostObjectsAllowed = false;
-            web.CoreWebView2.Settings.IsWebMessageEnabled = false;
+            web.CoreWebView2.Settings.IsWebMessageEnabled = true;
+            await web.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync("window.branchlineBackdropHost = " + (WindowBackdrop.Supported ? "true" : "false") + ";");
+            web.CoreWebView2.WebMessageReceived += (_, e) => {
+                if (!Uri.TryCreate(e.Source, UriKind.Absolute, out var source) || source.GetLeftPart(UriPartial.Authority) != origin.GetLeftPart(UriPartial.Authority)) return;
+                try {
+                    if (e.WebMessageAsJson.Length > 256) return;
+                    using var value = JsonDocument.Parse(e.WebMessageAsJson);
+                    if (value.RootElement.GetProperty("type").GetString() != "appearance") return;
+                    int transparency = Math.Clamp(value.RootElement.GetProperty("transparency").GetInt32(), 0, 90);
+                    bool active = WindowBackdrop.Apply(this, transparency > 0);
+                    web.DefaultBackgroundColor = active ? Color.Transparent : Color.FromArgb(244, 242, 234);
+                    web.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(new { type = "backdrop", supported = WindowBackdrop.Supported, active, systemEnabled = WindowBackdrop.EnabledBySystem }));
+                } catch (Exception) { /* An unsupported backdrop leaves the ordinary opaque window. */ }
+            };
             web.CoreWebView2.Settings.IsStatusBarEnabled = false;
             web.CoreWebView2.Settings.AreDevToolsEnabled = false;
             // Launch credential stays in the native host; never placed in model context or page storage.
@@ -199,12 +226,13 @@ internal sealed class PreviewWindow : Form
                 if (!Uri.TryCreate(e.Uri, UriKind.Absolute, out var next) || next.GetLeftPart(UriPartial.Authority) != origin.GetLeftPart(UriPartial.Authority)) e.Cancel = true;
             };
             web.CoreWebView2.NavigationCompleted += async (_, e) => {
+                if (e.IsSuccess) RecordOpening("page_loaded");
                 if (!e.IsSuccess) { status.Text = "The preview page could not open. Close the window and try again."; return; }
                 status.Visible = false;
                 if (smoke) {
                     try {
                         // Exercise only explicitly selected synthetic smoke data.
-                        string result = await web.CoreWebView2.ExecuteScriptAsync("document.querySelector('#attach-file') !== null && document.title.includes('Branchline')");
+                        string result = await web.CoreWebView2.ExecuteScriptAsync("document.querySelector('#file-input') !== null && document.title.includes('Branchline')");
                         if (result != "true") throw new IOException("The native page did not render its file control.");
                         using var client = new HttpClient();
                         using var unpaired = await client.GetAsync(new Uri(origin, "/api/state"));

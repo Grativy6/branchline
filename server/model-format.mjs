@@ -1,3 +1,4 @@
+import { openAIInput } from './openai-input.mjs';
 import { digest } from './integrity.mjs';
 import { isCodex, codexInput, codexCapability } from './codex-policy.mjs';
 import { localImageMessages, mediaReferences } from './model-media.mjs';
@@ -9,6 +10,7 @@ const roles = Object.freeze({ system: 'System', user: 'User', assistant: 'Assist
 const stops = Object.freeze(['\nUser:', '\nSystem:', '\nAssistant:', '\n[System]', '\n[Response mode:', '\n[Base Coat:', '\n[Personal Chair]', '\n[Visitor Chair]']);
 
 export function modelTransport(model, messages, imageData) {
+  if(model.runtime==='openai')return {format:'openai-responses-v1',route:'/responses',input:{input:openAIInput(messages,imageData),store:false}};
   if (isCodex(model)) return { format: 'codex-app-server-v1', route: 'thread/start → thread/inject_items → turn/start', input: codexInput(messages, imageData) };
   const format = model.inputFormat ?? 'chat';
   if (!MODEL_INPUT_FORMATS.has(format)) throw new Error('Unsupported model input format.');

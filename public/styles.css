@@ -319,21 +319,16 @@ dialog::backdrop { background: var(--backdrop); }
 .app-dialog>.work-controls { position:absolute; bottom:8px; left:12px; }
 .app-dialog .work-menu { top:auto; bottom:100%; }
 
-/* Resize only actual Settings; other popouts use their own layout. */
-.settings-window { container: settings-space / inline-size; max-width:calc(100vw - 24px); max-height:calc(100dvh - 24px); }
-.settings-window>#dialog-content { height:100%; max-height:100%; min-width:0; }
-.settings-window .dialog-body { flex:1; min-width:0; }
-.settings-window .dialog-header { gap:10px; min-width:0; }
-.settings-window .dialog-header h2 { flex:1; min-width:0; overflow-wrap:anywhere; }
-.settings-window .dialog-header button { flex:none; }
-.settings-window .settings-content { min-width:0; overflow-wrap:anywhere; }
-.settings-window input:not([type=checkbox]):not([type=radio]), .settings-window select, .settings-window textarea { min-width:0; max-width:100%; }
-.settings-window pre { overflow:auto; }
-.settings-resize { position:absolute; right:8px; bottom:8px; width:32px; height:32px; padding:0; cursor:nwse-resize; touch-action:none; background:var(--surface); border:1px solid var(--line); border-radius:6px; }
-.settings-size-reset { font-size:11px; }
+/* Settings forms reflow inside the main pane. */
 @container settings-space (max-width: 600px) {
   .settings-grid { grid-template-columns:1fr; }
   .model-card>div, .storage-backup { flex-wrap:wrap; }
   .theme-choices { grid-template-columns:1fr; }
 }
 .coat-picker-dialog { width:min(760px,calc(100vw - 24px)); }
+
+/* Activity opens upward from the composer and remains available in dialogs. */
+#activity-composer .work-menu { top:auto; bottom:calc(100% + 5px); left:auto; right:0; }
+.picture-pin[aria-pressed="true"] { color:var(--accent-dark); font-weight:600; }
+
+.startup-progress { padding:8px 14px; color:var(--muted); background:var(--surface-strong); border-bottom:1px solid var(--line); font-size:13px; }

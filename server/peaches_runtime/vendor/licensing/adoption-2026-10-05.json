@@ -1,0 +1,246 @@
+{
+  "schema": "peaches.license-adoption/1",
+  "status": "ADOPTED",
+  "adopted_on": "2026-10-05",
+  "adoption_timezone": "America/New_York",
+  "license": "Apache-2.0",
+  "licensor": "Christopher Daniel Pang",
+  "licensor_capacity": "personal",
+  "reviewed_repository": "https://github.com/Grativy6/book-of-peaches",
+  "reviewed_source_commit": "cf6b27d977455f9c4e4d9bb63a6b90c55302ffd2",
+  "scope_notice": "../LICENSE-SCOPE.md",
+  "record_purpose": "A dated licence adoption record. The hashes below identify the reviewed pre-adoption snapshot, not necessarily the later working bytes of revised documentation or package metadata.",
+  "scope": "Christopher Daniel Pangâ€™s contributions and rights he is entitled to license in the listed first-party files and the new adoption notices. Existing third-party and separately stated terms remain applicable.",
+  "reviewed_first_party_files": [
+    {
+      "path": ".gitattributes",
+      "sha256": "cd7ec3813adb04bca2aeb8cd8e1af51d71aa7af720a67450557e938a0b9a4b38"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "d9e1ea5b6074f0000610066321f37de4f9fc752a81bda808660342d94f2530db"
+    },
+    {
+      "path": ".gitignore",
+      "sha256": "b1076974ff67912c7499220bc00d9188269454e3e39b3873040b2aff2f4447a3"
+    },
+    {
+      "path": "BOOK-RULES.md",
+      "sha256": "4ecbffa531560a775436c4baf10eeb6e5754adb9117cb56a2887f024238a0178"
+    },
+    {
+      "path": "CONFLICT-RESIDUAL-REGISTER.md",
+      "sha256": "0e55fbf2d1850655b0c0a7201f5d9bdbb4b11eb723e24cc03e95b148be05b98e"
+    },
+    {
+      "path": "CONTRACTS.md",
+      "sha256": "42704919a97e1b65e88bd3c5f1774979ff46fb3c772e0eb747072cccb9e48ddd"
+    },
+    {
+      "path": "FLOOR.md",
+      "sha256": "c401e3dfc03e2bb87d841287d5847e16f5fda9a3b9346918d42d758bcbfcf276"
+    },
+    {
+      "path": "FOUNDING-BASIS-DRAFT.md",
+      "sha256": "7b14b254cbba5b58a1152606afffaa806ce482c1edacd787fe32767377930f11"
+    },
+    {
+      "path": "FOUNDING-MANIFEST.json",
+      "sha256": "9f63c9d1f2f6185dd9607464c146803855ba00cd3ba966ef73bda4878f1f6bcb"
+    },
+    {
+      "path": "FOUNDING-PREGENESIS-TEMPLATE.md",
+      "sha256": "aa03777265fbf6c1986df39455d5cb4a8f0410b880e5355d5628a5dff4535c09"
+    },
+    {
+      "path": "PREGENESIS-FREEZE.md",
+      "sha256": "0028412388568ca21a9ddca79b7691597bbe1c750b316b058c63a4ba652f6480"
+    },
+    {
+      "path": "README.md",
+      "sha256": "c1cb042bdedb482322f1eca3fedde862c0a4c099a21696c2ea209455a7efa471"
+    },
+    {
+      "path": "SOURCE-CARDS.md",
+      "sha256": "9b3c68bb87bd38c1f59a54a10dac2f686ce00576e6caf7ec78ed48cd06d52264"
+    },
+    {
+      "path": "SOURCE-CLAUSE-LEDGER.md",
+      "sha256": "1ebf15b6a12922f26c5d1286a34c64b200cd40f43e7926085617bcb3e440ba41"
+    },
+    {
+      "path": "peaches_book/__init__.py",
+      "sha256": "c776658338a55bf66d1ef088fd31f62ebc1cda2ef5f6f408dea45b036ed36f86"
+    },
+    {
+      "path": "peaches_book/book.py",
+      "sha256": "84fd6d3e2a66480e7674ca0fd6ba54a74916ecf42062cbeaed9d70869001518f"
+    },
+    {
+      "path": "peaches_book/cli.py",
+      "sha256": "07ec45a2a952a4bffd2ca8195844f98fab88b919ae513e11d4b6fff172aca334"
+    },
+    {
+      "path": "peaches_book/core.py",
+      "sha256": "8635b645564265111b2a332d5e8e62340029ec2fd0325ed61feae76f4d1f4d98"
+    },
+    {
+      "path": "peaches_book/floor.py",
+      "sha256": "c072e8f86cda1be1583edecf637f4062e7d7fa75f243006656647fa83adb8258"
+    },
+    {
+      "path": "peaches_book/floor_cli.py",
+      "sha256": "280858f0ab71594cb720f929ab11ff4f073927fa5db46244bd2ac815c787faa7"
+    },
+    {
+      "path": "peaches_book/profiles.py",
+      "sha256": "faf7765ebbbed8e47e49b97b55b1887dbbbb41b4fbddfe098b884db595d69589"
+    },
+    {
+      "path": "pyproject.toml",
+      "sha256": "bb45511adf32faba3b9f7641e15a01667d41af24c5ceacbf48a841e964f06361"
+    },
+    {
+      "path": "requirements-dev.txt",
+      "sha256": "9db10e06e59f5c4aa47b067bff5563aae75f66967b41a3811337bc181d6564a6"
+    },
+    {
+      "path": "schemas/peaches-floor-v1.schema.json",
+      "sha256": "f88e63ea52096bcaae6db5d4e7abfd5e162d2cb4c16e97bc76ee63a102a0c30b"
+    },
+    {
+      "path": "tests/test_book.py",
+      "sha256": "e7ced0729aae4c8e80bd8daa91bf80023300372dcbd1f02c12e904f88b27e93f"
+    },
+    {
+      "path": "tests/test_floor.py",
+      "sha256": "c707c14f77d756e37ad43b0b8442d10b519d704b161ff0e0b94a374c7ffc8f57"
+    },
+    {
+      "path": "tests/test_floor_cli.py",
+      "sha256": "fc5e955093dd14345371690209b6fc14690051a8b97a986421eccdcf7f5ff838"
+    },
+    {
+      "path": "vectors/floor-v1/calculation-expectations.json",
+      "sha256": "c8677b601f981eea0c8890126a85c5d0e5b3931bef1fce52eabf9cf2410712fd"
+    },
+    {
+      "path": "vectors/floor-v1/invalid-duplicate-key.json",
+      "sha256": "2deacecfda69914559c06c696a4dbeb643d93f6da0ba2f5da6aa289b63bcf97d"
+    },
+    {
+      "path": "vectors/floor-v1/observation-core.json",
+      "sha256": "782f1f2729f1f27f8c53f410551e3e63628e4f0221c67947d8b2e349587e7d45"
+    },
+    {
+      "path": "vectors/floor-v1/unsigned-stamp-body.json",
+      "sha256": "a98a68f122f4d09801935881322414b36281b788cf0b942ee52334c2f7b15483"
+    }
+  ],
+  "new_first_party_notices": [
+    "NOTICE",
+    "LICENSE-SCOPE.md",
+    "licensing/adoption-2026-10-05.json"
+  ],
+  "unmodified_license_text": {
+    "path": "LICENSE",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "official_source": "https://www.apache.org/licenses/LICENSE-2.0.txt"
+  },
+  "retained_records_outside_new_grant": [
+    {
+      "path": "genesis/preparation-v1/README.md",
+      "sha256": "d7e8fd3a8ce329d060373e0f56d06895a8482bdf3554fdbf5db5e0755d56b886"
+    },
+    {
+      "path": "genesis/preparation-v1/SHA256SUMS",
+      "sha256": "73d64ce875a5decb3ed44376a1ce8d45a1efc48e7e8a935a7d57de0cf412d8d8"
+    },
+    {
+      "path": "genesis/preparation-v1/ancestry-archive.json",
+      "sha256": "bf4583bb2fc2db8b0b344c4454b0613be7160460b48b26d42794850141c1e9f0"
+    },
+    {
+      "path": "genesis/preparation-v1/authorization-context.md",
+      "sha256": "aa904cb45b15d979e7f459e60773e397700eb69c4bf5b4c05793ed06bf104a45"
+    },
+    {
+      "path": "genesis/preparation-v1/genesis-declaration.txt",
+      "sha256": "5aafa18db76fd6a4d2fc9090c2d640e96e8b790b1beb98f2998d465f40a5f0ae"
+    },
+    {
+      "path": "genesis/preparation-v1/hearthline-lineage.candidate.json",
+      "sha256": "cf824d6cec5edaa639bede7f796d4b3f9586710b69050e5c7535805a6f3b34a8"
+    },
+    {
+      "path": "genesis/preparation-v1/manifest.json",
+      "sha256": "18558db6440a84bd27390714ba43ff74d89130938bca983bc3b6ce57822441d9"
+    },
+    {
+      "path": "genesis/preparation-v1/sources/LICENSE-2.0.txt",
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+    },
+    {
+      "path": "genesis/preparation-v1/sources/four-prompts.docx",
+      "sha256": "dd402c130d1c77595f87307f6b985939c662b035dfaba2391f4df6a5eb500d82"
+    },
+    {
+      "path": "genesis/preparation-v1/sources/four-prompts.license.md",
+      "sha256": "c17dfde1de023581d8ff86404d4eb60e5f1ff258cd8d9379e99a6eba679c5630"
+    },
+    {
+      "path": "genesis/publication-v1/README.md",
+      "sha256": "cb2e48049d02fd5ad2e11511526ffbb5693d5155e350919d3632e75dc1157901"
+    },
+    {
+      "path": "genesis/publication-v1/github-publication-receipt.json",
+      "sha256": "ac5bf7e120d5d51a940b2998dea6d6c1d26b130ca0950369996c171b4f932c52"
+    },
+    {
+      "path": "genesis/signed-v1/PEACHES-signed-records.zip",
+      "sha256": "63483fbae6232e9ebc1a516b0377c00e7456164d790cb981904dc92bcbde83c2"
+    },
+    {
+      "path": "genesis/signed-v1/README.md",
+      "sha256": "324afd2eb74d641a0f1b34c4a9fcd6a9dcb549cca78c48e543cd9ae6f8d21d66"
+    },
+    {
+      "path": "genesis/signed-v1/SHA256SUMS",
+      "sha256": "1b2b8c2b123ac7c6d1217dd2c7d49944d6f7475a5eb73b5b83937f4324fa9a69"
+    },
+    {
+      "path": "genesis/signed-v1/genesis.checker-report.json",
+      "sha256": "d8e2c9cc25914d3244b02bea86c5b6d126cf8d069a5272a122c21357d73bdf62"
+    },
+    {
+      "path": "genesis/signed-v1/genesis.floor.signed.json",
+      "sha256": "237f4d3bd01e76b87d59a08ffd0cfdf5c95e9f82049f89e9798c5a762392571b"
+    },
+    {
+      "path": "genesis/signed-v1/github-publication-method.md",
+      "sha256": "1b89d3d76237b5b0809add5508b88f6e046c02f8aa2b842f4ea066371ba05392"
+    },
+    {
+      "path": "genesis/signed-v1/h1.checker-report.json",
+      "sha256": "7185e27bc24b25ba362b23165a052f886197ecc6afd48c7be392342818642ba8"
+    },
+    {
+      "path": "genesis/signed-v1/h1.floor.signed.json",
+      "sha256": "9c9aa214e73c94a33ccefc8ba85c0fc0155b1ce44b393edfda38380825921b41"
+    },
+    {
+      "path": "genesis/signed-v1/issuer-public-key.json",
+      "sha256": "4b7c41ebfc52020c049e9e0729e269a7742b3e052fd2f64788cbf8b40cfda30c"
+    },
+    {
+      "path": "genesis/signed-v1/record-index.json",
+      "sha256": "c579b36e92504c55175726f23d3f7cf75896045e2a611bcfaa6d0ad75d34484a"
+    },
+    {
+      "path": "genesis/signed-v1/signing-receipt.json",
+      "sha256": "48f897e18c45718458265bc844c1da2f673ae197b9174d3fcf5f9e1c2d47d7a9"
+    }
+  ],
+  "existing_ancestry_notice": "genesis/preparation-v1/sources/four-prompts.license.md",
+  "historical_status": "This adoption adds a present grant; it does not amend the bytes, dates, signatures or meaning of the retained records."
+}

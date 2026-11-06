@@ -1,7 +1,7 @@
 param(
     [Parameter(Mandatory)][string]$SourceFolder,
     [Parameter(Mandatory)][string]$BinaryFolder,
-    [string]$Version = '0.8.12-preview.5'
+    [string]$Version = '0.9.1-preview.2'
 )
 $ErrorActionPreference = 'Stop'
 if ($Version -notmatch '^[0-9]+\.[0-9]+\.[0-9]+(?:-[a-zA-Z0-9.]+)?$') { throw 'Use a plain semantic version.' }
@@ -46,7 +46,7 @@ $taskSourceEntries = @($taskSourceManifest.files | ForEach-Object { @{ Base=$tas
 $taskBinaryEntries = @($taskBinaryManifest.files | ForEach-Object { @{ Base=$taskBinary; Path=$_.path; Hash=$_.sha256 } }) + @(@{Base=$taskBinary;Path='build-manifest.json';Hash=$null})
 $taskNativeEntries = @($taskNative.archives | ForEach-Object { @{Base=(Join-Path $taskRoot '.local/runtime-cache/native-sources');Path=$_.file;Hash=$_.sha256} })
 # Native source ZIP uses the manifest paths directly, so it can seed the download cache.
-$taskNativeEntries += @(@{Base=(Join-Path $taskRoot 'provenance/licensing');Path='native-sources.json';Hash=$null},@{Base=(Join-Path $taskRoot 'docs/public');Path='NATIVE-SOURCES.md';Hash=$null})
+$taskNativeEntries += @(@{Base=(Join-Path $taskRoot 'provenance/licensing');Path='native-sources.json';Hash=$null},@{Base=$taskRoot;Path='NATIVE-SOURCES.md';Hash=$null})
 $taskFiles = @(
     (Write-Archive ("Branchline-v$Version-Source.zip") $taskSourceEntries),
     (Write-Archive ("Branchline-v$Version-App-Only-Windows-x64.zip") $taskBinaryEntries),

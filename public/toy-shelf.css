@@ -11,6 +11,16 @@
 .toy-tile-icon { display: grid; place-items: center; height: 42px; width: 44px; }
 .toy-tile-icon img, .toy-tile-icon svg { width: 100%; height: 100%; object-fit: contain; }
 .toy-peaches .toy-tile-icon { width: 64px; height: 52px; }
+.toy-sketch-book .toy-tile-icon, .toy-blackboard .toy-tile-icon { width: 54px; height: 52px; }
+.shelf-launcher { display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:7px 10px; flex:none; }
+.shelf-launcher svg { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+dialog.toy-shelf-dialog { width:min(780px, calc(100% - 24px)); }
+dialog.toy-shelf-dialog, dialog.blackboard-dialog { max-height:var(--toy-window-height, calc(100dvh - 24px)); }
+.toy-shelf-dialog>#dialog-content, .blackboard-dialog>#dialog-content { max-height:calc(var(--toy-window-height, 100dvh - 24px) - 74px); }
+.blackboard-window .parallel-purpose { white-space:pre-wrap; overflow-wrap:anywhere; }
+.blackboard-window .blackboard-panel { margin:12px 0; }
+.blackboard-window select { min-width:0; max-width:100%; }
+.blackboard-window-actions { display:flex; flex-wrap:wrap; gap:12px; align-items:center; }
 .peaches-placeholder { text-align: center; }
 .peaches-placeholder img { object-fit: contain; }
 .toy-tile:hover { box-shadow: 0 2px 8px #0002; }
@@ -26,6 +36,8 @@
 .shelf-setting-row > span { display: flex; gap: 5px; }
 .shelf-setting-row button { min-width: 36px; }
 @media (max-width: 560px) {
+  .shelf-launcher span { display:none; }
+  .shelf-launcher { min-width:36px; min-height:36px; padding:7px; }
   .toy-shelf-content { flex-direction: column; gap: 7px; padding: 10px 8px 0; }
   .toy-shelf-side { flex: 0 0 auto; flex-direction: row; justify-content: space-between; gap: 8px; }
   .toy-shelf-art { width: 64px; height: 64px; }

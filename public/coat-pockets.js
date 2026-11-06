@@ -2,6 +2,22 @@
 export const POCKET_PROFILE = 'branchline.coat-pockets/1';
 export const BUILTIN_PROVIDER = 'branchline.builtin/1';
 export const POCKET_TOOLS = Object.freeze([
+  {tool:'nav_read',label:'Navigate shelves',help:'Read selected README, MAP, TEMP and journal passages with the Nav setting.',default:false},
+  {tool:'nav_journal',label:'Keep an episode journal',help:'Begin, append, resume and close one journal at its starting shelf.',default:false},
+  {tool:'nav_update',label:'Maintain navigation',help:'Exact edits to current navigation files, with recovery copies.',default:false},
+  {tool:'write_work_artifact',label:'Create a work draft',help:'Save text, Markdown, HTML, SVG or CSV output here for review.',default:false},
+  {tool:'read_work_output',label:'Read saved work output',help:'Reopen results and drafts from this conversation.',default:false},
+  {tool:'make_picture',label:'Make a picture draft',help:'Uses the chosen picture provider and edit region. Separate API billing.',default:false},
+  {tool:'describe_picture',label:'Ask a vision helper',help:'Sends one selected picture to the chosen vision provider.',default:false},
+  {tool:'run_program',label:'Run an approved command',help:'Only saved commands approved in Work tools. Runs with Windows account access.',default:false},
+  {tool:'use_window',label:'Use selected window',help:'Read/capture its content; native buttons and text fields need separate control approval.',default:false},
+  {tool:'use_browser',label:'Use work browser',help:'A clean browser context on the selected websites.',default:false},
+  {tool:'come_home',label:'Read Home orientation',help:'The selected read-only Home sources.',default:false},
+  {tool:'find_context',label:'Find Home context',help:'Search selected shelves with source handles.',default:false},
+  {tool:'read_source',label:'Read a Home source',help:'Exact passages inside selected Home locations.',default:false},
+  { tool: 'find_personal_source', label: 'Find personal sources', help: 'Search only the personal continuity profile attached to this chair.', default: false },
+  { tool: 'read_personal_source', label: 'Reopen personal sources', help: 'Read an exact source snapshot in this reply’s selected profile.', default: false },
+  { tool: 'propose_personal_note', label: 'Propose continuity notes', help: 'Suggest an account for your review. This cannot accept or activate a note.', default: false },
   { tool: 'list_pc_files', label: 'List permitted folders', help: 'Only folders and connections enabled in Agents → Agent PC access.', default: false },
   { tool: 'read_pc_text', label: 'Read PC text files', help: 'Bounded UTF-8 pages; exclusions always apply.', default: false },
   { tool: 'search_pc_text', label: 'Find text in a PC file', help: 'Literal search inside one permitted text file.', default: false },

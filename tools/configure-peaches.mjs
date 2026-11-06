@@ -1,0 +1,12 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import {fileURLToPath} from 'node:url';
+const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
+const python=path.resolve(process.argv[2]??path.join(root,'.local/peaches-venv/Scripts/python.exe'));
+const sha=bytes=>crypto.createHash('sha256').update(bytes).digest('hex');
+const sources={};for(const file of ['worker.py','package.py','signer.py','vendor/floor.py'])sources[file]=sha(await fs.readFile(path.join(root,'server/peaches_runtime',file)));
+if(sources['vendor/floor.py']!=='c072e8f86cda1be1583edecf637f4062e7d7fa75f243006656647fa83adb8258')throw new Error('Pinned upstream Floor differs.');
+await fs.mkdir(path.join(root,'.local'),{recursive:true});
+await fs.writeFile(path.join(root,'.local/peaches-runtime.json'),JSON.stringify({format:'branchline.peaches-runtime/1',python,pythonSha256:sha(await fs.readFile(python)),sources,upstream:'6b12e184ad90e8cc210e90511e39ea3838fe7459',dependencies:{cryptography:'50.0.1',bcrypt:'5.0.0',cffi:'2.1.1',pycparser:'3.11'}},null,2)+'\n');
+console.log('PEACHES runtime pinned. No signing key accessed.');

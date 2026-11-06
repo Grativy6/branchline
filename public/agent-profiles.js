@@ -1,7 +1,7 @@
 import { api } from './api.js';
 import { personalLabel } from './personal-label.js';
 import { modelsBusy } from './table.js';
-import { profileSharingSelections, profileSharedWith } from './agent-sharing.js';
+import { profileSharingSelections, profileSharingDestinations, profileSharedWith } from './agent-sharing.js';
 
 const e = (value = '') => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const route = m => ({ runtime: m.runtime ?? 'compatible', baseUrl: m.baseUrl, model: m.model });
@@ -51,7 +51,7 @@ export function createAgentProfiles({ getState, command, openDialog, toast }) {
     const profile = state.agentProfiles.profiles.find(p => p.id === selection.profileId);
     const owner = state.personalParticipants.find(p => p.id === selection.personalId);
     const selectedModelId = state.personalParticipants.find(p => p.id === personalId)?.connections.at(-1)?.modelId;
-    const grants = state.agentProfiles.sharing.filter(r => r.selectionId === id).flatMap(r => r.destinations);
+    const grants = profileSharingDestinations(state, id);
     show('Review sharing', `<form id="agent-profile-sharing-form" data-selection-id="${e(id)}"><p><strong>${e(profile.name)} · v${profile.version}</strong><br>Selected by ${e(personalLabel(owner))}</p>${selection.paths.map(path => { const entry = profile.entries.find(e => e.path === path); return source(entry, state.agentProfiles.sources[entry.sha256]); }).join('')}<p>Earlier clearance:</p><ul>${grants.map(d => `<li>${e(d.runtime === 'codex' ? 'OpenAI' : d.baseUrl)} · ${e(d.model)}</li>`).join('')}</ul>${modelOptions(models, [selectedModelId], { state, id })}<p class="field-help">Choose connections, then press Allow selected connections to save approval. This adds sharing clearance; it does not remove earlier approvals or grant tools.</p>${errorBox}<div class="dialog-footer">${button('agent-profile-home', 'Back')}<button type="submit" class="primary-button">Allow selected connections</button></div></form>`);
   }
   function capture() {

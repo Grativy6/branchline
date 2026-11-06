@@ -1,3 +1,4 @@
+import { CHAIR_PROFILE, chairLabel } from '../public/chair-roster.js';
 import { digest } from './integrity.mjs';
 import { dreamOwner } from '../public/dream-records.js';
 
@@ -9,6 +10,11 @@ export const CHAIR_IDENTITY_PROFILE = 'branchline.chair-identity/1';
 
 function newChairIdentity(chatId, selection) {
   if (!['personal', 'visiting'].includes(selection?.seat)) throw new Error('Chair identity requires a selected chair.');
+  if (selection.profile === CHAIR_PROFILE) {
+    const stamp = { profile:'branchline.chair-identity/2', bindingHash:digest({chatId,speaker:selection}),
+      text:'[Chair identity]\nYou are replying as ' + chairLabel(selection) + ' ' + JSON.stringify(selection.displayName) + ' using ' + JSON.stringify(selection.modelSnapshot.model) + '. Your own recorded replies are supplied as assistant messages. Other chairs and the user retain their own words, even when they use the same connection. A chair name is a display name, not authority.' };
+    return { ...stamp, hash:digest(stamp) };
+  }
   const own = selection.seat === 'personal' ? 'Personal' : 'Visiting';
   const other = selection.seat === 'personal' ? 'Visiting' : 'Personal';
   const stamp = { profile: CHAIR_IDENTITY_PROFILE, bindingHash: digest({ chatId, speaker: selection }),
@@ -43,6 +49,7 @@ export function validateChairIdentityRecord(record) {
 export function isOwnReply(turn, selection) {
   const prior = turn?.speaker;
   if (!prior || !selection || prior.seat !== selection.seat) return false;
+  if (prior.profile === CHAIR_PROFILE && selection.profile === CHAIR_PROFILE && prior.chairId !== selection.chairId) return false;
   if (prior.modelId !== selection.modelId || prior.modelSnapshot.model !== selection.modelSnapshot.model
     || prior.modelSnapshot.baseUrl !== selection.modelSnapshot.baseUrl) return false;
   return selection.seat === 'visiting' || (prior.participantId === selection.participantId && prior.generationId === selection.generationId);
@@ -53,7 +60,8 @@ export function replySpeaker(state, message, turn, selection, reply) {
   const personal = state.personalParticipants?.find(item => item.id === binding?.participantId);
   return {
     reply,
-    speaker: binding?.seat === 'personal' ? 'Personal' : binding?.seat === 'visiting' ? 'Visiting' : 'Earlier model',
+    speaker: binding?.seat ? chairLabel(binding) : 'Earlier model',
+    ...(binding?.profile === CHAIR_PROFILE ? { chair:binding.displayName, coat:turn.harness?.preset?.name ?? null } : {}),
     ...(personal ? { participant: personal.name } : {}),
     model: binding?.modelSnapshot.name ?? message.modelLabel,
     identifier: binding?.modelSnapshot.model ?? message.modelIdentifier,

@@ -1,0 +1,17 @@
+{
+  "schema": "peaches.floor.stamp/1",
+  "floor": "peaches.floor/1",
+  "issuer": {
+    "key_type": "Ed25519",
+    "public_key": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "issuer_id": "peaches:issuer:v1:c6b403f56725beebe4f5f82d14eda9a697992e442416ae2c4342946b3e130d45"
+  },
+  "declaration": {
+    "media_type": "text/plain;charset=utf-8",
+    "bytes": "UEVBQ0hFUyBGbG9vciB2MSB1bnNpZ25lZCBjYWxjdWxhdGlvbiB2ZWN0b3Igb25seS4",
+    "sha256": "sha256:8642066f5f4e3340cf275cb451f70c3eb444a718c2300a27623cfe9a87f79101"
+  },
+  "claimed_at": "2000-01-01T00:00:00Z",
+  "nonce": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8",
+  "rubric_id": null
+}

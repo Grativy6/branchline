@@ -30,6 +30,7 @@ export function inspectText(file,bytes) {
   // Findings stop the export. Only file and category are reported, not values.
   const rules=[
     ['private development path', /(?:[CH]:[\\/]+Users[\\/]+cdpan|H:[\\/]+Hearthline|H:[\\/]+Chris['’] Path|C:[\\/]+Users[\\/]+Christopher)/i],
+    ['private development path', /(?:C:[\\/]+Users[\\/]+Dust[\\/]|D:[\\/]+Chris-Path[\\/]|D:[\\/]+Linux[\\/])/i],
     ['private key', /-----BEGIN (?:RSA |EC |OPENSSH |ENCRYPTED )?PRIVATE KEY-----/],
     ['credential-like value', /\b(?:sk-(?:proj-|svcacct-)?[A-Za-z0-9_-]{25,}|gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,}|hf_[A-Za-z0-9]{28,}|rpa_[A-Za-z0-9]{25,})\b/],
   ];

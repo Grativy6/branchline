@@ -1,7 +1,7 @@
 import { resourceSettings } from "./resource-settings.js";
 
 export function createFilePicker({ selection, changed, reportError, getState = () => null, command }) {
-  const pending = new Map(); let pickerChatId;
+  const pending = new Map();
   const copies=new Map(),consumed=new Map();
   const sketch=chatId=>{const p=getState()?.sketchBook?.pending[chatId];return p&&consumed.get(chatId)!==p.transferId?p:null;};
   const get=chatId=>{
@@ -9,21 +9,22 @@ export function createFilePicker({ selection, changed, reportError, getState = (
     if(copies.get(chatId)?.transferId!==p.transferId){const bytes=new TextEncoder().encode(p.text);copies.set(chatId,{name:`sketch-${p.sketchId}.md`,base64:btoa(Array.from({length:Math.ceil(bytes.length/8192)},(_,i)=>String.fromCharCode(...bytes.subarray(i*8192,(i+1)*8192))).join('')),size:bytes.length,transferId:p.transferId,title:p.title});}
     return copies.get(chatId);
   };
-  const input = document.getElementById('file-input');
-  const button = document.getElementById('attach-file');
   const bar = document.getElementById('attached-file');
-  button.addEventListener('click', () => {
-    const { root, chat } = selection();
-    if (!chat || !root?.modelId || sketch(chat.id)) return;
-    pickerChatId = chat.id; input.value = ''; input.click();
-  });
-  input.addEventListener('change', async () => {
-    const file = input.files?.[0], chatId = pickerChatId;
+  async function addFile(file, chatId) {
     if (!file || !chatId) return;
+    if (sketch(chatId)) throw new Error('Send or remove the selected Sketch before attaching another text file.');
+    const state = getState(), chat = state?.chats.find(c => c.id === chatId);
+    const root = state?.roots.find(r => r.id === chat?.rootId);
+    if (!chat || !root) throw new Error('Choose a conversation for this file.');
     const previous = pending.get(chatId), loading = { name: file.name, loading: true };
     pending.set(chatId, loading); changed();
     try {
-      const limit = resourceSettings(selection().root).fileBytes;
+      if(/\.(pdf|docx)$/i.test(file.name)){
+        if(!file.size||file.size>10*1024*1024)throw new Error('Choose a PDF or DOCX up to 10 MiB.');
+        const raw=new Uint8Array(await file.arrayBuffer()),base64=btoa(Array.from({length:Math.ceil(raw.length/8192)},(_,i)=>String.fromCharCode(...raw.subarray(i*8192,(i+1)*8192))).join(''));
+        const {api}=await import('./api.js');const prepared=await api.prepareDocument({chatId,name:file.name,base64});if(pending.get(chatId)===loading)pending.set(chatId,prepared);return;
+      }
+      const limit = resourceSettings(root).fileBytes;
       if (!file.size || file.size > limit) throw new Error("Choose a nonempty text file up to " + limit / 1024 + " KiB.");
       const bytes = new Uint8Array(await file.arrayBuffer());
       let text;
@@ -33,18 +34,18 @@ export function createFilePicker({ selection, changed, reportError, getState = (
       if (pending.get(chatId) === loading) pending.set(chatId, { name: file.name, base64: btoa(Array.from({length:Math.ceil(bytes.length/8192)},(_,i)=>String.fromCharCode(...bytes.subarray(i*8192,(i+1)*8192))).join('')), size: bytes.length });
     } catch (error) {
       if (pending.get(chatId) === loading) { if (previous) pending.set(chatId, previous); else pending.delete(chatId); }
-      reportError(error.message);
-    } finally { input.value = ''; changed(); }
-  });
+      throw error;
+    } finally { changed(); }
+  }
   document.getElementById('remove-file').addEventListener('click', async () => { const chatId=selection().chat?.id,p=sketch(chatId);try{if(p)await command('sketch.pending.remove',{chatId,transferId:p.transferId});else pending.delete(chatId);changed();}catch(err){reportError(err.message);} });
   return {
     pending,
     get,
+    addFile,
+    get busy() { return [...pending.values()].some(value => value.loading); },
     clear: (chatId, item) => { if(item?.transferId)consumed.set(chatId,item.transferId);else if (pending.get(chatId) === item) pending.delete(chatId); },
     render(root, chat, busy) {
       const file = get(chat?.id);
-      button.disabled = !root?.modelId || !chat || busy || !!file?.loading || !!sketch(chat?.id);
-      button.title = root?.modelId ? 'Attach UTF-8 text up to ' + resourceSettings(root).fileBytes / 1024 + ' KiB' : 'Choose a local model before attaching a file';
       bar.hidden = !file;
       document.getElementById('attached-file-name').textContent = file ? `${file.transferId?'Sketch · '+file.title:file.name} · ${file.loading ? 'Reading…' : file.size.toLocaleString() + ' bytes'}` : '';
       document.getElementById('remove-file').disabled = !!busy;

@@ -5,6 +5,14 @@
 .context-summary { display: flex; flex-wrap: wrap; gap: .5rem 1.5rem; align-items: baseline; margin: 1rem 0 .3rem; }
 .context-summary span { color: var(--muted); font-size: .85rem; }
 .context-source-list { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: 1rem; }
+.context-capacity { margin: 0 0 1rem; }
+.context-capacity h3 { margin: .5rem 0; }
+.context-capacity-row { display: grid; gap: .2rem; padding: .55rem 0; border-bottom: 1px solid var(--line); }
+.context-capacity-row span { color: var(--muted); font-size: .85rem; }
+.context-control { display: flex; flex-wrap: wrap; align-items: end; gap: .4rem .75rem; margin-top: .7rem; }
+.context-control .form-field { flex: 1 1 220px; margin: 0; }
+.context-control input, .context-control select { width: 100%; }
+.context-control p { flex-basis: 100%; margin: 0; }
 .context-dialog textarea, .context-dialog select { width: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-strong); }
 .context-dialog textarea { min-height: 220px; resize: vertical; line-height: 1.6; }
 .context-dialog hr { border: 0; border-top: 1px solid var(--line); margin: 1.3rem 0; }

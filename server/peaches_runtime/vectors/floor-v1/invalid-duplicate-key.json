@@ -1,0 +1,5 @@
+{
+  "schema": "peaches.floor.stamp/1",
+  "schema": "DUPLICATE_MEMBER_MUST_BE_REJECTED",
+  "floor": "peaches.floor/1"
+}

@@ -11,9 +11,11 @@ export function resolveRecorder(state, chatId, choice) {
     : resolveSpeaker(state, chatId, currentAssignment(state, chatId) ? choice : null);
   if (!chosen.model) throw new Error('The selected recorder is unavailable. Choose a connected model in Conversation settings.');
   assertModelAvailable(state,chosen.model.id);
-  const recorder = { profile: 'branchline.recorder/1', choice,
+  let chair=chosen.selection;
+  if(chair?.profile==='branchline.chair/2'){const {assignmentId,coat,...binding}=chair;chair={...binding,coat:{ref:coat.ref,mode:coat.mode,key:coat.key}};}
+  const recorder = { profile: chosen.selection?.profile==='branchline.chair/2'?'branchline.recorder/2':'branchline.recorder/1', choice,
     role: outside ? 'reviewer' : 'participant', seat: outside ? null : chosen.selection?.seat ?? 'visiting',
-    modelId: chosen.model.id, modelHash: digest(chosen.model), chair: chosen.selection };
+    modelId: chosen.model.id, modelHash: digest(chosen.model), chair };
   return { model: chosen.model, selection: { seat: 'recorder', recorder, modelSnapshot: structuredClone(chosen.model) } };
 }
 

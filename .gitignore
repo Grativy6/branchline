@@ -1,6 +1,7 @@
 node_modules/
 .local/
 .test-data/
+.test-output/
 test-results/
 *.log
 desktop/bin/

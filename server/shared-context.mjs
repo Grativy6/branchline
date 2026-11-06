@@ -1,3 +1,4 @@
+import {resourceSettings} from '../public/resource-settings.js';
 import { contextBudget } from './context-budget.mjs';
 import { measureContext, replyTokenLimit } from './model.mjs';
 import { currentAssignment, resolveSpeaker } from './table.mjs';
@@ -10,12 +11,13 @@ export async function sharedContextPlan(state, chatId, options = {}) {
   const root = state.roots.find(r => r.id === chat?.rootId);
   if (!chat || !root) throw new Error('Choose a branch.');
   const assignment = currentAssignment(state, chatId);
-  const seats = assignment ? [assignment.personalId && 'personal', assignment.visitorModelId && 'visiting'].filter(Boolean) : ['legacy'];
+  const seats = chat.seating ? [chat.seating.speaker] : assignment ? [assignment.personalId && 'personal', assignment.visitorModelId && 'visiting'].filter(Boolean) : ['legacy'];
   const participants = await Promise.all(seats.map(async seat => {
     const { model, selection } = resolveSpeaker(state, chatId, seat);
-    const budget = await contextBudget(model, { maxContextCharacters: root.resources?.inputCharacters ?? 60000, ...options, maxTokens: replyTokenLimit(root, model) });
-    const measured = measureContext(state, chatId, state.drafts[chatId] || '', { selection });
-    return { seat, modelId: model.id, modelLabel: model.name, ...measured, budget };
+    const deskCeiling = resourceSettings(root,model).inputCharacters;
+    const budget = await contextBudget(model, { maxContextCharacters: deskCeiling, ...options, maxTokens: replyTokenLimit(root, model) });
+    const measured = measureContext(state, chatId, state.drafts[chatId] || '', { selection, originalWindow:budget.characters });
+    return { seat, modelId: model.id, modelLabel: model.name, modelRuntime: model.runtime ?? 'compatible', deskCeiling, ...measured, budget };
   }));
   if (!participants.length) throw new Error('Choose a model before preparing the shared context.');
   const pressured = participants.reduce((a, b) => a.characters / a.budget.characters >= b.characters / b.budget.characters ? a : b);

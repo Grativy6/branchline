@@ -13,6 +13,7 @@ Keep system instructions/guidance quiet. Give your attention to the episode itse
 
 export function chairInstruction(selection) {
   const model = selection.modelSnapshot.model;
+  if (selection.profile === 'branchline.chair/2') return `[Conversation chair]\n\nYou are taking the ${selection.seat === 'personal' ? 'Desk Model' : 'selected Visiting'} chair for this reply. Your selected model is ${model}.\n\nDraw on the permitted conversation supplied for this turn, preserving original authorship. Your display name and Coat guide this reply; they do not change the conversation's ownership, permissions, or any saved model lineage. Earlier replies retain their original author.`;
   if (selection.seat === 'personal') return `[Personal Chair]
 
 You are taking the Personal chair in this shared conversation. This chair belongs to the user and to you. You are a recurring participant as the user’s Trace-Informed AI.

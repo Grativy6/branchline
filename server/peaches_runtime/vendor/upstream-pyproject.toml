@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "peaches-book"
+version = "0.2.0"
+description = "Stateless PEACHES Floor verifier with a quarantined offline registry experiment"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE", "LICENSE-SCOPE.md", "licensing/adoption-2026-10-05.json"]
+dependencies = ["cryptography==50.0.1"]
+
+[project.scripts]
+peaches-book = "peaches_book.cli:main"
+peaches-check = "peaches_book.floor_cli:main"
+
+[tool.setuptools.packages.find]
+include = ["peaches_book*"]

@@ -111,16 +111,18 @@ export function validateReviewSources(record, receiptsByHash) {
   fail(digest(request.detail.task.capability) === record.detail.capabilityHash && request.detail.task.allowedEffects.length === 1 && request.detail.task.allowedEffects[0] === basis.effect, 'review changed its capability or effect floor');
   if (record.detail.review.p === 'record-effect/2') {
     const shared = request.detail.task.parallel, admission = receiptsByHash.get(shared?.admissionHash);
-    const hearth = shared?.profile === 'branchline.hearth-loop/1', continuing=shared?.profile==='branchline.continuing-hearth/2';
-    fail(request.detail.task.kind === 'parallel' && (shared?.profile === 'branchline.parallel-approaches/1' || hearth || continuing) && admission?.kind === 'parallel.admitted'
+    const hearth = shared?.profile === 'branchline.hearth-loop/1', continuing=['branchline.continuing-hearth/2','branchline.continuing-hearth/3'].includes(shared?.profile);
+    const pony=shared?.profile==='branchline.pony-approach/1';
+    fail(request.detail.task.kind === 'parallel' && (shared?.profile === 'branchline.parallel-approaches/1' || pony || hearth || continuing) && admission?.kind === 'parallel.admitted'
       && admission.taskId === shared.runId && request.parents.includes(admission.id), 'parallel review lost its founding admission');
+    if(pony)fail(admission.detail.foundation?.profile===shared.profile&&shared.pony&&Object.keys(shared.pony).sort().join(',')==='ponyTaskId,taskId,tripId'&&Object.values(shared.pony).every(x=>typeof x==='string'&&/^[A-Za-z0-9_-]{1,120}$/.test(x))&&digest(admission.detail.foundation.pony)===digest(shared.pony),'Pony review lost its owning task or pair.');
     const foundation = admission.detail.foundation;
     if(continuing){
       const turn=receiptsByHash.get(shared.turnAdmissionHash);
       fail(turn?.kind==='hearth.peer.admitted'&&turn.taskId===record.taskId&&request.parents.includes(turn.id)&&turn.parents.includes(admission.id)&&turn.detail.contextHash===context.contentHash&&turn.detail.peerId===shared.peerId&&digest(turn.detail)===turn.contentHash,'Continuing peer lost its call admission');
       const totals={modelRounds:0,toolCalls:0,toolBytes:0,outputCharacters:0};
       fail(Array.isArray(shared.allowanceHashes)&&shared.allowanceHashes.length>0&&new Set(shared.allowanceHashes).size===shared.allowanceHashes.length,'Missing user allowance');
-      for(const hash of shared.allowanceHashes){const a=receiptsByHash.get(hash);fail(a?.kind==='hearth.allowance'&&a.from==='paired_local_ui'&&a.taskId===shared.runId&&digest(a.detail.extension)===a.contentHash,'Allowance source changed');for(const k in totals)totals[k]+=a.detail.extension.limits[k];}
+        for(const [index,hash] of shared.allowanceHashes.entries()){const a=receiptsByHash.get(hash);fail(a?.kind==='hearth.allowance'&&(a.from==='paired_local_ui'||index===0&&shared.profile==='branchline.continuing-hearth/3'&&foundation.origin==='model'&&admission.from==='model_request'&&a.from==='model_request')&&a.taskId===shared.runId&&digest(a.detail.extension)===a.contentHash,'Allowance source changed');for(const k in totals)totals[k]+=a.detail.extension.limits[k];}
       fail(Object.entries(totals).every(([k,v])=>v===shared.limits[k])&&foundation.peers.some(p=>p.id===shared.peerId&&p.name===shared.actor),'Continuing allowance or peer changed');
     }
     if (hearth) {

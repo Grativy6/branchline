@@ -8,7 +8,7 @@ export const IMAGE_LIMITS = Object.freeze({ bytes: 10 * 1024 * 1024, pixels: 200
 export const imageHash = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
 export const validImageHash = value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
 const fail = (ok, message) => { if (!ok) throw new Error('Picture: ' + message); };
-const mime = { png: 'image/png', jpeg: 'image/jpeg', webp: 'image/webp' };
+const mime = { png: 'image/png', jpeg: 'image/jpeg', webp: 'image/webp', pdf:'application/pdf', docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'vnd.openxmlformats-officedocument.wordprocessingml.document':'application/vnd.openxmlformats-officedocument.wordprocessingml.document' };
 const extensions = { png: ['png'], jpeg: ['jpg', 'jpeg'], webp: ['webp'] };
 const decoder = fileURLToPath(new URL('./image-decoder.mjs', import.meta.url));
 
@@ -89,9 +89,11 @@ export class ImageStore {
     try { await fs.link(temp, target); } catch (error) { if (error.code !== 'EEXIST') throw error; await this.read(ref); }
     await fs.unlink(temp); return ref;
   }
-  ingest(input) {
+  ingest(input) { return this.ingestInternal(input,null); }
+  ingestFromHost(name,bytes,origin){fail(['window_capture','browser_capture','generated_image','edited_image','pdf_page'].includes(origin),'unsupported host picture source.');return this.ingestInternal({name,base64:bytes.toString('base64'),origin:'pick'},origin);}
+  ingestInternal(input,hostOrigin) {
     fail(!this.busy, 'another picture is preparing. Try again when it finishes.');
-    const selected = selectedImageBytes(input);
+    const selected = selectedImageBytes(input);if(hostOrigin)selected.origin=hostOrigin;
     this.busy = true;
     const work = (async () => {
       const decoded = await decode(selected.bytes);

@@ -2,12 +2,24 @@
 // Read only the selected LM Studio instance's loaded window; never load, unload,
 // resize or switch models. Unknown compatible servers keep the app ceiling.
 const reports = new Map();
-import { BUNDLED_CONTEXT, assertBundledProfile } from './bundled-profile.mjs';
-export async function contextBudget(model, { maxContextCharacters = 60000, maxTokens = null } = {}) {
-  const reservedOutput = maxTokens ?? 2048;
+import { OPENAI_MODELS } from './openai-input.mjs';
+import { BUNDLED_CONTEXT, assertBundledProfile, isBundledContext } from './bundled-profile.mjs';
+export async function contextBudget(model, { maxContextCharacters = null, maxTokens = null, localRunner = null } = {}) {
+  maxContextCharacters ??= model?.runtime === 'bundled' ? 3000000 : 60000;
+  const reservedOutput = maxTokens ?? (model?.runtime==='openai'?8192:2048);
+  if(model?.runtime==='openai'){const spec=OPENAI_MODELS[model.model];if(!spec)throw new Error('API context profile is unavailable.');return {characters:Math.min(maxContextCharacters,(spec.window-reservedOutput-16384)*3),basis:'published_API_window_character_estimate',loadedTokens:spec.window,outputTokens:maxTokens??8192,reservedOutput};}
+  if(model?.runtime==='codex')return {characters:Math.min(maxContextCharacters,(272000-reservedOutput-16384)*3),basis:'reviewed_subscription_base_window_character_estimate',loadedTokens:272000,outputTokens:null,reservedOutput};
   if (model?.runtime === 'bundled') {
     assertBundledProfile(model);
-    return { characters: Math.min(maxContextCharacters, Math.max(0, (BUNDLED_CONTEXT - reservedOutput - 1024) * 3)), basis: 'fixed_bundled_window_character_estimate', loadedTokens: BUNDLED_CONTEXT, outputTokens: maxTokens, reservedOutput };
+    const status = localRunner?.status?.() ?? {};
+    if (status.changing) throw new Error('The included model window is changing. Try again when it is ready; your draft is saved.');
+    const configuredTokens = status.contextTokens ?? BUNDLED_CONTEXT;
+    const loadedTokens = status.loadedContextTokens ?? null;
+    if (!isBundledContext(configuredTokens) || (loadedTokens !== null && loadedTokens !== configuredTokens)) throw new Error('The included model window could not be confirmed. Choose its context again.');
+    const windowTokens = loadedTokens ?? configuredTokens;
+    return { characters: Math.min(maxContextCharacters, Math.max(0, (windowTokens - reservedOutput - 1024) * 3)),
+      basis: loadedTokens === null ? 'configured_bundled_window_character_estimate' : 'loaded_bundled_window_character_estimate',
+      configuredTokens, loadedTokens, outputTokens: maxTokens, reservedOutput };
   }
   if (model?.runtime !== 'lmstudio') return { characters: maxContextCharacters, basis: 'application_character_ceiling', loadedTokens: null, outputTokens: maxTokens };
   const key = model.baseUrl + '\n' + model.model;

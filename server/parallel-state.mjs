@@ -1,7 +1,10 @@
+import { isCloudModel, mayFollowProvider } from '../public/provider-routes.js';
 import { isContinuing,validateContinuingRun,validateContinuingJob,preserveContinuing,peerDisplay } from './continuing-state.mjs';
 import crypto from 'node:crypto';
+import { stateBeforeVisitorAdvance } from './chair-roster.mjs';
 import { digest } from './integrity.mjs';
 import { validToolContract } from './tool-contract.mjs';
+import { validPonySetting, PONY_RUN_PROFILE, isPonyRun, settlePonyTrip } from './pony-state.mjs';
 import { isHearth, HEARTH_LIMITS, hearthDisplay, hearthFoundation, validateHearthRun, validateHearthJob, preserveHearthRun } from './hearth-state.mjs';
 
 export const PARALLEL_PROFILE = 'branchline.parallel-approaches/1';
@@ -21,20 +24,25 @@ export const parallelState = state => state.parallel ??= { settings: [], runs: [
 export const agentSettings = state => state.parallel?.settings.at(-1) ?? { id: null, enabled: false, automaticRequests: false };
 
 export function applyAgentSettings(state, payload) {
-  fail(exact(payload, ['baseRevisionId', 'enabled', 'automaticRequests', 'confirmAutomatic']), 'unexpected settings fields.');
+  fail(exact(payload, ['baseRevisionId', 'enabled', 'automaticRequests', 'confirmAutomatic', ...(Object.hasOwn(payload,'blackboard')?['blackboard']:[]), ...(Object.hasOwn(payload,'pony')?['pony']:[])]), 'unexpected settings fields.');
   const old = agentSettings(state);
   fail(payload.baseRevisionId === old.id, 'settings changed. Reopen Settings.');
   fail([payload.enabled, payload.automaticRequests, payload.confirmAutomatic].every(v => typeof v === 'boolean'), 'choose Yes or No.');
+  fail(payload.blackboard===undefined||typeof payload.blackboard==='boolean','choose whether to use the blackboard.');
+  fail(payload.pony===undefined||validPonySetting(payload.pony),'choose a whole number of round trips or no fixed limit.');
+  fail(!payload.pony?.enabled||payload.enabled&&payload.automaticRequests,'enable automatic agent requests for a default Pony Post allowance.');
   fail(payload.enabled || !payload.automaticRequests, 'enable agents before allowing automatic requests.');
   fail(!payload.automaticRequests || old.automaticRequests || payload.confirmAutomatic, 'automatic requests require the separate explicit opt-in.');
   parallelState(state).settings.push({ id: 'agent_settings_' + crypto.randomUUID(), at: at(), source: 'paired_local_ui',
-    enabled: payload.enabled, automaticRequests: payload.automaticRequests, explicitAutomaticOptIn: payload.automaticRequests && (old.automaticRequests || payload.confirmAutomatic) });
+    enabled: payload.enabled, automaticRequests: payload.automaticRequests, explicitAutomaticOptIn: payload.automaticRequests && (old.automaticRequests || payload.confirmAutomatic), blackboard:payload.blackboard??old.blackboard??false,
+    ...(payload.pony!==undefined||old.pony!==undefined?{pony:structuredClone(payload.pony??old.pony)}:{}) });
   return state;
 }
 
 // This binds the task's declared context, not unrelated navigation or draft edits.
 // A requesting reply may finish without invalidating its own queued approach.
 export function parallelBasis(state, chatId, sourceExchangeId = null, runId = null) {
+  state = stateBeforeVisitorAdvance(state, sourceExchangeId);
   const excludedRuns = new Set(Array.isArray(runId) ? runId : runId ? [runId] : []);
   const chat = state.chats.find(c => c.id === chatId), root = state.roots.find(r => r.id === chat?.rootId);
   fail(chat && root && !chat.archivedAt && !root.archivedAt, 'choose an active branch.');
@@ -48,6 +56,7 @@ export function parallelBasis(state, chatId, sourceExchangeId = null, runId = nu
 }
 
 export function taskBasis(state, run) {
+  if(isPonyRun(run))return parallelBasis(state,run.chatId,run.sourceExchangeId,(state.parallel?.runs??[]).filter(r=>r.pony?.taskId===run.pony.taskId).map(r=>r.id));
   if(isContinuing(run)) return run.basisHash;
   return parallelBasis(state, run.chatId, run.sourceExchangeId, isHearth(run)
     ? [run.id, run.resumeOf, ...run.inherited.map(x => x.runId)].filter(Boolean) : run.id);
@@ -85,6 +94,10 @@ export function interruptParallel(state) {
   for (const job of state.parallel?.jobs ?? []) if (liveJob(job)) {
     job.status = 'interrupted'; job.error = 'The app stopped before this contribution was saved.'; job.endedAt = at();
   }
+  for(const trip of state.ponyPost?.trips??[]) if(['reserved','sent'].includes(trip.status)) {
+    settlePonyTrip(state,trip.id,'The application stopped before the paired return was saved.');
+    if(trip.send&&!trip.return)trip.status='uncertain';
+  }
 }
 
 export function validateParallel(state) {
@@ -93,21 +106,21 @@ export function validateParallel(state) {
   fail(exact(p, ['settings', 'runs', 'jobs']) && [p.settings, p.runs, p.jobs].every(Array.isArray), 'invalid state.');
   const ids = new Set(), requests = new Set();
   for (const item of [...p.settings, ...p.runs, ...p.jobs]) { fail(ref(item.id) && !ids.has(item.id), 'duplicate identity.'); ids.add(item.id); }
-  for (const s of p.settings) fail(exact(s, ['id', 'at', 'source', 'enabled', 'automaticRequests', 'explicitAutomaticOptIn'])
+  for (const s of p.settings) fail(exact(s, ['id', 'at', 'source', 'enabled', 'automaticRequests', 'explicitAutomaticOptIn',...(Object.hasOwn(s,'blackboard')?['blackboard']:[]),...(Object.hasOwn(s,'pony')?['pony']:[])])&&(s.blackboard===undefined||typeof s.blackboard==='boolean')&&(s.pony===undefined||validPonySetting(s.pony))
     && s.source === 'paired_local_ui' && typeof s.enabled === 'boolean' && typeof s.automaticRequests === 'boolean'
     && s.explicitAutomaticOptIn === s.automaticRequests && (s.enabled || !s.automaticRequests) && Number.isFinite(Date.parse(s.at)), 'settings have no explicit user origin.');
   const terminal = ['completed', 'failed', 'held', 'cancelled', 'interrupted'];
   for (const run of p.runs) {
     if(isContinuing(run)){validateContinuingRun(state,run);continue;}
     const hearth = isHearth(run), limits = runLimits(run);
-    fail((run.profile === PARALLEL_PROFILE || hearth) && ref(run.requestId) && !requests.has(run.requestId) && hash(run.fingerprint), 'invalid request identity.'); requests.add(run.requestId);
+    fail((run.profile === PARALLEL_PROFILE || isPonyRun(run) || hearth) && ref(run.requestId) && !requests.has(run.requestId) && hash(run.fingerprint), 'invalid request identity.'); requests.add(run.requestId);
     fail(['user', 'model'].includes(run.origin) && text(run.purpose, 20000) && hash(run.basisHash) && hash(run.contextHash), 'missing task foundation.');
     fail(state.chats.some(c => c.id === run.chatId && c.rootId === run.rootId) && p.settings.some(s => s.id === run.settingsId && s.enabled && (run.origin === 'user' || s.automaticRequests)), 'task has no admitted scope or user permission.');
     fail(run.sourceExchangeId === null || state.exchanges.some(e => e.id === run.sourceExchangeId && e.chatId === run.chatId), 'requesting exchange is missing.');
-    fail(run.origin !== 'model' || run.sourceExchangeId !== null, 'model request has no source.');
+    fail(run.origin !== 'model' || run.sourceExchangeId !== null || isPonyRun(run)&&state.ponyPost?.trips.some(t=>t.id===run.pony?.tripId&&t.source.kind==='pony'), 'model request has no source.');
     fail(digest(run.limits) === digest(limits) && ['queued', 'running', ...terminal, ...(hearth ? ['waiting','partial'] : [])].includes(run.status), 'invalid task limits or status.');
     fail(exact(run.usage, ['toolCalls', 'toolBytes', 'modelRounds', 'outputCharacters']) && Object.entries(run.usage).every(([k, n]) => Number.isSafeInteger(n) && n >= 0 && n <= limits[k]), 'shared budget exceeded.');
-    fail(Array.isArray(run.episodeIds) && (hearth ? run.episodeIds.length <= limits.modelRounds : run.episodeIds.length === (run.origin === 'model' ? 1 : 2)) && new Set(run.episodeIds).size === run.episodeIds.length && run.episodeIds.every(id => p.jobs.some(j => j.id === id && j.runId === run.id)), 'invalid approach reservation.');
+    fail(Array.isArray(run.episodeIds) && (hearth ? run.episodeIds.length <= limits.modelRounds : run.episodeIds.length === (run.origin === 'model' || isPonyRun(run) ? 1 : 2)) && new Set(run.episodeIds).size === run.episodeIds.length && run.episodeIds.every(id => p.jobs.some(j => j.id === id && j.runId === run.id)), 'invalid approach reservation.');
     fail(typeof run.cloudApproved === 'boolean' && typeof run.toolsEnabled === 'boolean' && Number.isFinite(Date.parse(run.deadline)), 'missing task controls.');
     const admission = state.handoffs?.records.find(r=>r.id === run.admissionId && r.hash === run.admissionHash);
     const stable = value => Object.fromEntries(Object.entries(value).filter(([k])=>!['status','error','endedAt','usage','admissionId','admissionHash'].includes(k)));
@@ -126,10 +139,10 @@ export function validateParallel(state) {
     fail(hash(job.contextHash) && hash(job.modelHash) && digest(job.model) === job.modelHash
       && (job.selection === null || job.model.id === job.selection?.modelId), 'approach model/context changed.');
     fail(['queued', 'pending', ...terminal].includes(job.status) && (job.output === null || typeof job.output === 'string' && job.output.length <= 20000), 'invalid contribution.');
-    fail(job.model.runtime !== 'codex' || run.cloudApproved, 'cloud delivery was not admitted.');
+    fail(!isCloudModel(job.model) || run.cloudApproved, 'cloud delivery was not admitted.');
     fail(job.handoff === null || job.handoff.taskId === job.id && job.handoff.kind === 'parallel' && job.handoff.scope.chatId === run.chatId, 'handoff escaped its approach.');
-    fail(job.toolContract === null || run.toolsEnabled && validToolContract(job.toolContract,job.model)
-      && ['branchline.conversation-tools/2','branchline.conversation-tools/5','branchline.conversation-tools/6'].includes(job.toolContract.profile) && !job.toolContract.parallel && job.toolContract.chatId === run.chatId
+    fail(job.toolContract === null || (run.toolsEnabled || isPonyRun(run)&&job.toolContract.parallel?.pony) && validToolContract(job.toolContract,job.model)
+      && ['branchline.conversation-tools/2','branchline.conversation-tools/5','branchline.conversation-tools/6'].includes(job.toolContract.profile) && (!job.toolContract.parallel || isPonyRun(run)&&job.toolContract.parallel.pony?.parentTripId===run.pony.tripId) && job.toolContract.chatId === run.chatId
       && job.toolContract.history.count === run.sourceIds.length, 'tools escaped the original task snapshot.');
     fail(Number.isSafeInteger(job.index) && run.episodeIds[job.index] === job.id && job.contextLimit > 0 && (job.maxTokens === null || job.maxTokens > 0), 'invalid approach allocation.');
     if (isHearth(run)) validateHearthJob(state,job,run);

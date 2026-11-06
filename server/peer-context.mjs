@@ -1,15 +1,23 @@
 import { chairIdentitySnapshot } from './speaker-context.mjs';
 import { digest } from './integrity.mjs';
+import { boardSourceReference } from './blackboard.mjs';
 const check=(ok,message)=>{if(!ok)throw new Error('Peer context: '+message);};
 export function peerSources(state,run,peer,eventCount=run.events.length){
  const result=peer.baseMessages.filter(m=>m.role!=='system').map((m,i)=>({id:'base_'+i,role:m.role,author:m.role==='assistant'?peer.model.name:'attributed founding context',text:m.content}));
  for(const event of run.events.slice(0,eventCount)){
   if(event.kind==='mail'){const m=run.mail.find(m=>m.id===event.id);if(m&&(m.to==='all'||m.to===peer.name))result.push({id:m.id,role:'user',author:m.from==='user'?'Human':m.from,kind:m.from==='user'?'human_amendment':'model_evidence',text:m.text});}
-  else {const j=state.parallel.jobs.find(j=>j.id===event.id);if(j?.peerId===peer.id&&j.output&&!j.recordKind)result.push({id:j.id,role:j.status==='completed'?'assistant':'user',author:peer.name+' / '+j.model.name,kind:j.status==='completed'?'own_contribution':'incomplete_evidence',text:j.output});}
+  else {const j=state.parallel.jobs.find(j=>j.id===event.id);if(j?.peerId===peer.id&&j.output&&!j.recordKind){const unapplied=j.boardAssignment&&!run.blackboard.revisions.some(r=>r.source.id===j.id);result.push({id:j.id,role:j.status==='completed'&&!unapplied?'assistant':'user',author:peer.name+' / '+j.model.name,kind:unapplied?'unapplied_board_return':j.status==='completed'?'own_contribution':'incomplete_evidence',text:j.output});}}
  }
  return result.map((s,i)=>({...s,sourceId:'H'+(i+1),hash:digest(s)}));
 }
 export function latestAccount(run,peer){return run.accounts.filter(a=>a.peerId===peer.id).at(-1)??null;}
+export function readBoardSource(state,run,grant,handle,offset=0){
+ const source=boardSourceReference(run,grant,handle),peer=run.peers.find(p=>p.id===source.peerId);
+ check(peer,'the source contributor is missing.');
+ const result=readPeerSource(state,run,peer,source.handle,offset,source.eventCount);
+ check(result.hash===source.hash,'the exact source changed.');
+ return {...result,boardHandle:handle,sourceRole:'attributed_shared_evidence_not_new_permission'};
+}
 export function readPeerSource(state,run,peer,sourceId,offset=0,eventCount=run.events.length){
  check(/^H[1-9][0-9]{0,8}$/.test(sourceId),'choose an H source from this peer.');
  const s=peerSources(state,run,peer,eventCount)[Number(sourceId.slice(1))-1];check(s,'that source is outside this peer snapshot.');

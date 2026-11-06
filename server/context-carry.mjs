@@ -74,12 +74,13 @@ export function sourceAt(state, chatId, sourceId) {
   fail(message, 'that source is outside this branch.');
   const exchange = state.exchanges.find(e => e.id === message.exchangeId);
   const approach = message.kind === 'parallel' ? state.parallel?.jobs.find(j=>j.id === message.parallelEpisodeId) : null;
+  const pony=approach?state.parallel.runs.find(r=>r.id===approach.runId)?.pony:null;
   fail(exchange?.status !== 'pending', 'a reply must finish or stop before it becomes a source.');
   const attachment = message.role === 'user' && exchange?.selectedFile;
   const evidence = message.role === 'assistant' ? (state.handoffs?.records || []).filter(r => r.taskId === (approach?.id ?? exchange?.id) && ['operation.result', 'tool.answer'].includes(r.kind) && r.detail.toolProfile)
     .map(r => ({ receiptId: r.id, kind: r.kind, tool: r.detail.tool, at: r.at, result: r.detail.result ?? r.detail.answer })) : [];
   const body = { sourceId, messageId: message.id, chatId, exchangeId: message.exchangeId, role: message.role,
-    author: message.role === 'user' ? 'User' : `${approach?.hearthActor ? ({hearth:'Hearth','peer-a':'Peer A','peer-b':'Peer B'}[approach.hearthActor]) : approach ? 'Approach '+(approach.index+1) : exchange?.speaker?.seat ?? 'model'} · ${message.modelLabel}`,
+    author: message.role === 'user' ? 'User' : `${pony?'Pony task return':approach?.hearthActor ? ({hearth:'Hearth','peer-a':'Peer A','peer-b':'Peer B'}[approach.hearthActor]) : approach ? 'Approach '+(approach.index+1) : exchange?.speaker?.seat ?? 'model'} · ${message.modelLabel}`,
     modelIdentifier: message.role === 'assistant' ? message.modelIdentifier : null,
     createdAt: message.createdAt, status: approach?.status ?? exchange?.status ?? 'saved_note', truncated: approach ? ['length','max_tokens'].includes(approach.finishReason) : exchange?.truncated === true,
     content: message.content,
@@ -365,7 +366,7 @@ export function validateCarry(state) {
     fail(job.baseId === null || seen.get(job.baseId)?.chatId === job.chatId, 'job base missing.');
     fail(job.status === 'completed' ? seen.get(job.resultId)?.jobId === job.id : job.resultId === null, 'job result mismatch.');
     fail(validId(job.modelId) && validText(job.modelLabel, 200) && validText(job.modelIdentifier, 200) && job.modelSnapshot?.id === job.modelId, 'job model missing.');
-    if (job.recorder !== undefined) fail(job.recorder.profile === 'branchline.recorder/1'
+    if (job.recorder !== undefined) fail(['branchline.recorder/1','branchline.recorder/2'].includes(job.recorder.profile)
       && ['participant', 'reviewer'].includes(job.recorder.role) && job.recorder.modelId === job.modelId
       && job.recorder.modelHash === digest(job.modelSnapshot) && same(job.recorder, job.selection?.recorder), 'recorder identity changed.');
     fail(Number.isSafeInteger(job.from) && Number.isSafeInteger(job.through) && job.from >= 0

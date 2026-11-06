@@ -11,11 +11,13 @@ accurately. The code licence does not make an independent release or stamp an
 official issue or endorsement by this publisher. See [LICENSE-SCOPE.md](LICENSE-SCOPE.md)
 and Apache section 6 for the grant and its trademark boundary.
 
-The Book of PEACHES entry is currently a Coming later placeholder. No paid stamp
-or production issuer-verification service is included in this preview. A future
-stamp from this publisher will identify its issuer and the exact declaration
-signed; a copied picture or display name is not issuer verification. A stamp
-does not grant tool permissions or control of someone's model or conversations.
+The published 0.8.12 preview has a Book of PEACHES placeholder. The later local
+0.8.19 candidate implements free, optional saving, checking and portable copies,
+with optional local signatures. Publication of that candidate is separate.
+A signing key identifies the exact declaration presented; a copied picture or
+display name is not issuer verification. A stamp does not grant tool permissions
+or control of someone's model or conversations. No purchased stamp or Book
+account is required for ordinary local use.
 
 Ordinary app use requires no Branchline account or purchase. This origin notice
 does not change the Apache grant, claim trademark registration, settle another

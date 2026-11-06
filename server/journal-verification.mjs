@@ -7,7 +7,7 @@ import { imageObjects } from './images.mjs';
 if (parentPort) {
   try {
     const parsed = await replayJournal(workerData.file);
-    parentPort.postMessage({ recordCount: parsed.recordCount, bytes: parsed.bytes, images: imageObjects(parsed.state) });
+    parentPort.postMessage({ recordCount: parsed.recordCount, bytes: parsed.bytes, images: imageObjects(parsed.state), ...(parsed.state.personalContext?.profiles.length?{hasPersonalContext:true}:{}) });
   } catch (error) { parentPort.postMessage({ error: error.message }); }
 }
 

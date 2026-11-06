@@ -36,7 +36,8 @@ internal static class PcFiles
     }
     private static string Identity(Info i) => $"{i.volume:x8}:{i.indexHigh:x8}{i.indexLow:x8}";
     private static bool Under(string value, string parent) => value.Equals(parent, StringComparison.OrdinalIgnoreCase) || value.StartsWith(parent.TrimEnd('\\') + "\\", StringComparison.OrdinalIgnoreCase);
-    private static string Absolute(string value) {
+    private static string Absolute(string value, bool allowDriveRoot = false) {
+        if (allowDriveRoot && value.Length == 3 && char.IsAsciiLetter(value[0]) && value[1] == ':' && value[2] == '\\') return char.ToUpperInvariant(value[0]) + value[1..];
         if (value.Length > 220 || value.Length < 4 || !char.IsAsciiLetter(value[0]) || value[1] != ':' || value[2] != '\\' || value.Contains('/') || value[3..].Contains(':')) throw new IOException("Choose a normal local path, without device names, streams or network shares.");
         var parts = value[3..].Split('\\');
         foreach (var part in parts) CheckPart(part);
@@ -51,29 +52,39 @@ internal static class PcFiles
         if (relative == "") return root;
         if (relative.Length > 180 || relative.Contains('/') || relative.Contains(':')) throw new IOException("Use a relative path within the selected folder.");
         foreach (var p in relative.Split('\\')) CheckPart(p);
-        return Absolute(root + "\\" + relative);
+        return Absolute(root.TrimEnd('\\') + "\\" + relative);
     }
-    private static Lease Open(string path, bool directory, bool write = false) {
-        path = Absolute(path); var lease = new Lease();
+    private static Lease Open(string path, bool directory, bool write = false, bool executable = false, bool allowDriveRoot = false) {
+        path = Absolute(path, allowDriveRoot); var lease = new Lease();
         try {
             // Keep every ancestor open without FILE_SHARE_DELETE. A checked junction or
             // ancestor cannot be substituted before the final handle is used.
-            var pieces = path[3..].Split('\\'); string current = path[..3];
+            var pieces = path.Length == 3 ? Array.Empty<string>() : path[3..].Split('\\'); string current = path[..3];
             for (int i = -1; i < pieces.Length; i++) {
                 if (i >= 0) current = Path.Combine(current, pieces[i]);
                 bool last = i == pieces.Length - 1;
-                var h = CreateFile(current, last && !directory ? Read | (write ? Write : 0) : 0x80, last && !directory ? 0u : 3u,
+                var h = CreateFile(current, last && !directory ? Read | (write ? Write : 0) : 0x80, last && !directory ? (executable ? 1u : 0u) : 3u,
                     IntPtr.Zero, 3, 0x02200000, IntPtr.Zero);
                 if (h.IsInvalid) { h.Dispose(); throw new IOException("The location is unavailable or busy. Close its editor or review this folder."); }
                 lease.Handles.Add(h); var info = GetInfo(h);
                 if ((info.attributes & Reparse) != 0 || (info.attributes & 0x400000) != 0) throw new IOException("Links and cloud placeholders are unavailable in this file profile.");
                 if ((!last || directory) != ((info.attributes & DirectoryFlag) != 0)) throw new IOException("The target type changed. Review this location.");
-                if ((info.attributes & DirectoryFlag) == 0 && info.links != 1) throw new IOException("Multiply-linked files are unavailable.");
+                if (!executable && (info.attributes & DirectoryFlag) == 0 && info.links != 1) throw new IOException("Multiply-linked files are unavailable.");
                 var final = new StringBuilder(512); uint count = GetFinalPathNameByHandle(h, final, 512, 0);
                 if (count == 0 || count >= 512 || !final.ToString().Equals("\\\\?\\" + current.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase) && !final.ToString().Equals("\\\\?\\" + current, StringComparison.OrdinalIgnoreCase)) throw new IOException("An alias or remapped location needs review.");
             }
             return lease;
         } catch { lease.Dispose(); throw; }
+    }
+    internal static IDisposable HoldWorkingDirectory(string path, string identity) {
+        var lease=Open(path,true);if(Identity(lease.Info)!=identity){lease.Dispose();throw new IOException("The working folder changed. Review the saved command.");}return lease;
+    }
+    internal static IDisposable HoldExecutable(string path,string sha256) {
+        var lease=Open(path,false,false,true);
+        try {var info=lease.Info;if(info.sizeHigh!=0||info.sizeLow>512*1024*1024)throw new IOException("The executable exceeds its inspection bound.");using var hash=IncrementalHash.CreateHash(HashAlgorithmName.SHA256);byte[] block=new byte[65536];long offset=0;
+            while(offset<info.sizeLow){int count=RandomAccess.Read(lease.Last,block,offset);if(count==0)throw new IOException("Executable read was incomplete.");hash.AppendData(block,0,count);offset+=count;}
+            if(Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant()!=sha256)throw new IOException("The approved executable changed. Review it before running.");return lease;
+        } catch {lease.Dispose();throw;}
     }
     private static string Text(JsonElement e, string name) => e.GetProperty(name).GetString() ?? throw new IOException("A text field is required.");
     private static string Hash(byte[] bytes) => Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
@@ -100,15 +111,18 @@ internal static class PcFiles
     }
     private static object Execute(JsonElement p, StreamReader input) {
         string mode = Text(p, "mode");
-        if (mode == "inspect") {
-            string location = Absolute(Text(p, "path")); bool directory = p.GetProperty("directory").GetBoolean();
-            using var target = Open(location, directory);
+        if (mode is "inspect" or "inspect-nav") {
+            bool navRoot = mode == "inspect-nav";
+            string location = Absolute(Text(p, "path"), navRoot); bool directory = p.GetProperty("directory").GetBoolean();
+            if (navRoot && !directory) throw new IOException("Nav root inspection requires a directory.");
+            using var target = Open(location, directory, allowDriveRoot: navRoot);
             return new { path = location, identity = Identity(target.Info), directory };
         }
-        if (mode is not ("list" or "read" or "search" or "create" or "replace")) throw new IOException("Unsupported file operation.");
-        string root = Absolute(Text(p, "root")); var held = new List<Lease>();
+        if (mode is not ("list" or "read" or "search" or "create" or "replace" or "nav-directory" or "nav-archive")) throw new IOException("Unsupported file operation.");
+        bool navScope = p.TryGetProperty("navScope", out var navValue) && navValue.GetBoolean();
+        string root = Absolute(Text(p, "root"), navScope); var held = new List<Lease>();
         try {
-            var rootLease = Open(root, true); held.Add(rootLease);
+            var rootLease = Open(root, true, allowDriveRoot: navScope); held.Add(rootLease);
             if (Identity(rootLease.Info) != Text(p, "rootIdentity")) throw new IOException("The selected folder changed identity. Review its permission.");
             var denied = p.GetProperty("denied").EnumerateArray().Select(x => Text(x, "path")).ToArray();
             foreach (var exclusion in p.GetProperty("denied").EnumerateArray()) {
@@ -119,6 +133,24 @@ internal static class PcFiles
             bool Denied(string s) => denied.Any(d => Under(s, d));
             string targetPath = Relative(root, Text(p, "path"));
             if (Denied(targetPath)) throw new IOException("That location is excluded.");
+            if (mode == "nav-directory") {
+                if (!navScope) throw new IOException("A Nav scope is required.");
+                using var target = Open(targetPath, true, allowDriveRoot: true);
+                return new { path = targetPath, identity = Identity(target.Info), directory = true };
+            }
+            if (mode == "nav-archive") {
+                if (!navScope || Path.GetFileName(targetPath) != "receipt-archives") throw new IOException("Only a Nav receipt archive can be created.");
+                using var parent = Open(Path.GetDirectoryName(targetPath)!, true, allowDriveRoot: true);
+                if (System.IO.Directory.Exists(targetPath)) {
+                    using var found = Open(targetPath, true);
+                    return new { path = targetPath, identity = Identity(found.Info), directory = true, created = false };
+                }
+                Console.WriteLine("{\"prepared\":true}"); Console.Out.Flush();
+                if (input.ReadLine() != "COMMIT") throw new IOException("Archive creation cancelled.");
+                System.IO.Directory.CreateDirectory(targetPath);
+                using var created = Open(targetPath, true);
+                return new { path = targetPath, identity = Identity(created.Info), directory = true, created = true };
+            }
             if (mode == "list") {
                 using var target = Open(targetPath, true); var entries = new List<object>(); int inspected = 0;
                 foreach (var file in System.IO.Directory.EnumerateFileSystemEntries(targetPath)) {
@@ -133,9 +165,9 @@ internal static class PcFiles
                 return new { items = entries.Skip(offset).Take(48), nextOffset = offset + 48 < entries.Count ? (int?)(offset + 48) : null, total = entries.Count };
             }
             if (mode == "create") {
-                using var parent = Open(Path.GetDirectoryName(targetPath)!, true);
+                using var parent = Open(Path.GetDirectoryName(targetPath)!, true, allowDriveRoot: navScope);
                 byte[] bytes = Utf8.GetBytes(Text(p, "text")); if (bytes.Length > MaxBytes) throw new IOException("Text exceeds the file limit.");
-                Console.WriteLine("{\"prepared\":true}"); Console.Out.Flush();
+                Console.WriteLine(JsonSerializer.Serialize(new { prepared = true, after = Hash(bytes) })); Console.Out.Flush();
                 if (input.ReadLine() != "COMMIT") throw new IOException("The change was cancelled before creation.");
                 SaveNew(targetPath, bytes);
                 using var saved = Open(targetPath, false);

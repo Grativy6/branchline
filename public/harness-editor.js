@@ -8,6 +8,7 @@ import { POCKET_PROFILE, BUILTIN_PROVIDER, defaultPockets, pocketContent } from 
 export function createHarnessEditor({ getState, refreshState, command, openDialog, closeDialog, toast }) {
   let draft = null, branch = null, saving = false, restored = false;
   const restore = () => { if (!restored && getState()) { draft = structuredClone(getState().ui.coatDraft ?? null); restored = true; } };
+  const surface = () => document.getElementById('dialog').open ? document.getElementById('dialog') : document.getElementById('settings-page');
   const form = () => document.getElementById('harness-editor-form');
   const capture = () => {
     restore();
@@ -38,7 +39,7 @@ export function createHarnessEditor({ getState, refreshState, command, openDialo
   };
   const changeDeletion = async (type, payload, message) => {
     if (saving) return;
-    const controls = [...document.getElementById('dialog').querySelectorAll('button, input, textarea, select')];
+    const controls = [...surface().querySelectorAll('button, input, textarea, select')];
     try {
       saving = true; controls.forEach(control => { control.disabled = true; });
       await command(type, payload);
@@ -78,7 +79,7 @@ export function createHarnessEditor({ getState, refreshState, command, openDialo
         const checkbox = [...form().querySelectorAll('[data-pocket-tool]')].find(el => el.dataset.pocketTool === target.dataset.tool);
         if (checkbox) { checkbox.dataset.pocketProvider = BUILTIN_PROVIDER; checkbox.checked = true; draft.pocketsCustomized = true; capture(); edit(); }
       }
-      else if (action === 'harness-keep') { capture(); closeDialog(); }
+      else if (action === 'harness-keep') { capture(); if (surface().id === 'settings-page') library(); else closeDialog(); }
       else if (action === 'harness-resume' && draft) edit();
       else if (action === 'harness-discard') { draft = null; await persist(); library(); }
       else if (action === 'harness-import') document.getElementById('harness-import-file').click();
@@ -109,14 +110,14 @@ export function createHarnessEditor({ getState, refreshState, command, openDialo
         const bytes = new Uint8Array(await selected.arrayBuffer());
         const importFile = { name: selected.name, base64: btoa(Array.from(bytes, b => String.fromCharCode(b)).join('')) };
         const preview = await api.previewHarnessImport(importFile);
-        if (input.isConnected && document.getElementById('dialog').open && !draft) newDraft(preview.content, { importFile });
+        if (input.isConnected && (document.getElementById('dialog').open || !document.getElementById('settings-page').hidden) && !draft) newDraft(preview.content, { importFile });
       } catch (err) { if (status.isConnected) { status.textContent = err.message; status.setAttribute('role', 'alert'); } }
       finally { input.value = ''; }
     },
     async save(event) {
       if (saving || !draft) return;
       capture(); const message = document.getElementById('harness-editor-error');
-      const controls = [...document.getElementById('dialog').querySelectorAll('button, input, textarea, select')];
+      const controls = [...surface().querySelectorAll('button, input, textarea, select')];
       try {
         const content = { ...draft.content, name: draft.content.name.trim() };
         checkHarnessContent(content);

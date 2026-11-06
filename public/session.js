@@ -17,7 +17,7 @@ export function sessionFetch(route, options = {}) {
 
 export async function downloadExport(route, filename) {
   const target = new URL(route, location.origin);
-  if (target.origin !== location.origin || !['/api/export', '/api/continuity/export', '/api/harnesses/export', '/api/sketches/export', '/api/dreams/export'].includes(target.pathname)) throw new Error('Unknown export route.');
+  if (target.origin !== location.origin || !['/api/export', '/api/continuity/export', '/api/harnesses/export', '/api/sketches/export', '/api/dreams/export', '/api/personal-context/export', '/api/peaches/export'].includes(target.pathname)) throw new Error('Unknown export route.');
   const response = await sessionFetch(target.pathname + target.search);
   if (!response.ok) throw new Error('The export could not be read from this app session.');
   const url = URL.createObjectURL(await response.blob());

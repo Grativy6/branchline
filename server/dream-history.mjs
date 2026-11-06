@@ -13,6 +13,7 @@ const date = v => typeof v === 'string' && v.length <= 40 && Number.isFinite(Dat
 const hash = v => typeof v === 'string' && /^[a-f0-9]{64}$/.test(v);
 const uid = prefix => prefix + '_' + crypto.randomUUID();
 const at = () => new Date().toISOString();
+const activePersonalId = c => c.seating ? c.seating.desk.personalId : c.table?.assignments.at(-1)?.personalId;
 const person = (s, id) => { const p = s.personalParticipants?.find(p => p.id === id); fail(p, 'Personal model not found.'); return p; };
 const log = s => s.dreamHistory ??= emptyDreamHistory();
 const current = p => p.generations.find(g => g.id === p.currentGenerationId);
@@ -21,7 +22,7 @@ const profile = (s, id) => {
   return sel ? { profileId: sel.profileId, paths: sel.paths } : null;
 };
 export const dreamRevision = s => digest({ history: dreamHistory(s), personal: s.personalParticipants ?? [], models: s.models,
-  assignments: s.chats.map(c => [c.id, c.table?.assignments, c.coatChoices,c.coatPolicy,c.coatStarter,c.coatDefault,c.harnessSelections].map(v=>v??null)), profiles: s.agentProfiles ?? null, coats: s.coatUsuals ?? [] });
+  assignments: s.chats.map(c => [c.id, c.table?.assignments, c.coatChoices,c.coatPolicy,c.coatStarter,c.coatDefault,c.harnessSelections,...(c.seating ? [c.seating] : [])].map(v=>v??null)), profiles: s.agentProfiles ?? null, coats: s.coatUsuals ?? [] });
 function revision(s, p) { fail(hash(p.baseRevision) && p.baseRevision === dreamRevision(s), 'The model or history changed. Refresh before saving; your text can be kept.'); }
 function owner(s, id) { const p = person(s, id); fail(dreamOwner(s, id) === id, 'Open this entry through its continuing personal model.'); return p; }
 
@@ -63,7 +64,7 @@ export function organizationPreview(s, p) {
     if (digest(profile(s, m.id)) !== digest(profile(s, target.id))) conflicts.push(`${m.nickname || m.name} has a different Agent profile. Align that choice before organizing.`);
     if (personalDreams(s, m.id).length) conflicts.push(`${m.nickname || m.name} already has its own Dream journal. Keep it separate or export and review those records first.`);
   }
-  const chats = s.chats.filter(c => p.members.includes(c.table?.assignments.at(-1)?.personalId));
+  const chats = s.chats.filter(c => p.members.includes(activePersonalId(c)));
   return { personalId: target.id, members: members.map(m => ({ id: m.id, name: m.nickname || m.name })),
     currentModel: s.models.find(m => m.id === target.connections.at(-1).modelId)?.name, affected: chats.map(c => ({ id: c.id, title: c.title })), conflicts, revision: dreamRevision(s) };
 }
@@ -103,11 +104,13 @@ export function applyDreamCommand(s, type, p) {
         summary:'Earlier registered model connection, organized by you. Training details were not recorded.',observations:p.evidence,
         outcome:'unrecorded',standing:'user_declared',generationId:generation.id,modelId:model.id,modelSnapshot:structuredClone(model),sources:[],legacyPersonalId:memberId});
       const bindings=[];
-      for(const chat of s.chats.filter(c=>c.table?.assignments.at(-1)?.personalId===memberId)) {
+      for(const chat of s.chats.filter(c=>activePersonalId(c)===memberId)) {
+        if (chat.seating && chat.table?.assignments.at(-1)?.personalId !== memberId) (chat.table ??= {assignments:[]}).assignments.push({id:uid('seats'),createdAt:at(),personalId:memberId,visitorModelId:null});
         const prior=chat.table.assignments.at(-1), coat=resolvedCoat(s,chat,'personal').ref;
+        if (chat.seating) { chat.seating.desk.personalId=who.id; chat.seating.desk.modelId=who.connections.at(-1).modelId; chat.seating.revisionId=uid('seating'); }
         const assignment={...prior,id:uid('seats'),createdAt:at(),personalId:who.id};chat.table.assignments.push(assignment);
         if(chat.coatPolicy===2) (chat.coatChoices??=[]).push({id:uid('coat'),at:at(),key:'personal:'+who.id,mode:'override',ref:structuredClone(coat)});
-        bindings.push({chatId:chat.id,beforeId:prior.id,afterId:assignment.id});
+        bindings.push({chatId:chat.id,beforeId:prior.id,afterId:assignment.id,...(chat.seating?{rosterAfterId:chat.seating.revisionId}:{})});
       }
       log(s).links.push({id:uid('dreamlink'),at:at(),ownerId:who.id,memberId,evidence:p.evidence,bindings});
     }
@@ -119,7 +122,8 @@ export function applyDreamCommand(s, type, p) {
     const bindings=[];
     for(const b of prior.bindings) {
       const chat=s.chats.find(c=>c.id===b.chatId), active=chat?.table?.assignments.at(-1);
-      if(active?.id!==b.afterId) continue;
+      if(active?.id!==b.afterId || chat.seating && chat.seating.revisionId !== b.rosterAfterId) continue;
+      if (chat.seating) { chat.seating.desk.personalId=p.memberId; chat.seating.desk.modelId=person(s,p.memberId).connections.at(-1).modelId; chat.seating.revisionId=uid('seating'); }
       const assignment={...active,id:uid('seats'),createdAt:at(),personalId:p.memberId};chat.table.assignments.push(assignment);
       bindings.push({chatId:chat.id,beforeId:active.id,afterId:assignment.id});
     }
@@ -144,6 +148,7 @@ export function applyDreamRestore(s, p, checked) {
   fail(checked?.kind==='bundled_files_checked' && hash(checked.manifestHash) && model.runtime==='bundled', 'This checkpoint has no supported verified restore route.');
   const fromGenerationId=who.currentGenerationId,fromConnectionId=who.connections.at(-1).id;
   const connection={id:uid('connection'),modelId:model.id,createdAt:at()};who.connections.push(connection);who.currentGenerationId=generation.id;
+  for (const chat of s.chats) if (chat.seating?.desk.personalId === who.id) { chat.seating.desk.modelId=model.id; chat.seating.revisionId=uid('seating'); }
   log(s).transitions.push({id:uid('dreamrestore'),at:at(),personalId:who.id,dreamId:record.id,fromGenerationId,fromConnectionId,
     toGenerationId:generation.id,toConnectionId:connection.id,modelSnapshot:structuredClone(model),checked:structuredClone(checked)});
   return s;

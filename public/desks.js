@@ -1,24 +1,25 @@
+import { chairRoster } from './chair-roster.js';
+import { rosterPanel, chairEditor } from './roster-views.js';
+import { findHarness } from './harness-catalog.js';
 import { activeModels, archiveLabel } from './model-archives.js';
 import { visiblePersonalModels } from './dream-records.js';
 import { harnessLabel } from './harness-views.js';
 import { tableInfo } from './table.js';
 import { personalLabel } from './personal-label.js';
+import {resolvedCoat} from './harness-catalog.js';
+import {codexConnection} from './codex.js';
 
 const e = (value = '') => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const footer = label => `<div class="dialog-footer"><button type="button" class="quiet-button" data-action="close-dialog">Cancel</button><button type="submit" class="primary-button">${label}</button></div>`;
-export function deskBar(state, root, chat, busy) {
-  if (!root) return '<button type="button" class="quiet-button" data-action="desks">Choose a desk</button>';
-  const table = tableInfo(state, chat);
-  const visitor = table ? table.visitorModel : state.models.find(m => m.id === root.modelId);
-  const chair = (seat, name, caption, symbol) => `<button type="button" class="chair chair-picker ${seat}-chair" data-action="choose-model" data-id="${seat}" aria-label="Choose ${seat} model" ${busy || !chat ? 'disabled' : ''}><span class="chair-symbol" aria-hidden="true">${symbol}</span><span class="chair-copy"><small>${seat.toUpperCase()}</small><strong title="${e(name)}">${e(name)}</strong><span class="field-help" title="${e(caption)}">${e(caption)}</span></span></button>`;
-  return `${chair('personal', personalLabel(table?.participant, 'Empty chair') + archiveLabel(state,table?.personalModel?.id), table?.personalModel?.name || 'Choose a personal model', '⌁')}<div class="desk-controls"><button type="button" class="desk-selector" data-action="desks" title="Choose a desk"><span>Desk</span><strong>${e(root.name)}</strong><span aria-hidden="true">⌄</span></button><button type="button" class="harness-selector" data-action="harnesses" ${!chat ? 'disabled' : ''} title="${e(harnessLabel(state, chat))}"><span>Coat</span><strong>${e(harnessLabel(state, chat))}</strong><span aria-hidden="true">⌄</span></button><button type="button" class="current-branch" data-action="rename-branch" title="Rename this branch">${e(chat?.title || 'No branch selected')}</button></div>${chair('visiting', (visitor?.name || 'Open chair') + archiveLabel(state,visitor?.id), visitor ? (visitor.runtime === 'codex' ? 'OpenAI · subscription' : 'Local model · click to swap') : 'Invite a visiting model', '◇')}`;
+export function deskBar(state, root, chat, busy, codexStatus = null) {
+  if (!root || !chat) return '<button type="button" class="quiet-button" data-action="desks">Choose a desk</button>';
+  const r = chairRoster(state, chat), model = state.models.find(m => m.id === r.desk.modelId);
+  const coat = findHarness(resolvedCoat(state, {...chat, seating:r}, 'personal').ref, state)?.name ?? 'Coat unavailable';
+  return `<button type="button" class="chair chair-picker personal-chair" data-action="choose-model" data-id="personal" aria-label="Edit Desk Model" ${busy?'disabled':''}><span class="chair-symbol" aria-hidden="true">⌁</span><span class="chair-copy"><small>DESK MODEL</small><strong title="${e(r.desk.name)}">${e(r.desk.name)}</strong><span class="field-help" title="${e(model?.model ?? '')}">${e(model ? model.name + ' · ' + model.model : 'Choose a model')}</span><span class="field-help">Coat · ${e(coat)}</span>${model?.runtime==='codex'?`<span class="chair-connection" role="status">${e(codexConnection(codexStatus,model).label)}</span>`:''}</span></button><div class="desk-controls"><button type="button" class="current-branch" data-action="rename-branch" title="Rename this branch">${e(chat.title)}</button><button type="button" class="desk-selector" data-action="desks" title="Choose a desk"><span>Desk</span><strong>${e(root.name)}</strong><span aria-hidden="true">⌄</span></button></div>${rosterPanel(state,chat,busy)}`;
 }
-
 export function modelPicker(state, root, chat, seat) {
-  const table = tableInfo(state, chat), personal = seat === 'personal';
-  const items = personal ? visiblePersonalModels(state).map(p => ({ id: p.id, name: personalLabel(p), detail: state.models.find(m => m.id === p.connections.at(-1).modelId)?.name || 'Connection unavailable' })) : activeModels(state).map(m => ({ id: m.id, name: m.name, detail: m.model }));
-  const chosen = personal ? table?.assignment.personalId : table ? table.assignment.visitorModelId : root.modelId;
-  return `<form id="chair-picker-form" data-chat-id="${e(chat.id)}" data-seat="${seat}" data-base-revision-id="${e(table?.assignment.id || '')}" data-other-id="${e(personal ? (table ? table.assignment.visitorModelId : root.modelId) || '' : table?.assignment.personalId || '')}"><p class="muted">${personal ? 'Choose a saved personal participant to bring to this branch.' : 'Choose a saved model for this branch. Subscription visitors receive this branch’s selected context at OpenAI.'} This chair keeps its Coat when you swap models.</p><fieldset class="choice-list"><legend class="sr-only">${personal ? 'Personal' : 'Visiting'} model</legend><label><input type="radio" name="modelChoice" value="" ${!chosen ? 'checked' : ''}><span><strong>Leave this chair open</strong></span></label>${items.map(m => `<label><input type="radio" name="modelChoice" value="${e(m.id)}" ${chosen === m.id ? 'checked' : ''}><span><strong>${e(m.name)}</strong><small>${e(m.detail)}</small></span></label>`).join('')}</fieldset><button type="button" class="text-button" data-action="models">Manage saved models</button>${footer('Use this model')}</form>`;
+  const r = chairRoster(state, chat);
+  return chairEditor(state, chat, seat === 'personal' ? r.desk.id : r.selectedVisitorId);
 }
 
 export function deskPicker(state) {

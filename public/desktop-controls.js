@@ -3,12 +3,12 @@ import { recorderSelect, recorderHint } from './recorder.js';
 import { RESOURCE_FIELDS, RESOURCE_DEFAULTS, resourceSettings, carrySettings } from './resource-settings.js';
 export { RESOURCE_DEFAULTS };
 
-export function resourcesForm(root) {
+export function resourcesForm(root,model=null) {
   if (!root) return '<p>Open a desk to adjust its resource settings. Existing desks keep their saved choices.</p>';
-  const values = resourceSettings(root);
+  const values = resourceSettings(root,model),defaults=resourceSettings(null,model);
   return `<form id="resources-form" data-root-id="${e(root.id)}"><p>For ${e(root.name)}. Changes apply to later replies; they do not resize a model you loaded elsewhere.</p>
-    ${Object.entries(RESOURCE_FIELDS).map(([key, f]) => `<label class="form-field">${e(f.label)}<input type="number" name="${key}" min="${f.min}" max="${f.max}" step="1" value="${values[key] ?? ''}" ${key === 'replyTokens' ? 'placeholder="Connection default"' : 'required'}><small class="field-help">${e(f.help)} Default: ${RESOURCE_DEFAULTS[key] ?? 'connection default'}.</small></label>`).join('')}
-    <p class="field-help">The included Qwen uses an 8,192-token window and a 2,048-token reply default. Input estimates reserve room for output and sources. Settings never grant a tool or load another model. Runner backend and Unload are in Models and affect only Branchline’s own runner.</p>
+    ${Object.entries(RESOURCE_FIELDS).map(([key, f]) => `<label class="form-field">${e(f.label)}<input type="number" name="${key}" min="${f.min}" max="${f.max}" step="1" value="${values[key] ?? ''}" ${key === 'replyTokens' ? 'placeholder="Connection default"' : 'required'}><small class="field-help">${e(f.help)} Default: ${defaults[key] ?? 'connection default'}.</small></label>`).join('')}
+    <p class="field-help">The included Qwen uses the window selected in Conversation context and a 2,048-token reply default. Input estimates reserve room for output and sources. External model windows are managed by their provider. Runner backend and Unload affect only Branchline’s own runner.</p>
     <button type="submit" class="primary-button">Save resources</button> <button type="button" class="quiet-button" data-action="resources-reset">Reset to defaults</button></form>`;
 }
 export function conversationSettings(state, root, chat) {

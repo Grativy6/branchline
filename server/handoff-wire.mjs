@@ -4,6 +4,7 @@ import { validateRecordedReview, validateReviewSources } from './review.mjs';
 export const WIRE = 'branchline.handoff-wire/1';
 export const PARALLEL_WIRE = 'branchline.handoff-wire/2';
 export const HEARTH_WIRE = 'branchline.handoff-wire/3';
+export const PONY_WIRE = 'branchline.handoff-wire/4';
 const hash = value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const bytes = value => Buffer.byteLength(JSON.stringify(value));
@@ -47,6 +48,15 @@ function verifyTaskBoundary(records, taskId, version) {
       && own.every(r=>digest(r.scope)===digest(admission.scope)), 'mixed task: hearth packet escaped its admitted episode');
     return;
   }
+  if(version===PONY_WIRE){
+    fail(ancestors.length===1&&admission?.kind==='parallel.admitted'&&foundation?.profile==='branchline.pony-approach/1'
+      &&foundation.id===admission.taskId&&foundation.episodeIds?.includes(taskId)&&digest(foundation)===admission.contentHash
+      &&request?.detail.task.kind==='parallel'&&shared?.runId===admission.taskId&&shared.admissionHash===admission.hash
+      &&foundation.pony&&Object.keys(foundation.pony).sort().join(',')==='ponyTaskId,taskId,tripId'
+      &&digest(foundation.pony)===digest(shared.pony)&&request.parents.includes(admission.id)
+      &&own.every(r=>digest(r.scope)===digest(admission.scope)),'mixed task: pony packet lost its owning task or paired admission');
+    return;
+  }
   fail(version === PARALLEL_WIRE && ancestors.length === 1 && admission.kind === 'parallel.admitted'
     && foundation?.profile === 'branchline.parallel-approaches/1' && foundation.id === admission.taskId
     && foundation.episodeIds?.includes(taskId) && digest(foundation) === admission.contentHash
@@ -62,7 +72,7 @@ export function packHandoffs(records, { known = [], taskId: requestedTaskId } = 
   fail(Array.isArray(known) && known.length <= LIMITS.nodes && known.every(hash), 'invalid cache advertisement');
   fail(bytes(records) <= LIMITS.expandedBytes, 'expanded data exceeds limit');
   const taskId = requestedTaskId ?? records[0]?.taskId ?? null;
-  const version = records.every(r=>r.taskId === taskId) ? WIRE : records.some(r=>r.kind==='parallel.admitted'&&r.detail.foundation?.profile==='branchline.hearth-loop/1') ? HEARTH_WIRE : PARALLEL_WIRE;
+  const version = records.every(r=>r.taskId === taskId) ? WIRE : records.some(r=>r.kind==='parallel.admitted'&&r.detail.foundation?.profile==='branchline.pony-approach/1') ? PONY_WIRE : records.some(r=>r.kind==='parallel.admitted'&&r.detail.foundation?.profile==='branchline.hearth-loop/1') ? HEARTH_WIRE : PARALLEL_WIRE;
   verifyTaskBoundary(records,taskId,version);
   const advertised = new Set(known), all = new Map();
   function encode(value, depth = 0) {
@@ -90,7 +100,7 @@ export function packHandoffs(records, { known = [], taskId: requestedTaskId } = 
 }
 
 export function unpackHandoffs(packet, { cache = new Map() } = {}) {
-  fail(exactKeys(packet, ['v', 'task', 'r', 'n']) && [WIRE,PARALLEL_WIRE,HEARTH_WIRE].includes(packet.v), 'unknown schema or version');
+  fail(exactKeys(packet, ['v', 'task', 'r', 'n']) && [WIRE,PARALLEL_WIRE,HEARTH_WIRE,PONY_WIRE].includes(packet.v), 'unknown schema or version');
   fail(Array.isArray(packet.r) && packet.r.length <= LIMITS.records && object(packet.n), 'invalid packet shape');
   fail(packet.task === null || typeof packet.task === 'string', 'invalid task');
   fail(bytes(packet) <= LIMITS.packetBytes && Object.keys(packet.n).length <= LIMITS.nodes, 'packet exceeds limit');

@@ -38,12 +38,13 @@ export function hydrateImages(root = document) {
 export function imageCards(state, chatId, ids, { selected = false, busy = false } = {}) {
   return (ids ?? []).map(id => {
     const image = state.images?.selections.find(i => i.id === id && i.chatId === chatId); if (!image) return '<p>Saved picture unavailable.</p>';
-    return `<figure class="picture-card"><button type="button" class="picture-preview" data-action="picture-view" data-id="${escape(id)}" data-chat-id="${escape(chatId)}" aria-label="View ${escape(image.name)}"><img data-image-id="${escape(id)}" data-chat-id="${escape(chatId)}" alt="${escape(image.name)}" width="160" height="112"></button><figcaption><strong>${escape(image.name)}</strong><span>${image.original.width} × ${image.original.height}${image.transform.resized ? ' · smaller viewing copy' : ''}</span></figcaption><button type="button" class="text-button" data-action="${selected ? 'picture-remove' : 'picture-reuse'}" data-id="${escape(id)}" data-chat-id="${escape(chatId)}" ${busy ? 'disabled' : ''}>${selected ? 'Remove from next reply' : 'Use again'}</button></figure>`;
+    const pinned = state.images?.pinned?.[chatId]?.includes(id) ?? false;
+    return `<figure class="picture-card"><button type="button" class="picture-preview" data-action="picture-view" data-id="${escape(id)}" data-chat-id="${escape(chatId)}" aria-label="View ${escape(image.name)}"><img data-image-id="${escape(id)}" data-chat-id="${escape(chatId)}" alt="${escape(image.name)}" width="160" height="112"></button><figcaption><strong>${escape(image.name)}</strong><span>${image.original.width} × ${image.original.height}</span></figcaption>${selected ? `<button type="button" class="text-button picture-pin" data-action="picture-pin" data-id="${escape(id)}" data-chat-id="${escape(chatId)}" aria-pressed="${pinned}" ${busy ? 'disabled' : ''}>${pinned ? '✓ Keeping in view' : 'Keep in view'}</button>` : ''}<button type="button" class="text-button" data-action="${selected ? 'picture-remove' : 'picture-reuse'}" data-id="${escape(id)}" data-chat-id="${escape(chatId)}" ${busy ? 'disabled' : ''}>${selected ? 'Remove' : 'Look again'}</button></figure>`;
   }).join('');
 }
 export function createImagePicker({ getState, selection, updateState, changed, reportError, openDialog }) {
-  const input = document.getElementById('image-input'), button = document.getElementById('attach-image'), panel = document.getElementById('selected-images');
-  let busy = false, pickerChatId;
+  const panel = document.getElementById('selected-images');
+  let busy = false;
   const ids = (chatId) => getState().images?.active[chatId] ?? [];
   const protect = work => Promise.resolve(work).catch(error => reportError(error.message));
   async function addFiles(files, chatId, origin) {
@@ -59,23 +60,11 @@ export function createImagePicker({ getState, selection, updateState, changed, r
         const result = await request('/api/images/select', { chatId, image: { name: file.name, base64: btoa(binary), origin } });
         updateState(result.state);
       }
-    } finally { busy = false; input.value = ''; changed(); }
+    } finally { busy = false; changed(); }
   }
-  button.addEventListener('click', () => { pickerChatId = selection().chat?.id; if (pickerChatId) { input.value = ''; input.click(); } });
-  input.addEventListener('change', () => protect(addFiles(input.files ?? [], pickerChatId, 'pick')));
-  const composer = document.getElementById('composer-form');
-  composer.addEventListener('paste', event => {
-    const files = Array.from(event.clipboardData?.files ?? []).filter(f => f.type.startsWith('image/'));
-    if (!files.length || button.disabled) return;
-    event.preventDefault(); void protect(addFiles(files, selection().chat?.id, 'paste'));
-  });
-  composer.addEventListener('dragover', event => { if (event.dataTransfer?.types.includes('Files') && !button.disabled) event.preventDefault(); });
-  composer.addEventListener('drop', event => {
-    if (!event.dataTransfer?.files.length || button.disabled) return;
-    event.preventDefault(); void protect(addFiles(event.dataTransfer.files, selection().chat?.id, 'drop'));
-  });
   return {
     get busy() { return busy; },
+    addFiles,
     selected: chatId => ids(chatId),
     async prepare(chatId, speaker, replyMode) {
       if (!ids(chatId).length) return null;
@@ -83,17 +72,20 @@ export function createImagePicker({ getState, selection, updateState, changed, r
       return request('/api/images/plan', { chatId, speaker, replyMode });
     },
     render(chat, models, activeWork) {
-      button.disabled = !chat || busy || activeWork;
       const current = chat ? ids(chat.id) : [];
       panel.hidden = !current.length && !busy;
-      const destinations = models.filter(Boolean).map(m => `${m.name} · ${m.runtime === 'codex' ? 'OpenAI' : 'on this device'}`).join(' → ');
-      const html = `<div class="picture-selection-heading"><strong>Pictures for the next reply</strong><span>${busy ? 'Preparing picture…' : escape(destinations || 'Choose a receiving chair')}</span></div><div class="picture-grid">${imageCards(getState(), chat?.id, current, { selected:true, busy:activeWork || busy })}</div><p class="field-help">Selected viewing copies accompany each reply until removed. Originals stay saved here. Pictures need a vision-capable chair and extra context space.</p>`;
+      const destinations = models.filter(Boolean).map(m => `${m.name} · ${m.runtime === 'codex' ? 'OpenAI · subscription' : m.runtime==='openai'?'OpenAI · API':'on this device'}`).join(' → ');
+      const html = `<div class="picture-selection-heading"><strong>Attached pictures</strong><span>${busy ? 'Preparing picture…' : escape(destinations || 'Choose a receiving chair')}</span></div><div class="picture-grid">${imageCards(getState(), chat?.id, current, { selected:true, busy:activeWork || busy })}</div>`;
       if (panel.dataset.markup !== html) { panel.innerHTML = html; panel.dataset.markup = html; }
       hydrateImages(panel);
     },
     async action(action, target) {
       if (!action.startsWith('picture-')) return false;
       const id = target.dataset.id, chatId = target.dataset.chatId;
+      if (action === 'picture-pin') {
+        const pinned = !(getState().images?.pinned?.[chatId]?.includes(id) ?? false);
+        updateState(await request('/api/images/pin', { chatId, id, pinned })); changed(); return true;
+      }
       if (action === 'picture-remove' || action === 'picture-reuse') {
         const next = action === 'picture-remove' ? ids(chatId).filter(i => i !== id) : [...new Set([...ids(chatId), id])];
         updateState(await request('/api/images/context', { chatId, ids:next })); changed(); return true;

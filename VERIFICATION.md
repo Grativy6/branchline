@@ -1,116 +1,25 @@
-# Branchline 0.8.12-preview.5 verification
+# Verification for 0.9.1-preview.2
 
-Release qualification: the prepared Windows 10 package checks and Windows 11
-production installation and bundled-model sequence passed. These are bounded
-observations on two existing computers, not clean-machine or broad hardware
-certification. Public delivery is checked after release assets become reachable;
-the release page records that separate result.
+Prepared on Dust, 6 November 2026, by Hearthline under Christopher Daniel Pang's release-update request.
 
-The application includes the preview 4 continuity wording and preview 3 Windows
-installer repair. This candidate aligns public guides and versioned packages.
-It is unsigned. The included model is stock Qwen3.5-4B Q4_K_M; no private
-Hearthline model, conversation, account or training data is distributed.
+## Application checks
 
-## Completed checks on the development Windows 10 PC
+- 14 available shared-desk/backend tests passed, including routing validation, independent requests, local-slot waiting, Stop all, persisted drawers, attributed log inspection, shared edit conflicts, peer handoff, Plans overlap and duplicate-send prevention.
+- The headless browser flow passed with synthetic data and a local mock provider: two concurrent requests, independent Stop, routing preview, drawer inspection, and no page errors. Activity remained within the viewport at widths 1365, 800 and 390 pixels, including after layout updates.
+- The new timing regression checks Activity before a chair's started event is persisted, so one task does not appear as both a chair and a separate reply.
 
-- 430/430 regression checks passed.
-- Full and app-only builds passed, with 40 offline notices and 1,040 / 992
-  manifest-listed payload files respectively.
-- Packaged backend checks used synthetic conversation/model fixtures: streaming,
-  Stop, image handling, preview 3 workspace upgrade, export, backup and recovery,
-  restart, Unicode paths and unchanged app files passed. These were not inference.
-- Native WebView2 startup, graceful close and exact last-moment draft preservation
-  passed with separate synthetic workspaces.
-- Four actual packaged Qwen requests on Vulkan passed a short conversation,
-  a red-circle/blue-square image, Stop and garden-name recall after restarting
-  the app backend and model runner. Exact synthetic messages/draft survived.
-  About 10.4 seconds to first text on the initial request; one warm image reply
-  began after about 0.62 seconds. Stop returned in about 0.10 seconds. These are
-  individual samples, not performance promises. The owned runner was stopped.
-- Source, app-only and native-source ZIPs were checked entry by entry. All
-  385 selected source files match the named implementation commit, with recorded
-  Git LF versus checkout CRLF differences; distributed hashes bind exact bytes.
+These are the supplied tests, not a claim that the entire historical development test suite was recovered or rerun. Browser fixtures do not establish model response quality.
 
-- A separate installer identity installed and verified all 1,040 full-package
-  files, opened the native app with synthetic data, repaired a damaged app file,
-  and uninstalled while preserving user-created files and every synthetic data
-  byte. The production installer did not run on the development machine.
-- App-only installation verified 992 files without model files or a shared-runtime
-  installation, then uninstalled successfully. These checks used existing Windows
-  prerequisites and do not substitute for a clean-machine test.
+## Packaged application and installer
 
-## Windows 11 laptop check, October 7, 2026
+The native desktop source was recovered byte-for-byte from pinned commit `979fb08511c34c9c2124de36219f6b17fa05c66f`; only its project version changed for this release. It was compiled with .NET SDK 10.0.302, targeting .NET 8.0.29 and the pinned WebView2 SDK. The app's build manifest identifies its application source and every packaged file.
 
-- Windows 11 Home 10.0.26200 x64; AMD Ryzen 7 260 with Radeon 780M;
-  32 GB RAM, connected to power.
-- All 23 offline handoff checksums passed before execution. A closed copy of the
-  earlier app, workspace and shortcuts was preserved and hash-verified.
-- The production preview 5 full installer completed in the normal app location.
-  All three required C++ libraries were accepted; no restart was required.
-- The native app opened the existing workspace. A private saved-record comparison
-  found unchanged chats, messages, exchanges, models and draft after the update.
-  The user subsequently used the installed app and its bundled Qwen model.
-- The supplied laptop wrapper reused the name of an existing synthetic picture,
-  although its harness requires a new file. A separate corrected wrapper changes
-  only that output path to the new return folder. Candidate application bytes
-  and the original handoff files remain unchanged.
+The packaged native UI launch passed on Windows 11, including rejection of an unpaired API request and graceful backend shutdown. Stock Qwen returned: "Hello! The answer to 6 + 7 is 13." The application reopened the synthetic workspace with its exact saved state and conversation intact. The native history harness requires a specific synthetic branch label; the first attempt used the default label, so that fixture was renamed without changing either saved message and checked again. No production check was relaxed.
 
-- All 1,040 installed payload files passed their pinned sizes and SHA-256 hashes.
-- The user also tried an ordinary Qwen conversation and confirmed the local model
-  was usable as a starting point.
-- The initial synthetic test completed a real Vulkan reply, then image saving
-  failed before image inference because its workspace was on a FAT32 USB drive.
-  The original partial report is retained. The image store uses filesystem
-  hard links; keep active workspaces on local NTFS storage in this preview.
-  This limitation does not prevent using USB for installers or backup copies.
-- A fresh NTFS synthetic run passed conversation, red-circle/blue-square image
-  recognition, Stop, exact history and unsent-draft preservation after reopening,
-  and the subsequent reply recalling the earlier garden name. Both attempts
-  together used five of the original six permitted requests.
-- First text in the successful run took about 6.82 seconds for conversation and
-  0.46 seconds for the warm image request. Cancellation completed in about 36 ms;
-  the next reply after restarting recalled the garden name. The combined run
-  took about 242 seconds within its original 15-minute deadline. These are single
-  samples, not performance promises. The owned runner stopped normally.
+Runtime, model and installer inputs are hash-checked. The compiler and Microsoft prerequisite installers also passed Authenticode validation. The native-library source companion retains its corresponding upstream archive hashes.
 
-The automated Stop and reopening observations concern the backend and model
-runner. Native startup and the user's ordinary conversation were separate checks;
-this does not claim an additional native-window Stop/restart trial on the laptop.
+The release includes a separate `INSTALLER-VERIFICATION.json` with the final packaged native-launch, isolated installation, preservation and model/reopen results. That record is generated after the installer is built; do not infer a result that is absent from it.
 
-These laptop observations were reported by the assistant running on that machine
-and the user's ordinary-use report. Private workspace contents remain private.
+## Limits
 
-## Publication and delivery
-
-The Source ZIP retains the reviewed build snapshot. Public Git and the standalone
-release guides add the laptop findings, complete existing-workspace Qwen setup
-steps, corrected native-source archive name and this report. These documentation
-amendments do not alter tested application, model, installer or helper bytes;
-the public source manifest records them.
-
-The GitHub release page is the distribution entry point. Its notes distinguish
-anonymous download/helper verification from the hardware checks above. Completing
-a download helper does not itself prove installation or an actual model reply.
-
-The earlier preview 3 installer opened on the Windows 11 laptop with existing
-chats visible, as reported by its user; an Astra image conversation was also
-reported from that machine. That is prior-version evidence, not preview 5
-qualification. Earlier CPU and native download-helper fixture checks likewise
-retain their original version and test conditions.
-
-## Limits and recovery
-
-This is an early Windows x64 preview, not broad hardware certification. The
-model may make mistakes, including authorship or tool-use claims. Host-recorded
-attribution and tool receipts remain the relevant application evidence. The
-final Astra wording had one successful bounded behavioral recheck before this
-version; that does not establish universal model reliability.
-
-Dream review/preparation are available; built-in training and scheduling are
-unfinished. PEACHES remains Coming later and issues no stamp or payment request.
-No Branchline account or purchase is required. Optional outside providers receive
-the context selected for them.
-
-Back up important work before updating. Keep the earlier app and a compatible
-workspace backup for rollback, preserving newer conversations separately.
-See START-HERE.md, PREVIEW-LIMITS.md, BUG-REPORT.md and SECURITY.md.
+Current qualification is on Dust's Windows 11 computer, plus Ubuntu/WSL headless checks. There is no fresh clean-machine Windows 10 or every-GPU claim. The installer and Branchline executable remain unsigned. Runtime-slot limits, workspace rollback and other feature boundaries are in [PREVIEW-LIMITS.md](PREVIEW-LIMITS.md).
