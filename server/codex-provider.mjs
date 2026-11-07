@@ -12,7 +12,7 @@ const appVersion = JSON.parse(await fs.readFile(path.join(packageRoot, 'package.
 const localPath = p => path.resolve(p);
 export async function verifiedCodexBinary() {
   if (crypto.createHash('sha256').update(await fs.readFile(CODEX_CATALOG)).digest('hex') !== CODEX_CATALOG_SHA256)
-    throw new Error('The reviewed model capability catalogue changed. This connection is held.');
+    throw new Error('The reviewed image capability defaults changed. This connection is held.');
   // Packaged runtime, or the same verified public download in a developer's
   // local cache. An unrelated desktop installation is never a release input.
   const candidates = [path.join(packageRoot, 'codex-runtime', 'codex.exe'),
@@ -25,7 +25,7 @@ export async function verifiedCodexBinary() {
       if (hash.digest('hex') === CODEX_SHA256) return real;
     } catch { /* Only the pinned executable is eligible. */ }
   }
-  throw new Error('The verified ChatGPT connection runtime is missing. Use a complete Branchline v0.8 package.');
+  throw new Error('The verified ChatGPT connection runtime is missing. Use a complete Branchline installation.');
 }
 
 export function codexEnvironment(home, cwd) {
@@ -46,11 +46,13 @@ export function validAuthUrl(value) {
 // One private account session, fresh ephemeral model thread for every reply.
 // No RPC pass-through is exposed to the browser or generated text.
 export class CodexProvider {
-  constructor({ accountDir, rpcFactory = (binary, args, options) => new CodexRpc(binary, args, options), binaryResolver = verifiedCodexBinary } = {}) {
+  constructor({ accountDir, rpcFactory = (binary, args, options) => new CodexRpc(binary, args, options), binaryResolver = verifiedCodexBinary, clock = Date.now } = {}) {
     this.accountDir = localPath(accountDir); this.rpcFactory = rpcFactory; this.binaryResolver = binaryResolver;
     this.rpc = null; this.starting = null; this.busy = false; this.disposed = false;
     this.models = []; this.login = null; this.loginError = null; this.rates = null;
+    this.clock = clock; this.modelsAt = 0; this.catalogueEpoch = 0; this.cataloguePending = null; this.accountKey = null;
   }
+  invalidateCatalogue() { this.models = []; this.modelsAt = 0; this.catalogueEpoch++; this.cataloguePending = null; }
   async start() {
     if (this.disposed) throw new Error('Branchline is closing.');
     if (this.rpc && !this.rpc.closed) return this.rpc;
@@ -63,12 +65,12 @@ export class CodexProvider {
       if (this.disposed) throw new Error('Branchline is closing.');
       const rpc = this.rpcFactory(binary, codexArgs(), { cwd: this.cwd, env: codexEnvironment(home, this.cwd) });
       this.rpc = rpc;
-      rpc.on('disconnected', () => { if (this.rpc === rpc) { this.login = null; this.models = []; this.rates = null; } });
+      rpc.on('disconnected', () => { if (this.rpc === rpc) { this.login = null; this.invalidateCatalogue(); this.rates = null; } });
       rpc.on('notification', ({ method, params }) => {
         if (method === 'account/login/completed' && params.loginId === this.login?.loginId) {
-          this.login = null; this.models = []; this.loginError = params.success ? null : publicCodexError(params.error || 'Sign-in did not complete.');
+          this.login = null; this.invalidateCatalogue(); this.loginError = params.success ? null : publicCodexError(params.error || 'Sign-in did not complete.');
         }
-        if (method === 'account/updated') this.models = [];
+        if (method === 'account/updated') this.invalidateCatalogue();
         if (method === 'account/rateLimits/updated') this.rates = params;
       });
       try {
@@ -85,29 +87,50 @@ export class CodexProvider {
     const rpc = await this.start();
     const { account } = await rpc.request('account/read', { refreshToken: false });
     if (account && account.type !== 'chatgpt') throw new Error('This connection requires ChatGPT sign-in; API billing is not enabled.');
+    const key = account ? JSON.stringify([account.type, account.id ?? account.accountId ?? null, account.email, account.planType]) : null;
+    if (key !== this.accountKey) { this.accountKey = key; this.invalidateCatalogue(); this.rates = null; }
     return account;
   }
-  async catalogue() {
-    const rpc = await this.start(); let cursor = null; const models = [];
-    for (let page = 0; page < 10; page++) {
-      const result = await rpc.request('model/list', { limit: 100, ...(cursor ? { cursor } : {}) });
-      for (const m of result.data || []) if (!m.hidden && typeof m.model === 'string') models.push({ id: m.model, name: m.displayName || m.model, description: m.description || '', isDefault: m.isDefault === true });
-      cursor = result.nextCursor; if (!cursor) { this.models = models; return models; }
-    }
-    throw new Error('Codex model list was too large.');
+  async catalogue({ refresh = false } = {}) {
+    if (!refresh && this.models.length && this.clock() - this.modelsAt < 300000) return this.models;
+    if (this.cataloguePending) return this.cataloguePending;
+    const rpc = await this.start();
+    if (this.cataloguePending) return this.cataloguePending;
+    const epoch = this.catalogueEpoch;
+    const pending = (async () => {
+      let cursor = null; const models = [], seen = new Set();
+      for (let page = 0; page < 10; page++) {
+        const result = await rpc.request('model/list', { limit: 100, includeHidden: false, ...(cursor ? { cursor } : {}) });
+        for (const m of result.data || []) {
+          if (m.hidden || typeof m.model !== 'string' || !m.model.trim() || m.model.length > 200 || /[\u0000-\u001f]/.test(m.model) || seen.has(m.model)) continue;
+          seen.add(m.model);
+          models.push({ id: m.model, name: typeof m.displayName === 'string' && m.displayName.trim() ? m.displayName.slice(0,200) : m.model,
+            description: typeof m.description === 'string' ? m.description.slice(0,2000) : '', isDefault: m.isDefault === true });
+        }
+        cursor = result.nextCursor;
+        if (!cursor) {
+          if (epoch !== this.catalogueEpoch || rpc !== this.rpc || rpc.closed) throw new Error('The ChatGPT account changed while reading models.');
+          this.models = models; this.modelsAt = this.clock(); return models;
+        }
+      }
+      throw new Error('Codex model list was too large.');
+    })();
+    this.cataloguePending = pending;
+    try { return await pending; } finally { if (this.cataloguePending === pending) this.cataloguePending = null; }
   }
-  async status() {
+  async status({ refresh = false } = {}) {
     const account = await this.account();
     let catalogueError = null;
     if (!account) { this.models = []; this.rates = null; }
-    if (account && !this.models.length) {
+    if (account && (refresh || !this.models.length || this.clock() - this.modelsAt >= 300000)) {
       try {
-        await this.catalogue();
+        await this.catalogue({ refresh });
         this.rates = await this.rpc.request('account/rateLimits/read').catch(() => null);
-      } catch { catalogueError = 'Your account is connected, but the model list is temporarily unavailable. Retry the model list.'; }
+      } catch { catalogueError = 'Your account is connected, but the model list could not be refreshed. Try refreshing the models again.'; }
     }
     return { connected: Boolean(account), account: account ? { email: account.email, plan: account.planType } : null,
       models: this.models, rates: this.rates, pending: Boolean(this.login), error: catalogueError ?? this.loginError,
+      modelsCheckedAt: this.modelsAt ? new Date(this.modelsAt).toISOString() : null,
       profile: CODEX_PROFILE, mode: 'conversation_only' };
   }
   async loginStart() {
@@ -123,7 +146,7 @@ export class CodexProvider {
     if (this.busy) throw new Error('Finish or stop the current reply before signing out.');
     const rpc = await this.start();
     if (this.login) await rpc.request('account/login/cancel', { loginId: this.login.loginId });
-    await rpc.request('account/logout'); this.login = null; this.models = []; this.rates = null;
+    await rpc.request('account/logout'); this.login = null; this.accountKey = null; this.invalidateCatalogue(); this.rates = null;
     return { connected: false };
   }
   async *stream(model, messages, signal, { maxTokens = null, maxResponseBytes = 2 * 1024 * 1024, tools = null, imageData } = {}) {

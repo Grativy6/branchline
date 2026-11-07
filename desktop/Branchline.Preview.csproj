@@ -6,7 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AssemblyName>Branchline.Preview</AssemblyName>
-    <Version>0.9.1-preview.2</Version>
+    <Version>0.9.1-preview.3</Version>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <RuntimeFrameworkVersion>8.0.29</RuntimeFrameworkVersion>
     <SelfContained>true</SelfContained>

@@ -69,6 +69,7 @@ export const api = {
   toolPending: () => request('/api/tools/pending'),
   toolAnswer: input => request('/api/tools/answer', { method: 'POST', body: JSON.stringify(input) }),
   codexStatus: () => request('/api/codex/status'),
+  codexSync: (refresh = false) => request('/api/codex/models/sync', { method: 'POST', body: JSON.stringify({ refresh }) }),
   codexLogin: () => request('/api/codex/login', { method: 'POST', body: '{}' }),
   codexLogout: () => request('/api/codex/logout', { method: 'POST', body: '{}' }),
   state: () => request('/api/state'),

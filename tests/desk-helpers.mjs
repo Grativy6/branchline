@@ -6,12 +6,12 @@ import http from 'node:http';
 import { setTimeout as delay } from 'node:timers/promises';
 import { createApp } from '../server/index.mjs';
 import { applyCommand } from '../server/domain.mjs';
-export async function fixture({hold=true,reply=null}={}){
+export async function fixture({hold=true,reply=null,codex={close(){},async status(){return {connected:false,models:[],pending:false};}}}={}){
   const requests=[];
   const fake=http.createServer(async(req,res)=>{let text='';for await(const c of req)text+=c;const body=JSON.parse(text);requests.push({body,res,at:Date.now()});if(reply)await reply(requests.at(-1),requests);else if(!hold)finish(requests.at(-1));});
   await new Promise(r=>fake.listen(0,'127.0.0.1',r));
   const dir=await fs.mkdtemp(path.join(os.tmpdir(),'branchline-desk-test-'));
-  const app=await createApp({dataDir:path.join(dir,'workspace'),bundledDir:path.join(dir,'no-model'),modelOptions:{codex:{close(){},async status(){return {connected:false,models:[],pending:false};}}}});
+  const app=await createApp({dataDir:path.join(dir,'workspace'),bundledDir:path.join(dir,'no-model'),modelOptions:{codex}});
   const command=async(type,payload)=>app.store.transact(s=>applyCommand(s,{type,payload}));
   await command('root.create',{name:'Test desk',mode:'personal'});
   for(const name of ['Hearthline','Qwen'])await command('model.save',{name,model:name.toLowerCase(),baseUrl:`http://127.0.0.1:${fake.address().port}/v1`,runtime:'compatible',thinking:false});

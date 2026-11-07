@@ -1,5 +1,5 @@
 {
-  "version": "0.9.1-preview.2",
+  "version": "0.9.1-preview.3",
   "packages": [
     {
       "name": "quickjs-emscripten",
@@ -552,7 +552,7 @@
           "file": "THIRD-PARTY-NOTICES.txt",
           "source": "THIRD-PARTY-NOTICES.md",
           "bytes": 6408,
-          "sha256": "323c04762243f2ed4464c51293ba588cfb3c8d606b62e650ffaf6a183096eb3f"
+          "sha256": "17d1a85bd669dd87e61b5481b29e977d32cf2fb5c1f2819fed6906d76019c12e"
         }
       ]
     },

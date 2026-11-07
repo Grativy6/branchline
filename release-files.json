@@ -1,6 +1,6 @@
 {
   "profile": "branchline.public-release-files/2",
-  "version": "0.9.1-preview.2",
+  "version": "0.9.1-preview.3",
   "source": [
     ".gitattributes",
     ".gitignore",
@@ -27,6 +27,7 @@
     "START-HERE.md",
     "THIRD-PARTY-NOTICES.md",
     "TOY-SHELF.md",
+    "UPGRADE-NOTES.md",
     "VERIFICATION.md",
     "desktop/Branchline.Preview.csproj",
     "desktop/NuGet.Config",
@@ -351,6 +352,7 @@
     "server/checkpoint-encoder.mjs",
     "server/checkpoint-pool.mjs",
     "server/codex-model-catalog.json",
+    "server/codex-models.mjs",
     "server/codex-picture-provider.mjs",
     "server/codex-policy.mjs",
     "server/codex-provider.mjs",
@@ -470,6 +472,8 @@
     "server/work-native.mjs",
     "server/work-profile.mjs",
     "server/work-tools.mjs",
+    "tests/chatgpt-models-browser.mjs",
+    "tests/chatgpt-models.test.mjs",
     "tests/desk-browser.mjs",
     "tests/desk-helpers.mjs",
     "tests/desk-lifecycle.test.mjs",
@@ -904,7 +908,9 @@
     {
       "source": "provenance/bundled-model-inputs.json",
       "file": "bundled-model-inputs.json"
-    }
+    },
+    "server/codex-models.mjs",
+    "UPGRADE-NOTES.md"
   ],
   "auditExceptions": [
     {

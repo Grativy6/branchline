@@ -1,6 +1,6 @@
 # Branchline component notices
 
-These notices identify the components of the Windows 0.9.1-preview.2 preview. They do
+These notices identify the components of the Windows 0.9.1-preview.3 preview. They do
 not replace the accompanying full licence texts or relicense these components
 under Branchline's Apache grant. Full texts are also available offline in
 **Settings → About & licences** and `public/licenses/`.

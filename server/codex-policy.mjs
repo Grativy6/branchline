@@ -1,5 +1,6 @@
 // One reviewed Codex runtime and one fixed conversation capability profile.
-// The account's model catalogue may change; the executable and capability floor may not.
+// Model discovery belongs to the signed-in provider. The retained catalogue is
+// only a reviewed fallback for image budgets, never the picker availability list.
 import { fileURLToPath } from 'node:url';
 import { mediaReferences, mediaUrl } from './model-media.mjs';
 export const CODEX_PROFILE = 'branchline.codex-chat/2';
@@ -30,7 +31,6 @@ export const CODEX_CONFIG = Object.freeze({
   include_apps_instructions: false, history: { persistence: 'none' },
   project_root_markers: ['.branchline-root'], mcp_servers: {}, plugins: {},
   skills: { bundled: { enabled: false }, include_instructions: false, config: [] },
-  model_catalog_json: CODEX_CATALOG,
   agents: { enabled: false }, apps: { _default: { enabled: false } },
   tools: { update_plan: { enabled: false }, experimental_request_user_input: { enabled: false } },
   features: { ...Object.fromEntries(disabled.map(key => [key, false])), skip_host_skill_discovery: true },
@@ -70,7 +70,7 @@ function verifyProfile({ config, layers }, expected) {
   // exact empty array remains required in the raw session flags below.
   visible.skills = { bundled: { enabled: false }, include_instructions: false };
   if (!matches(visible, config) || !matches(expected, layers?.find(layer => layer.name.type === 'sessionFlags')?.config)) throw new Error('Codex connection held: its effective settings do not match the selected capability profile.');
-  if (config.developer_instructions || config.model_instructions_file || config.instructions || config.hooks || config.skills?.config?.length || Object.keys(config.model_providers || {}).length || config.notify || config.openai_base_url || config.chatgpt_base_url !== 'https://chatgpt.com/backend-api/') {
+  if (config.model_catalog_json || config.developer_instructions || config.model_instructions_file || config.instructions || config.hooks || config.skills?.config?.length || Object.keys(config.model_providers || {}).length || config.notify || config.openai_base_url || config.chatgpt_base_url !== 'https://chatgpt.com/backend-api/') {
     throw new Error('Codex connection held: unexpected instructions, extensions, or provider settings were inherited.');
   }
 }
@@ -108,7 +108,7 @@ export function codexInput(messages, imageData) {
 }
 
 export function codexCapability(withTools = false) {
-  return { profile: withTools ? 'branchline.codex-tools/2' : CODEX_PROFILE, version: CODEX_VERSION, executableSha256: CODEX_SHA256, modelCatalogSha256: CODEX_CATALOG_SHA256,
+  return { profile: withTools ? 'branchline.codex-tools/2' : CODEX_PROFILE, version: CODEX_VERSION, executableSha256: CODEX_SHA256, modelCatalog: 'signed_in_provider', imageCapabilityBaselineSha256: CODEX_CATALOG_SHA256,
     authentication: 'ChatGPT_subscription_only', destination: 'OpenAI',
     environments: [], modelToolDispatch: withTools ? 'BRANCHLINE_CONVERSATION_TOOLS_ONLY' : 'DISABLED', delegation: false,
     isolation: 'pinned_runtime_capability_profile_not_an_OS_container' };

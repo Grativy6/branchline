@@ -26,6 +26,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { syncCodexModels } from './codex-models.mjs';
 import { Store } from './store.mjs';
 import { ImageStore, IMAGE_LIMITS } from './image-store.mjs';
 import { checkInvokeConnection, imageConnection } from './image-provider.mjs';
@@ -622,6 +623,14 @@ export async function createApp({
       if (method === 'GET' && url.pathname === '/api/tools/pending') return json(response, 200, toolInteractions.list());
       if (method === 'POST' && url.pathname === '/api/tools/answer') return json(response, 200, await toolInteractions.respond(await readBody(request, 8192)));
       if (method === 'GET' && url.pathname === '/api/codex/status') return json(response, 200, await codex.status());
+      if (method === 'POST' && url.pathname === '/api/codex/models/sync') {
+        const body = await readBody(request, 1024);
+        if (!body || Object.keys(body).some(k => k !== 'refresh') || body.refresh !== undefined && typeof body.refresh !== 'boolean')
+          throw new Error('Model discovery accepts only an optional refresh choice.');
+        const status = await codex.status({ refresh: body.refresh === true });
+        const synchronized = await syncCodexModels(store, status);
+        return json(response, 200, { ...status, synchronized });
+      }
       if (method === 'POST' && ['/api/codex/login', '/api/codex/logout'].includes(url.pathname)) {
         const body = await readBody(request);
         if (!body || Object.keys(body).length) throw new Error('The subscription connection accepts no credentials, paths, or configuration from the page.');

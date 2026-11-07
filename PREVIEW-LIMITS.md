@@ -13,6 +13,8 @@ This is an early Windows x64 preview. Keep backups and inspect results before re
 - Image tools, PC tools and external connections retain their existing settings and permission boundaries. Adding a chair does not grant new tools.
 - Dream review and preparation are available. Built-in weight training, public Book stamping services, the planned Finis Solutus game mode, and unimplemented provider routes are not claimed as completed by this release.
 - The installer and application are unsigned. Windows prerequisites are Microsoft's separate, signed components. This release has been checked on Dust's Windows 11; it does not establish a fresh Windows 10 or every-GPU qualification.
-- Drawers create workspace format 3. Keep an older workspace backup for an older app; newer work is a separate recovery consideration.
+- Chair work, including an ordinary model reply, creates workspace format 3. Keep an older workspace backup for an older app; newer work is a separate recovery consideration.
 
 See the release's VERIFICATION.md and attached installer qualification record for actual checks, rather than inferring them from this feature list.
+
+The ChatGPT picker uses models returned by the connected provider, rather than a fixed Branchline availability list. The runtime may cache that catalog; a listed model is not a guarantee of remaining allowance or success for every request. Picture input still requires a known image capability and its existing clearance.

@@ -82,16 +82,24 @@ let modelCheck;
 let dreamParticipantId;
 let codexStatus, codexAuthUrl, codexPoll, codexView = 0;
 let codexRefresh = null, codexStatusEpoch = 0, codexEmptyPolls = 0;
-async function updateCodexStatus() {
+async function updateCodexStatus({ refresh = false } = {}) {
   if (codexRefresh) return codexRefresh;
   const epoch = codexStatusEpoch;
   codexRefresh = (async () => {
     let result;
-    try { result = await api.codexStatus(); }
+    try {
+      result = await api.codexSync(refresh);
+      const missing = result.connected && result.models?.some(m => !state?.models.some(saved => saved.runtime === 'codex' && saved.model === m.id));
+      if (epoch === codexStatusEpoch && (result.synchronized?.added || missing)) {
+        try { state = await api.state(); pollEpoch++; }
+        catch { result = { ...result, error: 'ChatGPT is connected, but the chair model choices could not refresh. Try Refresh models again.' }; }
+      }
+    }
     catch (err) { result = { error: err.message }; }
     if (epoch === codexStatusEpoch) {
       codexStatus = result;
       if (result.connected) codexAuthUrl = null;
+      renderCodexConnection();
       if (state && !closingPage) render();
     }
     return codexStatus;
@@ -107,12 +115,17 @@ async function updateCodexStatus() {
     // After twelve empty results, leave the visible refresh action available.
     if (!codexStatus?.error && (waitingForSignIn || waitingForModels && codexEmptyPolls++ < 12))
       codexPoll = setTimeout(refreshCodexConnection, 2500);
+    else if (codexStatus?.connected) codexPoll = setTimeout(refreshCodexConnection, 300000);
   });
   return codexRefresh;
 }
-async function refreshCodexConnection() {
+function renderCodexConnection() {
+  const panel = $('chatgpt-connection-status');
+  if (panel) panel.innerHTML = codexPanel(codexStatus, codexAuthUrl);
+}
+async function refreshCodexConnection(options = {}) {
   const view = codexView;
-  await updateCodexStatus();
+  await updateCodexStatus(options);
   if (!closingPage && view === codexView && $('dialog').open && $('dialog').classList.contains('codex-dialog')) showCodex();
 }
 async function openCodex() {
@@ -462,12 +475,13 @@ function openSettings(tab = settingsTab, editing = null, coatView = null) {
   if (tab === 'mcp') tab = 'advanced';
   settingsTab = tab;
   $('settings-page-title').textContent=settingsCategories.find(([id])=>id===tab)?.[1]??'Settings';
-  $('settings-page-content').innerHTML=`${tab === 'conversation' ? conversationSettings(state, selected(state).root, selected(state).chat) : tab === 'resources' ? resourcesForm(selected(state).root,chosenModel(selected(state).root,selected(state).chat)) : tab === 'coats' ? coatWarningSetting() + (coatView ? `<h3>${e(coatView.title)}</h3>${coatView.content}` : harnessEditor.markup()) : tab === 'toy-shelf' ? shelfSettings(state.ui.toyShelf) : tab === 'models' ? modelsSettings(state, editing, discoveredModels) : tab === 'agents' ? agentSettingsForm(state) : tab === 'plans' ? '<h3>Plans</h3><p>Schedule a task for a local or subscription model, with its own Coat and limits.</p><button type="button" class="primary-button" data-action="plans-open">Manage Plans</button>' : tab === 'memory' ? '<h3>Memory</h3><p>Keep selected history across conversations. Save a response, edit MEMORY.md, or choose whether your model can suggest or keep notes.</p><button type="button" class="primary-button" data-action="personal-context">Manage memories</button>' : tab === 'appearance' ? appearanceSettings() : tab === 'message-info' ? messageInfoSettings(state.ui.messageInfo) : tab === 'workspace' ? workspaceSettings(state, storageInfo) : tab === 'licences' ? licencesSettings() : advancedSettings(state, mcpCapabilities)}`;
+  $('settings-page-content').innerHTML=`${tab === 'conversation' ? conversationSettings(state, selected(state).root, selected(state).chat) : tab === 'resources' ? resourcesForm(selected(state).root,chosenModel(selected(state).root,selected(state).chat)) : tab === 'coats' ? coatWarningSetting() + (coatView ? `<h3>${e(coatView.title)}</h3>${coatView.content}` : harnessEditor.markup()) : tab === 'toy-shelf' ? shelfSettings(state.ui.toyShelf) : tab === 'models' ? modelsSettings(state, editing, discoveredModels, codexStatus, codexAuthUrl) : tab === 'agents' ? agentSettingsForm(state) : tab === 'plans' ? '<h3>Plans</h3><p>Schedule a task for a local or subscription model, with its own Coat and limits.</p><button type="button" class="primary-button" data-action="plans-open">Manage Plans</button>' : tab === 'memory' ? '<h3>Memory</h3><p>Keep selected history across conversations. Save a response, edit MEMORY.md, or choose whether your model can suggest or keep notes.</p><button type="button" class="primary-button" data-action="personal-context">Manage memories</button>' : tab === 'appearance' ? appearanceSettings() : tab === 'message-info' ? messageInfoSettings(state.ui.messageInfo) : tab === 'workspace' ? workspaceSettings(state, storageInfo) : tab === 'licences' ? licencesSettings() : advancedSettings(state, mcpCapabilities)}`;
   $('settings-page').hidden=false;$('settings-page-content').scrollTop=0;
   syncSettingsSurface();
   if(window.innerWidth<760){$('app-shell').classList.remove('nav-open');syncNavigationAccessibility();}
   $('settings-page-title').focus({preventScroll:true});
   if (tab === 'licences') loadLicences($('licences-panel'));
+  if (tab === 'models') void refreshCodexConnection();
   if (tab === 'agents') {
     const panel=document.createElement('section');panel.id='pc-access-panel';panel.innerHTML='<p>Loading PC access…</p>';
     $('settings-page-content').prepend(panel);mountPcAccess(panel,state,message=>error(message));
@@ -538,7 +552,7 @@ function refreshWorkActivity() {
 }
 function render({ scroll = false, refreshDetails = false } = {}) {
   if (!state) return;
-  if (!closingPage && !codexStatus && !codexRefresh && state.models.some(m => m.runtime === 'codex')) void refreshCodexConnection();
+  if (!closingPage && !codexStatus && !codexRefresh) void refreshCodexConnection();
   sketchBook.refresh();
   dreamReview.refresh();
   refreshWorkActivity();
@@ -992,19 +1006,14 @@ document.addEventListener('click', safe(async event => {
     contextStatusKey = ''; return openContext();
   }
   if (action === 'codex-open') return openCodex();
+  if (action === 'codex-refresh') { codexEmptyPolls = 0; return refreshCodexConnection({ refresh: true }); }
   if (action === 'codex-login') {
     target.disabled = true;
-    try { codexStatusEpoch++; const result = await api.codexLogin(); codexAuthUrl = result.authUrl; codexStatus = { connected: false, pending: true }; render(); showCodex(); void refreshCodexConnection(); }
+    try { codexStatusEpoch++; const result = await api.codexLogin(); codexAuthUrl = result.authUrl; codexStatus = { connected: false, pending: true }; render(); renderCodexConnection(); if ($('dialog').open && $('dialog').classList.contains('codex-dialog')) showCodex(); void refreshCodexConnection(); }
     finally { target.disabled = false; }
     return;
   }
-  if (action === 'codex-logout') { codexStatusEpoch++; await api.codexLogout(); codexStatusEpoch++; codexStatus = { connected: false, models: [] }; codexAuthUrl = null; render(); return openCodex(); }
-  if (action === 'codex-save') {
-    if (!codexStatus?.connected || !codexStatus.models.some(m => m.id === id)) throw new Error('Refresh your subscription connection first.');
-    const existing = state.models.find(m => m.runtime === 'codex' && m.model === id);
-    if (!existing) await command('model.save', { name: target.dataset.name + ' · Codex', model: id, baseUrl: 'codex://chatgpt', runtime: 'codex', inputFormat: 'chat', thinking: false });
-    toast('Model saved. Choose it for the Desk Model or a visiting chair.'); return openSettings('models');
-  }
+  if (action === 'codex-logout') { codexStatusEpoch++; await api.codexLogout(); codexStatusEpoch++; codexStatus = { connected: false, models: [] }; codexAuthUrl = null; render(); renderCodexConnection(); if ($('dialog').open && $('dialog').classList.contains('codex-dialog')) showCodex(); return; }
   if (action === 'personal-rename') {
     if (modelsBusy(state) || submitting.size) return;
     const participant = state.personalParticipants?.find(p => p.id === id);

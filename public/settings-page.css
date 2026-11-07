@@ -38,3 +38,9 @@ html[data-backdrop-active=true] .workspace,html[data-backdrop-active=true] .home
 html[data-backdrop-active=true] .sidebar,html[data-backdrop-active=true] .topbar,html[data-backdrop-active=true] .settings-page { background:color-mix(in srgb,var(--surface-strong) var(--background-opacity),transparent); }
 html[data-backdrop-active=true] .message,html[data-backdrop-active=true] .settings-content { background:color-mix(in srgb,var(--surface-strong) 94%,transparent); border-radius:8px; }
 @media(forced-colors:active),(prefers-reduced-transparency:reduce) { html[data-backdrop-active=true] body,html[data-backdrop-active=true] .workspace,html[data-backdrop-active=true] .sidebar,html[data-backdrop-active=true] .topbar,html[data-backdrop-active=true] .settings-page { background:var(--canvas); } }
+
+#chatgpt-connection-status{display:block;width:100%;min-width:0}
+.chatgpt-connection-actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.chatgpt-models{list-style:none;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
+.chatgpt-models li{padding:12px;border:1px solid var(--line);border-radius:8px;overflow-wrap:anywhere}
+.chatgpt-models small{display:block;color:var(--muted);margin-top:4px}
