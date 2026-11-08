@@ -47,12 +47,11 @@ each entry's source note. It includes no private Hearthline history or weights.
 - **Microsoft WebView2 SDK 1.0.3296.44**: its own LICENSE and NOTICE, copied
   from the selected SDK package. The installed Edge WebView2 browser runtime
   is a separate prerequisite; the full Setup includes Microsoft's unmodified Evergreen installer and its separate runtime terms. The portable app-only ZIP does not.
-- **Codex 0.158.0-alpha.2**: the official Windows x64 release executable,
+- **Codex 0.158.0-alpha.2**: the official Windows x64 CLI and matching code-mode host,
   verified against its published asset digest. Its source tag resolves to
   `10382da79a2a2d6e8ae221fa63077215389c1ad2`; its upstream Apache licence and
   NOTICE are retained. `codex-runtime/origin.json` identifies the asset.
-  No voice runtime, code-mode host, shell runner or sandbox installer sidecars
-  are included. The modified model capability catalogue has its own retained
+  No voice runtime, shell runner or sandbox installer sidecars are included. The modified model capability catalogue has its own retained
   source attribution and change record. This is an upstream-release identity
   check, not a claim that Branchline reproduced the compiler's output.
 

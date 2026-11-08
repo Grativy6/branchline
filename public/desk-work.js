@@ -1,11 +1,11 @@
 import { api } from './api.js';
 import { chairRoster } from './chair-roster.js';
-import { parseChairPrompt, chairMention } from './chair-mentions.js';
+import { routeChairPrompt, chairMention } from './chair-mentions.js';
 import { renderMarkdown } from './markdown.js';
 const esc=(v='')=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-export function routingFor(state,chat,text){const r=chairRoster(state,chat);return parseChairPrompt(text,r?[r.desk,...r.visitors]:[],r?.speaker==='visiting'?r.selectedVisitorId:r?.desk.id);}
+export function routingFor(state,chat,text){const r=chairRoster(state,chat);return routeChairPrompt(text,r?[r.desk,...r.visitors]:[],r?.speaker==='visiting'?r.selectedVisitorId:r?.desk.id,r?.mode);}
 export function createDeskWorkUI({getState,selection,sync,navigate,openDialog,reportError,toast}){
-  let rows=[],sequence=-1,inFlight=false,currentOnly=false,lastRows='',closed=false;
+  let rows=[],sequence=-1,inFlight=false,currentOnly=false,lastRows='',closed=false,liveMarkup='',sharedMarkup='';
   const menu=document.querySelector('#work-controls .work-menu'),input=document.getElementById('message-input');
   const controls=menu.closest('details');
   function fitActivityMenu(){
@@ -36,19 +36,22 @@ export function createDeskWorkUI({getState,selection,sync,navigate,openDialog,re
     drawerButton.hidden=false;const parsed=routingFor(state,chat,input.value),roster=chairRoster(state,chat);
     const start=input.selectionStart??input.value.length,before=input.value.slice(0,start),partial=/(?:^|\s)@([^\s@{}]*)$/.exec(before);
     const suggestions=partial?[roster.desk,...roster.visitors].filter(c=>c.name.toLocaleLowerCase().includes(partial[1].toLocaleLowerCase())).slice(0,8):[];
-    preview.hidden=!parsed.routed&&!suggestions.length;
-    preview.innerHTML=(suggestions.length?`<div class="chair-suggestions" aria-label="Choose a recipient">${suggestions.map(c=>`<button type="button" class="quiet-button" data-desk-action="mention" data-chair="${esc(c.id)}">${esc(chairMention(c.name))}</button>`).join('')}</div>`:'')+(parsed.routed?`<div class="chair-routes" aria-label="Message routing">${parsed.sharedContext?`<small>Shared context: ${esc(parsed.sharedContext.slice(0,180))}</small>`:''}${parsed.sections.map(s=>`<div class="chair-route"><strong>${esc(s.label)}</strong><span>${esc(s.content.slice(0,180)||'Add an instruction…')}</span></div>`).join('')}${parsed.errors.length?`<p class="message-error">${esc(parsed.errors.join(' '))}</p>`:'<small>One Send starts these addressed tasks together when their resources are ready.</small>'}</div>`:'');
+    const showRoutes=parsed.routed&&(!parsed.broadcast||parsed.errors.length>0);
+    preview.hidden=!showRoutes&&!suggestions.length;
+    preview.innerHTML=(suggestions.length?`<div class="chair-suggestions" aria-label="Choose a recipient">${suggestions.map(c=>`<button type="button" class="quiet-button" data-desk-action="mention" data-chair="${esc(c.id)}">${esc(chairMention(c.name))}</button>`).join('')}</div>`:'')+(showRoutes?`<div class="chair-routes" aria-label="Message routing">${parsed.sharedContext?`<small>Shared context: ${esc(parsed.sharedContext.slice(0,180))}</small>`:''}${parsed.sections.map(s=>`<div class="chair-route"><strong>${esc(s.label)}</strong><span>${esc(s.content.slice(0,180)||(parsed.sharedContext?'Receives the shared prompt':'Uses this chair’s Coat and desk context'))}</span></div>`).join('')}${parsed.errors.length?`<p class="message-error">${esc(parsed.errors.join(' '))}</p>`:'<small>One Send starts these addressed tasks together when their resources are ready.</small>'}</div>`:'');
   }
   function renderConversation(){
     const state=getState(),chat=selection().chat,container=document.getElementById('conversation');
     if(!state||!chat){live.remove();shared.remove();return;}
     const pending=rows.filter(r=>r.type==='chair'&&r.chatId===chat.id&&r.active&&!state.messages.some(m=>m.role==='assistant'&&m.exchangeId===r.exchangeId));
-    live.innerHTML=pending.map(r=>`<article class="message assistant chair-live" data-task="${esc(r.id)}"><div class="message-meta"><strong>${esc(r.chair)}</strong><span>${esc(r.phase)}</span><button class="text-button" type="button" data-desk-action="stop" data-task="${esc(r.id)}">Stop</button></div><div class="message-body markdown-body">${renderMarkdown(r.liveText||r.phase||'Queued')}</div></article>`).join('');
+    const nextLive=pending.map(r=>`<article class="message assistant chair-live" data-task="${esc(r.id)}"><div class="message-meta"><strong>${esc(r.chair)}</strong><span>${esc(r.phase)}</span><button class="text-button" type="button" data-desk-action="stop" data-task="${esc(r.id)}">Stop</button></div><div class="message-body markdown-body">${renderMarkdown(r.liveText||r.phase||'Queued')}</div></article>`).join('');
+    if(nextLive!==liveMarkup){live.innerHTML=nextLive;liveMarkup=nextLive;}
     const artifacts=(state.deskWork?.artifacts??[]).filter(a=>a.chatId===chat.id);
     const events=(state.deskWork?.events??[]).filter(e=>e.chatId===chat.id&&e.visibility!=='drawer'&&!['task.assigned','artifact.published'].includes(e.kind)).slice(-12);
-    shared.innerHTML=artifacts.map(a=>{const r=a.revisions.at(-1);return `<article class="desk-artifact"><div class="message-meta"><strong>${esc(r.title)}</strong><span>Shared by ${esc(r.author)}</span><button type="button" class="text-button" data-desk-action="drawer" data-chair="${esc(r.chairId)}">Source work log</button></div><div class="markdown-body">${renderMarkdown(r.text)}</div></article>`;}).join('')+(events.length?`<details class="desk-events"><summary>Desk activity · ${events.length} recent records</summary>${events.map(e=>`<p><strong>${esc(e.author.chair)}</strong> · ${esc(e.kind.replaceAll('.',' '))}${e.detail.tool?' · '+esc(e.detail.tool):''}${e.detail.status?' · '+esc(e.detail.status):''}${e.detail.message?'<br>'+esc(e.detail.message):''}${e.detail.sourceChairId?' · reading another chair’s log':''}</p>`).join('')}</details>`:'');
-    if(shared.innerHTML)container.append(shared);else shared.remove();
-    if(pending.length)container.append(live);else live.remove();
+    const nextShared=artifacts.map(a=>{const r=a.revisions.at(-1);return `<article class="desk-artifact"><div class="message-meta"><strong>${esc(r.title)}</strong><span>Shared by ${esc(r.author)}</span><button type="button" class="text-button" data-desk-action="drawer" data-chair="${esc(r.chairId)}">Source work log</button></div><div class="markdown-body">${renderMarkdown(r.text)}</div></article>`;}).join('')+(events.length?`<details class="desk-events"><summary>Desk activity · ${events.length} recent records</summary>${events.map(e=>`<p><strong>${esc(e.author.chair)}</strong> · ${esc(e.kind.replaceAll('.',' '))}${e.detail.tool?' · '+esc(e.detail.tool):''}${e.detail.status?' · '+esc(e.detail.status):''}${e.detail.message?'<br>'+esc(e.detail.message):''}${e.detail.sourceChairId?' · reading another chair’s log':''}</p>`).join('')}</details>`:'');
+    if(nextShared!==sharedMarkup){shared.innerHTML=nextShared;sharedMarkup=nextShared;}
+    if(nextShared){if(shared.parentNode!==container)container.insertBefore(shared,live.parentNode===container?live:null);}else shared.remove();
+    if(pending.length){if(live.parentNode!==container)container.append(live);}else live.remove();
   }
   async function drawer(chairId){
     const chat=selection().chat;if(!chat)return;

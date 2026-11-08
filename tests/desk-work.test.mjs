@@ -22,7 +22,7 @@ test('addresses inline and multiline sections with shared leading context',()=>{
 test('literal mentions do not dispatch; invalid recipients cannot partially route',()=>{
   for(const s of ['email user@qwen.test','`@qwen no`','```text\n@qwen no\n```','"@qwen example"','\\@qwen literal','> @qwen quotation'])assert.equal(parseChairPrompt(s,chairs,'a').routed,false,s);
   assert.ok(parseChairPrompt('@qwen yes @missing no',chairs).errors.length);
-  assert.ok(parseChairPrompt('@qwen',chairs).errors.length);
+  assert.deepEqual(parseChairPrompt('@qwen',chairs).errors,[]);
   assert.ok(parseChairPrompt('@qwen go',[...chairs,{id:'d',name:'Qwen'}]).errors.length);
 });
 

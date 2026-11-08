@@ -11,6 +11,9 @@ export function publicCodexError(error) {
 export class CodexRpc extends EventEmitter {
   constructor(binary, args, { cwd, env, spawnProcess = spawn } = {}) {
     super();
+    this.setMaxListeners(128);
+    this.toolHandlers = new Map();
+    this.pendingTools = new Map();
     this.pending = new Map(); this.nextId = 1; this.closed = false; this.buffer = '';
     this.child = spawnProcess(binary, args, { cwd, env, shell: false, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
     this.child.stdout.setEncoding('utf8');
@@ -32,14 +35,17 @@ export class CodexRpc extends EventEmitter {
       let value;
       try { value = JSON.parse(line); } catch { return this.fail(new Error('Codex returned an unreadable protocol message.')); }
       if (value.method && value.id !== undefined) {
-        if (value.method === 'item/tool/call' && this.toolHandler) {
-          const handler = this.toolHandler;
-          Promise.resolve().then(() => handler(value.params)).then(result => {
+        const handler = value.method === 'item/tool/call' && this.toolHandlers.get(value.params?.threadId);
+        if (handler) {
+          const pending = Promise.resolve().then(() => handler(value.params)).then(result => {
             if (!this.closed) this.write({ id: value.id, result });
           }).catch(() => {
             if (!this.closed) this.write({ id: value.id, error: { code: -32601, message: 'Branchline held this tool request.' } });
-            this.emit('blockedRequest', { method: value.method });
+            this.emit('blockedRequest', { method: value.method, params: value.params });
           });
+          const threadId=value.params.threadId, calls=this.pendingTools.get(threadId)??new Set();
+          this.pendingTools.set(threadId,calls);calls.add(pending);
+          void pending.finally(()=>{calls.delete(pending);if(!calls.size)this.pendingTools.delete(threadId);});
           continue;
         }
         // An approval or tool request cannot acquire capability through this bridge.
@@ -69,11 +75,20 @@ export class CodexRpc extends EventEmitter {
     });
   }
   notify(method, params = {}) { this.write({ method, params }); }
+  registerToolHandler(threadId, handler) {
+    if (this.toolHandlers.has(threadId)) throw new Error('This model thread already has a tool handler.');
+    this.toolHandlers.set(threadId, handler);
+    return () => { if (this.toolHandlers.get(threadId) === handler) this.toolHandlers.delete(threadId); };
+  }
+  async settleTools(threadId) {
+    while(this.pendingTools.get(threadId)?.size) await Promise.allSettled([...this.pendingTools.get(threadId)]);
+  }
   fail(error) {
     if (this.closed) return;
     this.closed = true;
     for (const request of this.pending.values()) { clearTimeout(request.timer); request.reject(error); }
     this.pending.clear(); this.emit('disconnected', error);
+    this.toolHandlers.clear();
     if (!this.child.killed) this.child.kill();
   }
   close() { this.fail(new Error('Codex connection closed.')); }

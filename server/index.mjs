@@ -147,7 +147,8 @@ export async function createApp({
   const pcFiles = new PcFiles(store,modelOptions.pcFilesOptions);
   const nav=new Nav(store,pcFiles,modelOptions.navOptions);
   const personalContexts = new PersonalContexts(store,modelOptions.personalContextOptions);
-  const home=new Home(store,modelOptions.homeOptions);
+  const home=new Home(store,{pcFiles,...modelOptions.homeOptions});
+  await home.reconcileFolderSharing();
   const workTools=new WorkTools(store,{pcFiles,imageStore,pictures:new PictureProvider(openai),...modelOptions.workOptions});
   await workTools.recover();
   const easel=new Easel(store,imageStore,{accountDir:codexAccountDir,scratchDir:path.join(dataDir,'easel-image-jobs'),...modelOptions.easelOptions});
@@ -204,7 +205,7 @@ export async function createApp({
         const epoch = stopEpoch.get(body.chatId) ?? 0;
         const preliminary = checkTurnRequest(store.state, body, admission);
         if(!preliminary.prior&&preliminary.model.runtime==='openai'&&!openai.status().configured)throw new Error('OpenAI API is not configured for this app process. Your draft stays here.');
-        const preliminaryImages = preliminary.prior ? null : imagePlans.check(store.state, body, preliminary);
+        const preliminaryImages = preliminary.prior ? null : imagePlans.check(store.state, body, preliminary, admission);
         const selectedRoot = store.state.roots.find(r => r.id === store.state.chats.find(c => c.id === body.chatId)?.rootId);
         const otherSeat = !admission && !preliminary.prior && preliminary.replyMode === 'both' ? (preliminary.selection.seat === 'personal' ? 'visiting' : 'personal') : null;
         const otherModel = otherSeat ? resolveSpeaker(store.state, body.chatId, otherSeat).model : null;
@@ -266,7 +267,7 @@ export async function createApp({
           maxTokens = replyTokenLimit(root, model);
           const selectedFile = body.selectedFile === undefined ? null : recordSelectedFile(state, { chatId: chat.id, taskId: exchangeId, purpose: content, file: body.selectedFile });
           if(pendingSketch && digest(state.sketchBook?.pending[chat.id]??null)!==digest(pendingSketch))throw new Error('The selected sketch copy changed. Review it and send again.');
-          const checkedImages = imagePlans.check(state, body, checked);
+          const checkedImages = imagePlans.check(state, body, checked, admission);
           const pictures = checkedImages?.images ?? [];
           const followUp = admission ? null : replyPlanner.prepare(state, body, checked, exchangeId, selectedFile);
           const turnRequest = { ...(admission?{deskTaskId:admission.taskId}:{}), id: body.requestId ?? 'request_' + crypto.randomUUID(), kind: checked.kind, fingerprint: checked.fingerprint,
@@ -380,6 +381,7 @@ export async function createApp({
 
   const deskTasks=new DeskTasks(store,{
     execute:runExchange,
+    captureImages:(state,input,tasks)=>imagePlans.capture(state,input,tasks),
     contextChanged:()=>contextStatusCache.clear(),
     validate:(state,chatId,model,selection)=>{assertHomeDisclosure(state,chatId,model,store.workspaceId,store.dataDir);assertWorkDisclosure(state,chatId,model,store.workspaceId,store.dataDir);assertAgentDisclosure(state,chatId,model,selection,'reply');assertContextDisclosure(state,chatId,model);assertSketchDisclosure(state,chatId,model,store.workspaceId);},
     busy:(task,key)=>{
@@ -536,8 +538,7 @@ export async function createApp({
       }
       if (method === 'POST' && url.pathname === '/api/images/plan') {
         const body = await readBody(request, 4096);
-        if (!body || Object.keys(body).some(k => !['chatId','speaker','replyMode'].includes(k))) throw new Error('Choose the branch and receiving chairs.');
-        assertInferenceIdle(store.state);
+        if (!body || Object.keys(body).some(k => !['chatId','speaker','replyMode','chairIds','baseRevisionId'].includes(k))) throw new Error('Choose the branch and receiving chairs.');
         return json(response, 200, await imagePlans.prepare(store.state, body));
       }
       if (method === 'GET' && url.pathname === '/api/images/object') {
@@ -754,6 +755,7 @@ export async function createApp({
       if (method === 'GET' && url.pathname === '/api/pc-access') return json(response,200,pcFiles.status());
       if (method === 'POST' && url.pathname === '/api/pc-access') {
         const result=await pcFiles.configure(await readBody(request));
+        await home.reconcileFolderSharing();
         // A permission change ends affected requests. The next reply recompiles
         // the apron and source-sharing review instead of renewing an old grant.
         for(const [chatId,controller] of active) if(store.state.pcAccess?.exposures.some(e=>e.rootId===store.state.chats.find(c=>c.id===chatId)?.rootId))controller.abort();

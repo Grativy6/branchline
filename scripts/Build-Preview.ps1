@@ -1,5 +1,5 @@
 param(
-  [string]$OutputName = 'Branchline-v0.9.1-preview.3-Windows-x64',
+  [string]$OutputName = 'Branchline-v0.10.0-Windows-x64',
   [Parameter(Mandatory)][string]$RuntimeFolder,
   [switch]$WithModel
 )

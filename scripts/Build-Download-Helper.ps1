@@ -12,7 +12,7 @@ $taskSignature = Get-AuthenticodeSignature -LiteralPath $Compiler
 if ($taskSignature.Status -ne 'Valid' -or $taskSignature.SignerCertificate.Subject -notmatch 'Pyrsys B.V.') { throw 'Use the verified Inno compiler.' }
 $taskReceipt = Get-Content -LiteralPath $InstallerReceipt -Raw | ConvertFrom-Json
 $taskVersion = [string]$taskReceipt.version
-if ($taskVersion -notmatch '^(\d+)\.(\d+)\.(\d+)-preview\.(\d+)$') { throw 'Invalid release version.' }
+if ($taskVersion -notmatch '^(\d+)\.(\d+)\.(\d+)(?:-preview\.(\d+))?$') { throw 'Invalid release version.' }
 $taskParts = @([int]$Matches[1], [int]$Matches[2], [int]$Matches[3], [int]$Matches[4])
 if (@($taskParts | Where-Object { $_ -gt 65535 }).Count) { throw 'Invalid Windows version.' }
 New-Item -ItemType Directory -Path $taskOutput | Out-Null

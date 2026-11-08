@@ -1,8 +1,8 @@
-# Branchline 0.9.1-preview.3 Preview
+# Branchline v0.10
 
 A local home for conversations, ideas and shared work with AI. Keep your desks, branches and history while choosing the models you work with.
 
-[Download the Windows preview](https://github.com/Grativy6/branchline/releases/tag/v0.9.1-preview.3) or start with [START-HERE.md](START-HERE.md). The normal installer includes stock Qwen3.5-4B. It needs no Branchline account or purchased stamp. This is an unsigned Windows x64 preview.
+[Download Branchline v0.10 for Windows](https://github.com/Grativy6/branchline/releases/tag/v0.10.0) or start with [START-HERE.md](START-HERE.md). The normal installer includes stock Qwen3.5-4B. It needs no Branchline account or purchased stamp. This is an unsigned Windows x64 pre-1.0 release. Dreams and built-in training remain under development.
 
 ## ChatGPT connection
 
@@ -12,9 +12,17 @@ Settings -> Models shows the account status and returned model list directly. Mo
 
 Each chair has a drawer for its unfinished work. Chairs can inspect another chair's recorded log without treating that record as their own experience. Work brought onto the desk becomes shared context.
 
-Address chairs in one message with `@chair` sections. For example, `@qwen Draft a greeting. @astra Check the greeting.` sends each section to its named chair. Independent connections can work at the same time. Activity shows tasks across desks, their waiting reasons, individual Stop controls and recent results.
+Select the highlighted chair, Alternate through occupied chairs, or choose All to send the prompt to everyone. The small Desk Model icon opens its menu; clicking the chair information selects it. Address chairs in one message with `@chair` sections. For example, `@qwen Draft a greeting. @astra Check the greeting.` sends each section to its named chair. Independent requests can work at the same time. A trailing address needs no extra instruction: that chair uses the shared opening and its Coat. Explicit addresses override the default recipient mode. Activity shows tasks across desks, their waiting reasons, individual Stop controls and recent results.
 
-The included local runner has one active request slot. The current ChatGPT bridge also has one active tool-handler slot. Work using the same slot queues; a local chair and an independent connected chair can overlap. Multiple chairs do not create extra hardware or provider capacity.
+The included local runner has one active request slot. ChatGPT chairs can run concurrently through one app-server connection, with each thread retaining its own tools, stream and cancellation. Provider limits still apply. Local file operations wait briefly for the file adapter without blocking other model work.
+
+Home reuses existing access to its selected folders. Normal Coats inherit granted file tools; deliberate custom tool selections remain respected. Additional Home-only readers are optional for connections without general folder access.
+
+All keeps the composer clear; explicit @chair sections show a routing preview. Copying a highlighted conversation supplies only that selected fragment, with its formatting. Background updates leave unchanged conversation text in place.
+
+The compact header puts visiting chairs side by side. Scroll arrows appear only toward chairs that are out of view; the arrangement menu moves the selected chair earlier or later without confusing order with scrolling.
+
+Attached pictures follow Select, Alternate, All and explicit chair groups. One saved picture is shared with the addressed requests, including queued chairs. A chair without a usable image route gets a named result while capable chairs can continue. Partial failure or cancellation keeps the picture available; a fully successful group clears unpinned pictures from the next prompt. Keep in view and Look again remain available.
 
 ## Also included
 
@@ -37,7 +45,7 @@ The Windows binary payload keeps hash-pinned Node, Python, Codex, dependency and
 
 ```powershell
 pwsh -File scripts/Build-Preview.ps1 -RuntimeFolder C:\BuildInputs\Branchline -WithModel
-pwsh -File scripts/Build-Installer.ps1 -PackageFolder releases/Branchline-v0.9.1-preview.3-Windows-x64 -InputFolder C:\BuildInputs\Prerequisites -Compiler C:\BuildTools\Inno\ISCC.exe -OutputFolder releases/Installer
+pwsh -File scripts/Build-Installer.ps1 -PackageFolder releases/Branchline-v0.10.0-Windows-x64 -InputFolder C:\BuildInputs\Prerequisites -Compiler C:\BuildTools\Inno\ISCC.exe -OutputFolder releases/Installer
 ```
 
 The installer inputs and their hashes are in `provenance/installer-inputs.json`. Existing outputs are never merged by the build scripts. The native-library source companion accompanies the binary downloads. No personal workspace, account credential, Home selection, private memory or trained adapter is part of this release.

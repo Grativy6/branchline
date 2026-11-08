@@ -5,17 +5,16 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { pcSettings, pcDestination, assertPcCurrent, assertPcDisclosure, appendPcSettings, recordPcExposure, recordPcArtifact, pcUnder, PC_TOOLS } from './pc-permissions.mjs';
 import { digest } from './integrity.mjs';
+import {protectedPcPaths} from './runtime-paths.mjs';
 
 const uid=()=>crypto.randomUUID().replaceAll('-','');
 const fail=(ok,why)=>{if(!ok)throw new Error('PC access: '+why);};
 const exact=(o,keys)=>o&&typeof o==='object'&&!Array.isArray(o)&&Object.keys(o).length===keys.length&&keys.every(k=>Object.hasOwn(o,k));
 export class PcFiles {
   constructor(store,{executable=process.env.BRANCHLINE_NATIVE_FILES??null,protectedPaths=[]}={}) {
-    this.store=store;this.executable=executable;this.active=null;
+    this.store=store;this.executable=executable;this.active=null;this.pending=Promise.resolve();this.pendingCount=0;
     this.recovery=path.resolve(store.dataDir,'pc-recovery');
-    const home=process.env.USERPROFILE;
-    this.protectedPaths=[store.dataDir,path.resolve(store.dataDir,'../codex-connection'),path.resolve(store.dataDir,'../webview'),
-      ...(executable?[path.dirname(executable)]:[]),...(home?['AppData','.codex','.ssh','.aws','.azure','.kube'].map(n=>path.win32.join(home,n)):[]),...protectedPaths].map(p=>path.win32.normalize(p));
+    this.protectedPaths=protectedPcPaths(store.dataDir,executable,protectedPaths);
   }
   available(){return process.platform==='win32'&&!!this.executable;}
   status(){return {available:this.available(),profile:'guarded_text_files_only',programs:false,screens:false,recoveryDirectory:this.recovery,reason:'Programs and screen control are not available yet. Their access boundaries still need verification.',settings:pcSettings(this.store.state)};}
@@ -46,7 +45,7 @@ export class PcFiles {
     if(input.nav!==undefined){fail(exact(input.nav,['enabled','timeZone'])&&typeof input.nav.enabled==='boolean'&&typeof input.nav.timeZone==='string','Choose a Nav switch and workspace timezone.');new Intl.DateTimeFormat('en',{timeZone:input.nav.timeZone}).format();}
     fail(typeof input.read==='boolean'&&typeof input.write==='boolean'&&(!input.write||input.read)&&Array.isArray(input.roots)&&input.roots.length<=16&&Array.isArray(input.denied)&&input.denied.length<=32&&Array.isArray(input.removeDenied),'Choose bounded folder permissions.');
     const previous=pcSettings(this.store.state);fail((previous?.id??null)===input.baseRevision,'Settings changed. Reopen Agents.');
-    const snapshot={id:uid(),at:new Date().toISOString(),workspaceId:this.store.workspaceId,workspacePath:this.store.dataDir,read:input.read,write:input.write,roots:[],denied:[],...(input.nav?{nav:structuredClone(input.nav)}:{})};
+    const snapshot={id:uid(),at:new Date().toISOString(),workspaceId:this.store.workspaceId,workspacePath:this.store.dataDir,read:input.read,write:input.write,roots:[],denied:[],protectedPaths:[...this.protectedPaths],...(input.nav?{nav:structuredClone(input.nav)}:{})};
     for(const r of input.roots){
       fail(exact(r,['id','path','label','write','modelIds','modelSnapshots',...(Object.hasOwn(r,'frontDoor')?['frontDoor']:[])])&&(!Object.hasOwn(r,'frontDoor')||typeof r.frontDoor==='boolean')&&typeof r.label==='string'&&r.label.trim()&&r.label.length<=100&&typeof r.write==='boolean'&&Array.isArray(r.modelIds)&&Array.isArray(r.modelSnapshots),'Invalid folder entry.');
       if(!input.read&&!input.nav?.enabled&&!this.store.state.pcAccess?.settings.some(s=>s.nav?.enabled)){const old=previous?.roots.find(x=>x.id===r.id);if(old)snapshot.roots.push({...old,write:false,destinations:[]});continue;}
@@ -69,9 +68,16 @@ export class PcFiles {
     this.active?.cancel.abort();
     return this.status();
   }
-  async invoke(name,args,{contract,model,handoff,signal,guard,prepared}) {
+  async invoke(name,args,{contract,model,handoff,signal,guard,prepared,onWait=()=>{}}) {
     fail(PC_TOOLS.includes(name)&&contract.pc&&handoff.kind==='reply','Only a foreground chair can use PC files.');
-    fail(!this.active,'Another PC file action is running. Wait for its result.');
+    const previous=this.pending,waiting=this.pendingCount++>0;let release,released=false;
+    const gate=new Promise(r=>release=()=>{if(released)return;released=true;this.pendingCount--;r();});this.pending=previous.catch(()=>{}).then(()=>gate);
+    let waitingAbort;
+    try {
+      if(waiting)onWait();
+      await Promise.race([previous,new Promise((_,reject)=>{waitingAbort=()=>reject(signal.reason??new Error('File operation stopped while waiting.'));if(signal.aborted)waitingAbort();else signal.addEventListener('abort',waitingAbort,{once:true});})]);
+      signal.throwIfAborted();
+    }catch(error){release();throw error;}finally{if(waitingAbort)signal.removeEventListener('abort',waitingAbort);}
     const cancel=new AbortController();signal=AbortSignal.any([signal,cancel.signal]);this.active={cancel,chatId:handoff.scope.chatId};
     const write=['create_pc_text','edit_pc_text'].includes(name),operationId=uid();
     const current=()=>{signal.throwIfAborted();guard();return assertPcCurrent(this.store.state,model,this.store.workspaceId,contract.pc,args.root,write,this.store.dataDir);};
@@ -81,7 +87,13 @@ export class PcFiles {
       fail(!args.path||args.path.split('\\').every(p=>p&&p!=='.'&&p!=='..'&&!/[<>:"/|?*\x00-\x1f]/.test(p)&&!/[. ]$/.test(p)),'Use an ordinary relative path inside the folder.');
       const request={mode:{list_pc_files:'list',read_pc_text:'read',search_pc_text:'search',create_pc_text:'create',edit_pc_text:'replace'}[name],root:root.path,rootIdentity:root.identity,path:args.path,
         denied:[...settings.denied,...this.protectedPaths.map(path=>({path}))],offset:args.offset,query:args.query,text:args.text,oldText:args.old_text,sha256:args.sha256,identity:args.identity,operationId,recovery:this.recovery};
-      if(write){fail(typeof args.text==='string'&&Buffer.byteLength(args.text)<=8000,'Use at most 8 KiB of replacement text.');await fs.mkdir(this.recovery,{recursive:true});}
+      if(write){
+        fail(typeof args.text==='string'&&Buffer.byteLength(args.text)<=8000,'Use at most 8 KiB of replacement text.');
+        await fs.mkdir(this.recovery,{recursive:true});
+        // Windows can virtualize app-owned LocalAppData. Resolve only our recovery
+        // directory; selected file paths still undergo the native identity checks.
+        request.recovery=await fs.realpath(this.recovery);
+      }
       const exposure={chatId:handoff.scope.chatId,taskId:handoff.taskId,root,path:path.win32.join(root.path,args.path)};
       const value=await this.native(request,{signal,beforeCommit:async info=>{current();await this.store.transact(state=>{current();recordPcExposure(state,exposure);return state;});await prepared({...info,operationId,root:root.id,path:args.path});current();}});
       if(!write)current();
@@ -95,6 +107,6 @@ export class PcFiles {
         return state;
       });
       return {...value,root:root.id,path:args.path,sourceRole:'pc_file_evidence_not_permission',...(write?{effect:'file_change_observed',operationId}:{} )};
-    }finally{this.active=null;}
+    }finally{this.active=null;release();}
   }
 }

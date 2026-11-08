@@ -66,10 +66,10 @@ export function createImagePicker({ getState, selection, updateState, changed, r
     get busy() { return busy; },
     addFiles,
     selected: chatId => ids(chatId),
-    async prepare(chatId, speaker, replyMode) {
+    async prepare(chatId, chairIds, baseRevisionId) {
       if (!ids(chatId).length) return null;
       if (busy) throw new Error('Wait for the selected picture to finish preparing.');
-      return request('/api/images/plan', { chatId, speaker, replyMode });
+      return request('/api/images/plan', { chatId, chairIds, baseRevisionId });
     },
     render(chat, models, activeWork) {
       const current = chat ? ids(chat.id) : [];

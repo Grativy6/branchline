@@ -15,7 +15,7 @@ const ref = value => typeof value === 'string' && /^[A-Za-z0-9_-]{1,120}$/.test(
 const text = (value, max) => typeof value === 'string' && value.trim().length > 0 && value.length <= max;
 const exact = (value, keys) => object(value) && Object.keys(value).every(key => keys.includes(key));
 const validNickname = value => value === null || (text(value, 200) && value === value.trim() && !/[\u0000-\u001f\u007f]/.test(value));
-export const isReplyMode = value => ['single', 'both', 'alternate'].includes(value);
+export const isReplyMode = value => ['single', 'both', 'alternate', 'all'].includes(value);
 
 export function alternatingSeat(state, chatId) {
   const previous = state.exchanges.filter(turn => turn.chatId === chatId && turn.status === 'completed' && turn.speaker).at(-1);
@@ -133,7 +133,7 @@ export function applyTableCommand(state, type, payload) {
     fail(assignment && assignment.id === payload.baseRevisionId, 'The table changed. Review its chairs first.');
     fail(isReplyMode(payload.mode) && ['personal', 'visiting'].includes(payload.speaker), 'Choose a reply pattern and chair.');
     if (chat.seating) {
-      fail(payload.mode !== 'both', 'Choose Select or Alternate for visiting replies.');
+      fail(payload.mode !== 'both', 'Choose Select, Alternate or All.');
       fail(payload.speaker !== 'visiting' || chat.seating.visitors.length, 'Add a visiting chair first.');
       chat.seating.mode = payload.mode; chat.seating.speaker = payload.speaker;
       return state;

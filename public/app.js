@@ -1,4 +1,7 @@
 import { createDeskWorkUI, routingFor } from './desk-work.js';
+import { installConversationCopy } from './conversation-copy.js';
+import { createChairScroll } from './chair-scroll.js';
+import { chairActions } from './roster-views.js';
 import {resourceSettings} from './resource-settings.js';
 import {workPanel,readWorkForm,commandRow,outputsPanel,hydrateOutputs,mountEditRegion} from './work-tools.js';
 import { createModelArchivePanel } from './model-archive-panel.js';
@@ -57,11 +60,17 @@ import { isHearth, hearthForm, updateHearthForm, hearthDetails } from './hearth.
 initializeAppearance();
 
 const $ = id => document.getElementById(id);
+const conversationHistory=document.createElement('div');
+conversationHistory.id='conversation-history';$('conversation').prepend(conversationHistory);
+let conversationMarkup=null;
+installConversationCopy($('conversation'));
+const chairScroll=createChairScroll($('table-bar'));
 const toolPanel = createToolPanel({ container:$('tool-interactions'), reportError:message=>error(message) });
 const mcpCapabilities = {};
 let discoveredModels = [];
 let discoveredBaseUrl = 'http://127.0.0.1:1234/v1';
 let state;
+let errorRevision = 0;
 const agentProfiles = createAgentProfiles({ getState: () => state, command, openDialog, toast });
 const imageProviderPanel = createImageProviderPanel({ getState: () => state, command, openDialog, toast, api });
 const harnessEditor = createHarnessEditor({ getState: () => state, refreshState: async () => {
@@ -240,6 +249,17 @@ function refreshComposerButtons(root, chat) {
   $('send-button').textContent = unavailable ? 'Choose the required models' : model || parsed?.routed ? 'Send message ↑' : 'Save note ↑';
   $('save-note').hidden = !table;
   $('save-note').disabled = busy || !draft.trim() || !!file;
+  const chairs=table?[table.roster.desk,...table.roster.visitors]:[];
+  const receivers=parsed?.routed?parsed.sections.map(section=>state.models.find(m=>m.id===chairs.find(c=>c.id===section.chairId)?.modelId)).filter(Boolean):[model].filter(Boolean);
+  const target=nextSpeaker(chat)==='personal'?table?.roster.desk:table?.roster.visitors.find(c=>c.id===table.roster.selectedVisitorId);
+  const receivingChairs=parsed?.routed?parsed.sections.map(section=>chairs.find(c=>c.id===section.chairId)).filter(Boolean):[target].filter(Boolean);
+  imagePicker.render(chat,receivingChairs.map(c=>{const m=state.models.find(m=>m.id===c.modelId);return m?{...m,name:c.name}:null;}).filter(Boolean),busy||!!chat&&isPending(state,chat.id));
+  const hint=parsed?.routed?`${parsed.broadcast?'All':'Addressed'} · ${parsed.sections.length} chair${parsed.sections.length===1?'':'s'}`:`${target?.name??'Selected chair'} · ${replySettings(state,chat).mode==='alternate'?'next chair after a complete reply':'Enter to send · Shift+Enter for a new line'}`;
+  $('composer-hint').textContent=unavailable?'Choose a model for this chair, or save a note.':receivers.length?`${receivers.some(m=>['codex','openai'].includes(m.runtime))?'OpenAI receives selected context · ':''}${hint}${modelsBusy(state)?' · Tasks continue in Activity':''}`:'Saved notes join this chat’s context when you choose a model.';
+  if(!parsed?.routed&&connection&&!connection.ready)$('composer-hint').innerHTML=`${e(connection.label)}. Your draft stays here. <button type="button" class="text-button" data-action="codex-open">${e(connection.action)}</button>`;
+  const supports=receivers.some(m=>m.inputFormat!=='plain-dialogue-v1');
+  $('tools-enabled').disabled=busy||!supports;
+  $('tools-label').title=supports?'Use available tools, including granted folders. Active replies keep their starting choices.':'These recipients use text-only connections.';
   return unavailable;
 }
 const filePicker = createFilePicker({ getState:()=>state, command, selection: () => { if (!state) return {}; const { root, chat } = selected(state); return { root: root ? { ...root, modelId: chosenModel(root, chat)?.id ?? null } : root, chat }; }, changed: () => render(), reportError: message => error(message) });
@@ -299,10 +319,15 @@ async function openPonySend(ponyTaskId=null) {
 }
 
 function error(message) {
+  const revision = ++errorRevision;
   $('error-text').textContent = message;
   $('error-banner').hidden = false;
+  if (String(message).startsWith('Home:')) {
+    for (const [action,label] of [['folder-access','Open folder access'],['home-sources','Open Home sources']]) { const button=document.createElement('button');button.type='button';button.className='text-button';button.dataset.action=action;button.textContent=label;$('error-text').append(document.createElement('br'),button); }
+  }
+  let inline;
   if ($('dialog').open) {
-    let inline = $('dialog-error');
+    inline = $('dialog-error');
     if (!inline) {
       inline = document.createElement('p');
       inline.id = 'dialog-error';
@@ -312,6 +337,11 @@ function error(message) {
     }
     inline.textContent = message;
   }
+  return () => {
+    if (revision !== errorRevision) return;
+    $('error-banner').hidden = true;
+    inline?.remove();
+  };
 }
 function toast(message) {
   $('toast').textContent = message;
@@ -571,6 +601,7 @@ function render({ scroll = false, refreshDetails = false } = {}) {
   $('home-screen').hidden = !atHome;
   $('conversation-header').hidden = atHome;
   $('table-bar').hidden = atHome;
+  $('chair-actions').hidden = atHome || !chat;
   $('conversation').hidden = atHome;
   $('composer-form').hidden = atHome || !chat;
   $('details-panel').hidden = atHome || !detailsOpen;
@@ -596,6 +627,9 @@ function render({ scroll = false, refreshDetails = false } = {}) {
   const table = tableInfo(state, chat);
   const chairMarkup = deskBar(state, root, chat, globalBusy, codexStatus);
   if ($('table-bar').innerHTML !== chairMarkup) $('table-bar').innerHTML = chairMarkup;
+  const actionsMarkup=chairActions(state,chat,globalBusy);
+  if($('chair-actions').innerHTML!==actionsMarkup)$('chair-actions').innerHTML=actionsMarkup;
+  chairScroll.refresh();
   $('arrange-chairs').hidden = !chat;
   $('arrange-chairs').disabled = globalBusy;
   $('arrange-chairs').textContent = table ? 'Arrange chairs' : 'Set up this table';
@@ -606,7 +640,7 @@ function render({ scroll = false, refreshDetails = false } = {}) {
   $('details-toggle').setAttribute('aria-expanded', String(detailsOpen));
   const atBottom = $('conversation').scrollHeight - $('conversation').scrollTop - $('conversation').clientHeight < 100;
   const markup = conversation(state, root, chat);
-  if ($('conversation').innerHTML !== markup) $('conversation').innerHTML = markup;
+  if (conversationMarkup !== markup) { conversationHistory.innerHTML = markup; conversationMarkup = markup; }
   if (scroll || atBottom) requestAnimationFrame(() => { $('conversation').scrollTop = $('conversation').scrollHeight; });
   $('composer-form').hidden = !chat;
   const busy = chat && (isPending(state, chat.id) || submitting.has(chat.id));
@@ -637,16 +671,11 @@ function render({ scroll = false, refreshDetails = false } = {}) {
   if ($('message-input').value !== draft) $('message-input').value = draft;
   $('message-input').disabled = !!busy;
   filePicker.render(root ? { ...root, modelId: selectedModel?.id ?? null } : root, chat, globalBusy);
-  imagePicker.render(chat, replyingModels, globalBusy);
   attachmentPicker.render(chat, globalBusy);
   placeActivity();
   hydrateImages();
   const chairUnavailable = refreshComposerButtons(root, chat);
   $('cancel-button').hidden = !chat || (!isPending(state, chat.id) && !submitting.has(chat.id) && !state.parallel?.runs.some(r=>r.chatId === chat.id && liveParallel(r)) && !state.contextCarry?.jobs.some(j=>j.chatId === chat.id && j.status === 'pending') && !state.contextCarry?.ready?.[chat.id] && !['queued','preparing'].includes(contextStatus?.preparationState?.phase));
-  const cloudInTurn = ['codex','openai'].includes(selectedModel?.runtime) || (replySettings(state, chat).mode === 'both' && table?.visitorModel?.runtime === 'codex');
-  const patternHint = nextSpeaker(chat) === 'personal' ? 'Desk Model · Enter to send · Shift+Enter for a new line' : `${table?.roster.visitors.find(c=>c.id===table.roster.selectedVisitorId)?.name ?? 'Visiting'} · ${replySettings(state, chat).mode === 'alternate' ? 'next visitor after a complete reply' : 'selected visitor stays'}`;
-  $('composer-hint').textContent = globalBusy ? 'Tasks continue in Activity · Send to another chair, or queue more work with @chair.' : chairUnavailable ? 'Choose a model for this chair, or save a note.' : selectedModel ? (cloudInTurn ? 'OpenAI receives selected context · ' + patternHint.replace('Local model · ', '') : patternHint) : 'Saved notes join this chat’s context when you choose a model.';
-  if (!globalBusy && connection && !connection.ready) $('composer-hint').innerHTML = `${e(connection.label)}. Your draft stays here. <button type="button" class="text-button" data-action="codex-open">${e(connection.action)}</button>`;
   refreshContextStatus(root, chat, globalBusy);
   $('details-panel').hidden = !detailsOpen;
   if (detailsOpen && (detailsRootId !== root?.id || detailsChatId !== chat?.id || refreshDetails || !detailsDirty)) {
@@ -882,13 +911,13 @@ async function sendTurn(kind = 'send', requestedSpeaker = null) {
       await command('message.note',{chatId:chat.id,content});pendingDrafts.delete(chat.id);toast('Note saved');
     }else{
       const toolsEnabled=$('tools-enabled').checked;
-      const key=JSON.stringify({chatId:chat.id,content,kind,speaker,toolsEnabled,file:attached?.base64??null,images:imagePicker.selected(chat.id)});
+      const key=JSON.stringify({chatId:chat.id,content,kind,speaker,replyMode:replySettings(state,chat).mode,rosterRevision:chat.seating?.revisionId,toolsEnabled,file:attached?.base64??null,images:imagePicker.selected(chat.id)});
       let request=replyRequests.get(chat.id);
       if(request?.key!==key){
         const options=turnOptions(state,chat,speaker,kind);
         const pictures=imagePicker.selected(chat.id);
-        if(parsed.sections.length>1&&pictures.length)throw new Error('Send pictures to one chair at a time. Your draft and pictures are kept.');
-        const imagePlan=await imagePicker.prepare(chat.id,tableInfo(state,chat)?speaker:null,replySettings(state,chat).mode);
+        const roster=chairRoster(state,chat),chairIds=parsed.sections.length?parsed.sections.map(s=>s.chairId):[speaker==='personal'?roster.desk.id:roster.selectedVisitorId];
+        const imagePlan=await imagePicker.prepare(chat.id,chairIds,roster.revisionId);
         if(imagePlan)options.imagePlanId=imagePlan.id;
         request={key,options};replyRequests.set(chat.id,request);
       }
@@ -896,7 +925,7 @@ async function sendTurn(kind = 'send', requestedSpeaker = null) {
       pendingDrafts.delete(chat.id);filePicker.clear(chat.id,attached);replyRequests.delete(chat.id);
       if(selected(state).chat?.id===chat.id)$('message-input').value='';
       pollEpoch++;state=await api.state();
-      toast(result.taskIds.length===1?'Task started · follow it in Activity':`${result.taskIds.length} chair tasks admitted · follow them in Activity`);
+      toast(result.failedTaskIds?.length?`${result.taskIds.length-result.failedTaskIds.length} tasks started · ${result.failedTaskIds.length} need attention in Activity`:result.taskIds.length===1?'Task started · follow it in Activity':`${result.taskIds.length} chair tasks admitted · follow them in Activity`);
       await deskUI.refresh();
     }
   }catch(err){error(err.message);try{pollEpoch++;state=await api.state();}catch{}}
@@ -1045,6 +1074,10 @@ document.addEventListener('click', safe(async event => {
     if (id === 'visiting') return openSettings('models');
     return openDialog('My Branches', `<div class="library-list">${state.chats.filter(c => !c.archivedAt && state.roots.some(r => r.id === c.rootId && !r.archivedAt)).map(c => `<div><button class="quiet-button" data-action="select-chat" data-id="${e(c.id)}"><strong>${e(c.title)}</strong><small>${e(state.roots.find(r => r.id === c.rootId).name)}</small></button><button type="button" class="text-button" data-action="archive-current-chat" data-id="${e(c.id)}">Add to archive</button></div>`).join('') || '<p>No branches yet.</p>'}</div><div class="dialog-footer"><button class="primary-button" data-action="new-branch">New branch</button></div>`);
   }
+  if (action === 'highlight-chair') {
+    await beforeNavigation(); const chat=await ensureRoster(selected(state).chat);
+    await command('table.roster.select',{chatId:chat.id,baseRevisionId:chat.seating.revisionId,chairId:id}); return;
+  }
   if (action.startsWith('visitor-')) {
     if (target.disabled || replySettingsSaving) return;
     let focusId = null;
@@ -1073,6 +1106,7 @@ document.addEventListener('click', safe(async event => {
   if(action==='work-windows'){const list=await api.workWindows();const select=target.closest('form').elements.window;const keep=select.value;select.innerHTML='<option value="">None</option>'+(list.windows??list).map(w=>`<option value="${e(JSON.stringify(w))}">${e(w.title||w.executable)} · ${w.processId}</option>`).join('');if([...select.options].some(o=>o.value===keep))select.value=keep;return;}
   if(action==='work-outputs'){await beforeNavigation();state=await api.state();const chat=selected(state).chat;if(!chat)return;openDialog('Outputs and pictures',outputsPanel(state,chat.id),'settings-dialog');await hydrateOutputs(document.getElementById('dialog'));return;}
   if(action==='work-stop'){await api.workStop(selected(state).chat.id);toast('Stop requested; confirmed outputs remain here.');return;}
+  if (action === 'folder-access') { await beforeNavigation(); return openSettings('agents'); }
   if (action === 'home-sources') {await beforeNavigation();return openDialog('Home sources',homePanel(state,await api.homeStatus()),'settings-dialog');}
   if (action === 'home-add-root') {const form=target.closest('form'),list=form.querySelector('#home-source-list');list.insertAdjacentHTML('beforeend',homeSourceRow({id:'source_'+crypto.randomUUID().slice(0,8)},list.children.length));return;}
   if (action === 'home-remove-root') {target.closest('[data-home-root]').remove();return;}
@@ -1080,11 +1114,10 @@ document.addEventListener('click', safe(async event => {
   if (action === 'openai-add') { const status=await api.openaiStatus(); if(!status.configured||!status.models.some(m=>m.id===id))throw new Error('Choose an available configured API connection.'); if(!state.models.some(m=>m.runtime==='openai'&&m.model===id))await command('model.save',{name:target.dataset.name+' · API',model:id,runtime:'openai',baseUrl:'https://api.openai.com/v1',inputFormat:'chat',thinking:false});toast('API model saved. Choose its chair when you want to use it.');return openSettings('models'); }
   if (action === 'ask-now') return sendTurn('ask');
   if (action === 'save-note') return sendTurn('send', 'note');
-  if (action === 'select-chair' || action === 'reply-pattern') {
+  if (action === 'reply-pattern') {
     if (target.disabled) return;
     const chat = selected(state).chat, settings = replySettings(state, chat);
-    if (action === 'select-chair') await setReplySettings(settings.mode, id);
-    else await setReplySettings(id, settings.speaker);
+    await setReplySettings(id, settings.speaker);
     return;
   }
   if (action === 'close-dialog') { if (!coatWarningOpen && (continuityBusy || carryBusy)) return; return closeDialog(); }

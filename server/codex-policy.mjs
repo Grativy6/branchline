@@ -8,11 +8,12 @@ export const CODEX_CATALOG = fileURLToPath(new URL('./codex-model-catalog.json',
 export const CODEX_CATALOG_SHA256 = '99ade5e14b9c91f80b5b20b658634af36b1f17264d8dc3fc90c3c618d2f04302';
 export const CODEX_VERSION = '0.158.0-alpha.2';
 export const CODEX_SHA256 = 'ff09da8dc3fb2a4cd26eef2aa4cf9b0034140193a4e32d0d48e9aea185ff1224';
+export const CODEX_HOST_SHA256 = '4f532f33c0c38bc066ef2e748af1fd97d38714b7a6dd86f223a852eda1eb0f4c';
 export const CODEX_ADDRESS = 'codex://chatgpt';
 export const isCodex = model => model?.runtime === 'codex';
 
 const disabled = [
-  'shell_tool', 'unified_exec', 'shell_snapshot', 'code_mode', 'code_mode_host',
+  'shell_tool', 'unified_exec', 'shell_snapshot', 'code_mode',
   'apps', 'plugins', 'remote_plugin', 'tool_suggest', 'skill_search', 'skill_mcp_dependency_install',
   'hooks', 'memories', 'chronicle', 'context_management', 'external_agent_memory_import',
   'multi_agent', 'multi_agent_v2', 'agent_message_board', 'goals', 'token_budget',
@@ -33,7 +34,7 @@ export const CODEX_CONFIG = Object.freeze({
   skills: { bundled: { enabled: false }, include_instructions: false, config: [] },
   agents: { enabled: false }, apps: { _default: { enabled: false } },
   tools: { update_plan: { enabled: false }, experimental_request_user_input: { enabled: false } },
-  features: { ...Object.fromEntries(disabled.map(key => [key, false])), skip_host_skill_discovery: true },
+  features: { ...Object.fromEntries(disabled.map(key => [key, false])), code_mode_host: true, skip_host_skill_discovery: true },
   analytics: { enabled: false }, feedback: { enabled: false },
 });
 
@@ -108,7 +109,7 @@ export function codexInput(messages, imageData) {
 }
 
 export function codexCapability(withTools = false) {
-  return { profile: withTools ? 'branchline.codex-tools/2' : CODEX_PROFILE, version: CODEX_VERSION, executableSha256: CODEX_SHA256, modelCatalog: 'signed_in_provider', imageCapabilityBaselineSha256: CODEX_CATALOG_SHA256,
+  return { profile: withTools ? 'branchline.codex-tools/3' : CODEX_PROFILE, version: CODEX_VERSION, executableSha256: CODEX_SHA256, codeModeHostSha256: CODEX_HOST_SHA256, modelCatalog: 'signed_in_provider', imageCapabilityBaselineSha256: CODEX_CATALOG_SHA256,
     authentication: 'ChatGPT_subscription_only', destination: 'OpenAI',
     environments: [], modelToolDispatch: withTools ? 'BRANCHLINE_CONVERSATION_TOOLS_ONLY' : 'DISABLED', delegation: false,
     isolation: 'pinned_runtime_capability_profile_not_an_OS_container' };

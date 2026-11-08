@@ -6,7 +6,7 @@ import {pathToFileURL} from 'node:url';
 import {hashFile} from './public-release.mjs';
 
 export function downloadPlan(receipt, {fixtureBaseUrl} = {}) {
-  assert(/^\d+\.\d+\.\d+-preview\.\d+$/.test(receipt.version), 'Invalid release version');
+  assert(/^\d+\.\d+\.\d+(?:-preview\.\d+)?$/.test(receipt.version), 'Invalid release version');
   const version = receipt.version;
   const base = `Branchline-v${version}-Setup`;
   assert(Array.isArray(receipt.parts) && receipt.parts.length > 0 && receipt.parts.length <= 20, 'Invalid installer parts');

@@ -1,0 +1,25 @@
+{
+  "version": "0.158.0-alpha.2",
+  "platform": "win32-x64",
+  "sourceCommit": "10382da79a2a2d6e8ae221fa63077215389c1ad2",
+  "source": "https://github.com/openai/codex/tree/10382da79a2a2d6e8ae221fa63077215389c1ad2",
+  "release": "https://github.com/openai/codex/releases/tag/rust-v0.158.0-alpha.2",
+  "url": "https://github.com/openai/codex/releases/download/rust-v0.158.0-alpha.2/codex-x86_64-pc-windows-msvc.exe",
+  "sha256": "ff09da8dc3fb2a4cd26eef2aa4cf9b0034140193a4e32d0d48e9aea185ff1224",
+  "bytes": 321969456,
+  "packagedName": "codex.exe",
+  "upstreamLicence": "Apache-2.0",
+  "notes": "Official CLI and matching code-mode host, verified against GitHub release asset digests. The host dispatches selected Branchline tools; shell runners, voice runtimes and sandbox installers are not shipped. Capability configuration and image defaults are recorded separately. Not a reproducible-build claim.",
+  "companions": [
+    {
+      "packagedName": "codex-code-mode-host.exe",
+      "version": "0.158.0-alpha.2",
+      "sourceCommit": "10382da79a2a2d6e8ae221fa63077215389c1ad2",
+      "url": "https://github.com/openai/codex/releases/download/rust-v0.158.0-alpha.2/codex-code-mode-host-x86_64-pc-windows-msvc.exe",
+      "sha256": "4f532f33c0c38bc066ef2e748af1fd97d38714b7a6dd86f223a852eda1eb0f4c",
+      "bytes": 74630960,
+      "verification": "Matches the official GitHub release asset digest",
+      "upstreamLicence": "Apache-2.0"
+    }
+  ]
+}

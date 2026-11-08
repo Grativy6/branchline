@@ -38,8 +38,10 @@ export function applyRosterCommand(state, type, p) {
     else if (old) r.visitors[r.visitors.indexOf(old)] = chair;
     else { r.visitors.push(chair); r.selectedVisitorId ??= chair.id; }
   } else if (type === 'table.roster.select') {
-    fail(exact(p, [...base, 'chairId']) && r.visitors.some(c => c.id === p.chairId), 'Choose a visiting chair.');
-    r.selectedVisitorId = p.chairId;
+    fail(exact(p, [...base, 'chairId']) && [r.desk,...r.visitors].some(c => c.id === p.chairId), 'Choose a chair at this desk.');
+    r.speaker = p.chairId === r.desk.id ? 'personal' : 'visiting';
+    if (r.speaker === 'visiting') r.selectedVisitorId = p.chairId;
+    r.mode = 'single';
   } else if (type === 'table.roster.move') {
     fail(exact(p, [...base, 'chairId', 'direction']) && [-1, 1].includes(p.direction), 'Choose a visitor and move direction.');
     const i = r.visitors.findIndex(c => c.id === p.chairId), j = i + p.direction;
@@ -67,8 +69,8 @@ export function applyRosterCommand(state, type, p) {
 export function validateRoster(state, chat) {
   const r = chat.seating;
   if (!r) return;
-  fail(exact(r, ['profile','revisionId','desk','visitors','selectedVisitorId','mode','speaker','removed','completedVisitorReplies','lastCompletedVisitorTurnId']) && r.profile === ROSTER_PROFILE && ref(r.revisionId), 'Invalid chair arrangement.');
-  fail(Array.isArray(r.visitors) && r.visitors.length <= 32 && ['single','alternate'].includes(r.mode) && ['personal','visiting'].includes(r.speaker), 'Invalid visitor settings.');
+  fail(exact(r, ['profile','revisionId','desk','visitors','selectedVisitorId','mode','speaker','removed','completedVisitorReplies','lastCompletedVisitorTurnId','lastAlternateTurnId']) && r.profile === ROSTER_PROFILE && ref(r.revisionId), 'Invalid chair arrangement.');
+  fail(Array.isArray(r.visitors) && r.visitors.length <= 32 && ['single','alternate','all'].includes(r.mode) && ['personal','visiting'].includes(r.speaker), 'Invalid visitor settings.');
   const ids = new Set();
   for (const c of [r.desk, ...r.visitors]) {
     fail(exact(c, ['id','name','modelId','personalId','coat']) && ref(c.id) && !ids.has(c.id) && name(c.name), 'Invalid chair.'); ids.add(c.id);
@@ -79,17 +81,23 @@ export function validateRoster(state, chat) {
   fail(r.visitors.length ? r.visitors.some(c => c.id === r.selectedVisitorId) : r.selectedVisitorId === null, 'Selected visitor missing.');
   fail(Number.isSafeInteger(r.completedVisitorReplies) && r.completedVisitorReplies >= 0 && (r.lastCompletedVisitorTurnId === null || state.exchanges.some(t => t.id === r.lastCompletedVisitorTurnId && t.chatId === chat.id && t.speaker?.profile === CHAIR_PROFILE && t.speaker.seat === 'visiting' && t.status === 'completed' && !t.truncated)), 'Visitor completion marker invalid.');
   if (r.removed) fail(exact(r.removed, ['chair','index','selectedVisitorId']) && ref(r.removed.chair?.id) && Number.isInteger(r.removed.index), 'Invalid removed chair.');
+  if (r.lastAlternateTurnId) fail(state.exchanges.some(t=>t.id===r.lastAlternateTurnId&&t.chatId===chat.id&&t.status==='completed'&&t.speaker?.profile===CHAIR_PROFILE),'Invalid alternating reply marker.');
 }
 // Host completion only, applied in the same durable transaction as the reply.
 // Retrying a request returns its saved result; reopening cannot advance it again.
 export function completeVisitorTurn(state, exchangeId) {
   const turn = state.exchanges.find(t => t.id === exchangeId), r = state.chats.find(c => c.id === turn?.chatId)?.seating;
-  if (!r || turn.speaker?.profile !== CHAIR_PROFILE || turn.speaker.seat !== 'visiting' || turn.status !== 'completed' || turn.truncated || r.lastCompletedVisitorTurnId === turn.id) return;
-  r.completedVisitorReplies++;
-  r.lastCompletedVisitorTurnId = turn.id;
-  if (turn.request?.replyMode === 'alternate' && turn.speaker.assignmentId === r.revisionId) {
-    const i = r.visitors.findIndex(c => c.id === turn.speaker.chairId);
-    if (i >= 0 && r.visitors.length) r.selectedVisitorId = r.visitors[(i + 1) % r.visitors.length].id;
+  if (!r || turn.speaker?.profile !== CHAIR_PROFILE || turn.status !== 'completed' || turn.truncated) return;
+  if (turn.speaker.seat === 'visiting' && r.lastCompletedVisitorTurnId !== turn.id) {
+    r.completedVisitorReplies++;
+    r.lastCompletedVisitorTurnId = turn.id;
+  }
+  const highlighted = r.speaker === 'personal' ? r.desk.id : r.selectedVisitorId;
+  if (r.mode==='alternate' && turn.request?.replyMode === 'alternate' && turn.speaker.assignmentId === r.revisionId
+      && highlighted===turn.speaker.chairId && r.lastAlternateTurnId!==turn.id) {
+    const chairs=[r.desk,...r.visitors].filter(c=>c.modelId),i=chairs.findIndex(c=>c.id===turn.speaker.chairId),next=chairs[(i+1)%chairs.length];
+    if (i>=0&&next) { r.speaker=next.id===r.desk.id?'personal':'visiting'; if(r.speaker==='visiting')r.selectedVisitorId=next.id; }
+    r.lastAlternateTurnId=turn.id;
   }
   if (!turn.request?.deskTaskId) r.revisionId = 'seating_' + turn.id;
 }

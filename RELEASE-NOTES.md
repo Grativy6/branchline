@@ -1,15 +1,20 @@
-# Branchline 0.9.1-preview.3
+# Branchline v0.10
 
-7 November 2026 · Windows x64 preview
+8 November 2026 · Version 0.10.0 · Windows x64 · Pre-1.0 release
 
-Settings -> Models now shows ChatGPT sign-in status, account/plan information and the returned model list directly. The extra “ChatGPT connection & models” button and per-model “Save visiting model” step are removed from that flow.
+This release brings the current shared-desk working build into the public package, including stock Qwen3.5-4B for local use.
 
-Models returned by the signed-in connection are registered automatically. The choice of model happens at the Desk Model or visitor chair. Existing model IDs, custom names, assignments, Coats, archives and source-sharing choices are preserved. A failed catalog refresh does not turn a known connected account into a signed-out message.
+- ChatGPT chairs can work concurrently through one connection, with separate tools, streams, Stop controls and persistent drawers. The required code-mode host is included and hash-checked.
+- Select calls the highlighted chair, Alternate takes turns, and All sends a prompt to every occupied chair. @chair groups can add individual directions without requiring them for every participant.
+- The compact header shows visitors side by side. Scroll arrows appear only toward hidden chairs; the arrangement menu changes chair order separately.
+- Attached pictures follow the addressed chairs. Each admitted request retains the same selected image, including queued recipients. A chair without image support receives a named result while capable peers continue. One shared picture stays with the human message.
+- Home reuses equivalent folder access while retaining additional Home-only readers. Default Coats offer already-granted file tools; explicit custom choices remain respected.
+- Drive-root file access, virtualized recovery paths, resolved error notices and selected-text copying are repaired. Original file bytes and conversation records remain recoverable.
 
-Discovery no longer forces Branchline's pinned model catalog onto the connection. The provider list is paged, refreshed, and invalidated when the account changes; late results from a previous account are held. The pinned runtime and its existing tool/permission restrictions remain in place. The retained image capability baseline serves a separate purpose.
+The ChatGPT account status and returned models remain visible in Settings. Model availability and usage limits depend on the signed-in connection. The included local runner has one active request slot; Activity shows why queued work is waiting.
 
-This patch keeps the shared desks, drawers, Activity list, @chair routing, Home, memory, Plans and context controls from preview.2. It includes stock Qwen in the full installer.
+Dreams and built-in local training remain under development. v0.10 does not represent their completion or a 1.0 release. Public Book of PEACHES stamps and other held features remain identified in PREVIEW-LIMITS.md.
 
-Before updating, close Branchline and preserve a verified app/workspace backup. Chair work, including an ordinary model reply, writes workspace format 3. An older app needs the preserved older workspace. See [UPGRADE-NOTES.md](UPGRADE-NOTES.md).
+Back up the actual workspace before upgrading, and keep that copy for an older app. Read UPGRADE-NOTES.md. Earlier releases remain available.
 
-The [previous preview](https://github.com/Grativy6/branchline/releases/tag/v0.9.1-preview.2) remains available. See [VERIFICATION.md](VERIFICATION.md) and the release qualification record for actual checks and their limits.
+The feature build passed 33 backend tests, five browser flows, a real concurrent Astra/Sol/Luna image test and native history/image close-reopen checks. This release's INSTALLER-VERIFICATION.json records the final rebuilt-package, local-model and installation/repair/uninstall checks.

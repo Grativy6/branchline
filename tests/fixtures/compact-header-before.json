@@ -1,0 +1,31 @@
+{
+  "status": "PASS",
+  "baseline": true,
+  "sizes": [
+    {
+      "width": 1365,
+      "header": 109.84375,
+      "conversation": 356.265625,
+      "overflow": false
+    },
+    {
+      "width": 1010,
+      "header": 155.34375,
+      "conversation": 268.765625,
+      "overflow": false
+    },
+    {
+      "width": 800,
+      "header": 249.953125,
+      "conversation": 134.15625,
+      "overflow": false
+    },
+    {
+      "width": 390,
+      "header": 238.921875,
+      "conversation": 50.1875,
+      "overflow": false
+    }
+  ],
+  "pageErrors": []
+}

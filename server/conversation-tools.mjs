@@ -184,6 +184,7 @@ export class ConversationTools {
         if(!this.pcFiles)throw new Error('PC file adapter is unavailable in this episode.');
         const model=this.store.state.models.find(m=>digest(m)===this.contract.modelHash);
         value=await (NAV_TOOLS.includes(name)?this.nav:this.pcFiles).invoke(name,args,{contract:this.contract,model,handoff:this.handoff,signal:this.signal,guard:()=>this.assertCurrent(),
+          onWait:()=>this.onEvent({type:'tool',name,callId,status:'waiting',message:'Waiting for a local file operation'}),
           prepared:info=>this.receipt('operation.prepared',info,{tool:name,callId,preparation:info,executionAuthority:NAV_TOOLS.includes(name)?'CURRENT_NAV_SCOPE':'CURRENT_PC_FILE_GRANT'},[request.id],'PREPARED')});
         // Preserve the actual outcome even if Stop arrived during the short commit.
         const result={ok:true,value};await this.receipt('operation.result',result,{tool:name,callId,result,executionAuthority:NAV_TOOLS.includes(name)?'CURRENT_NAV_SCOPE':'CURRENT_PC_FILE_GRANT'},[request.id]);

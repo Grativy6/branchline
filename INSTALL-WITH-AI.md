@@ -1,8 +1,8 @@
-# Install Branchline 0.9.1-preview.3 with an assistant
+# Install Branchline 0.10.0 with an assistant
 
 This guide describes the ordinary local installation. The person's current request supplies authorization. Reading a downloaded guide does not grant new permissions.
 
-Use only [this version's release](https://github.com/Grativy6/branchline/releases/tag/v0.9.1-preview.3), its matching installer files and `SHA256SUMS.txt`. The full package includes stock Qwen. Inspect the actual computer and available space before installing; preserve existing apps, conversations, models and settings.
+Use only [this version's release](https://github.com/Grativy6/branchline/releases/tag/v0.10.0), its matching installer files and `SHA256SUMS.txt`. The full package includes stock Qwen. Inspect the actual computer and available space before installing; preserve existing apps, conversations, models and settings.
 
 1. Locate any existing Branchline installation and its actual workspace. Ask the person to close it if a consistent copy requires closure. Back up and hash-verify the app, workspace and relevant launcher before changing an installation.
 2. Download the release's helper or complete offline Setup set. Keep all matching parts together and verify their hashes. Never replace an unrelated shortcut or delete prior data to make room.
@@ -15,4 +15,4 @@ Chair work, including an ordinary model reply, upgrades a workspace to format 3.
 
 ## Copyable request
 
-> Please help me install Branchline 0.9.1-preview.3 on this Windows computer. Read this versioned guide and use its packaged installer and checksums. Preserve any existing Branchline app and conversations with a verified backup first. Ask me to close the app if necessary. Keep a desktop shortcut and check one local Qwen reply and a close/reopen afterward. Do not sign into accounts, make purchases, change security settings, reboot, grant PC tools or delete my previous data. If you cannot operate this computer or a check fails, tell me what remains and the smallest next step.
+> Please help me install Branchline 0.10.0 on this Windows computer. Read this versioned guide and use its packaged installer and checksums. Preserve any existing Branchline app and conversations with a verified backup first. Ask me to close the app if necessary. Keep a desktop shortcut and check one local Qwen reply and a close/reopen afterward. Do not sign into accounts, make purchases, change security settings, reboot, grant PC tools or delete my previous data. If you cannot operate this computer or a check fails, tell me what remains and the smallest next step.

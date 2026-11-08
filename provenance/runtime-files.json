@@ -1,6 +1,6 @@
 {
   "profile": "branchline.verified-runtime-inputs/1",
-  "nativeHostVersion": "0.9.1-preview.3",
+  "nativeHostVersion": "0.10.0",
   "nativeHostSourceAvailable": true,
   "note": "Native host rebuilt from the recovered pinned desktop sources with the release version updated. Other runtime inputs remain hash-pinned.",
   "nodeVersion": "v24.19.0",
@@ -18718,14 +18718,14 @@
       "sha256": "ad895cee7d4707d45e448e7060d3d535ebccbec38c4f218e3bfa1b97e5566fc2"
     },
     {
+      "path": "codex-runtime/codex-code-mode-host.exe",
+      "bytes": 74630960,
+      "sha256": "4f532f33c0c38bc066ef2e748af1fd97d38714b7a6dd86f223a852eda1eb0f4c"
+    },
+    {
       "path": "codex-runtime/codex.exe",
       "bytes": 321969456,
       "sha256": "ff09da8dc3fb2a4cd26eef2aa4cf9b0034140193a4e32d0d48e9aea185ff1224"
-    },
-    {
-      "path": "codex-runtime/origin.json",
-      "bytes": 965,
-      "sha256": "dcbc4b6348cf47d797fa4a921aa6298c3688d3246f63d4834c9a1891e60b04fd"
     },
     {
       "path": "coreclr.dll",

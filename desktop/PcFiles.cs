@@ -36,8 +36,9 @@ internal static class PcFiles
     }
     private static string Identity(Info i) => $"{i.volume:x8}:{i.indexHigh:x8}{i.indexLow:x8}";
     private static bool Under(string value, string parent) => value.Equals(parent, StringComparison.OrdinalIgnoreCase) || value.StartsWith(parent.TrimEnd('\\') + "\\", StringComparison.OrdinalIgnoreCase);
-    private static string Absolute(string value, bool allowDriveRoot = false) {
-        if (allowDriveRoot && value.Length == 3 && char.IsAsciiLetter(value[0]) && value[1] == ':' && value[2] == '\\') return char.ToUpperInvariant(value[0]) + value[1..];
+    private static string Absolute(string value) {
+        if (value.Length == 2 && char.IsAsciiLetter(value[0]) && value[1] == ':') throw new IOException($"Use {char.ToUpperInvariant(value[0])}:\\ for the whole drive, or a full folder path. A drive letter alone is a relative path.");
+        if (value.Length == 3 && char.IsAsciiLetter(value[0]) && value[1] == ':' && value[2] == '\\') return char.ToUpperInvariant(value[0]) + value[1..];
         if (value.Length > 220 || value.Length < 4 || !char.IsAsciiLetter(value[0]) || value[1] != ':' || value[2] != '\\' || value.Contains('/') || value[3..].Contains(':')) throw new IOException("Choose a normal local path, without device names, streams or network shares.");
         var parts = value[3..].Split('\\');
         foreach (var part in parts) CheckPart(part);
@@ -54,8 +55,8 @@ internal static class PcFiles
         foreach (var p in relative.Split('\\')) CheckPart(p);
         return Absolute(root.TrimEnd('\\') + "\\" + relative);
     }
-    private static Lease Open(string path, bool directory, bool write = false, bool executable = false, bool allowDriveRoot = false) {
-        path = Absolute(path, allowDriveRoot); var lease = new Lease();
+    private static Lease Open(string path, bool directory, bool write = false, bool executable = false) {
+        path = Absolute(path); var lease = new Lease();
         try {
             // Keep every ancestor open without FILE_SHARE_DELETE. A checked junction or
             // ancestor cannot be substituted before the final handle is used.
@@ -113,16 +114,16 @@ internal static class PcFiles
         string mode = Text(p, "mode");
         if (mode is "inspect" or "inspect-nav") {
             bool navRoot = mode == "inspect-nav";
-            string location = Absolute(Text(p, "path"), navRoot); bool directory = p.GetProperty("directory").GetBoolean();
+            string location = Absolute(Text(p, "path")); bool directory = p.GetProperty("directory").GetBoolean();
             if (navRoot && !directory) throw new IOException("Nav root inspection requires a directory.");
-            using var target = Open(location, directory, allowDriveRoot: navRoot);
+            using var target = Open(location, directory);
             return new { path = location, identity = Identity(target.Info), directory };
         }
         if (mode is not ("list" or "read" or "search" or "create" or "replace" or "nav-directory" or "nav-archive")) throw new IOException("Unsupported file operation.");
         bool navScope = p.TryGetProperty("navScope", out var navValue) && navValue.GetBoolean();
-        string root = Absolute(Text(p, "root"), navScope); var held = new List<Lease>();
+        string root = Absolute(Text(p, "root")); var held = new List<Lease>();
         try {
-            var rootLease = Open(root, true, allowDriveRoot: navScope); held.Add(rootLease);
+            var rootLease = Open(root, true); held.Add(rootLease);
             if (Identity(rootLease.Info) != Text(p, "rootIdentity")) throw new IOException("The selected folder changed identity. Review its permission.");
             var denied = p.GetProperty("denied").EnumerateArray().Select(x => Text(x, "path")).ToArray();
             foreach (var exclusion in p.GetProperty("denied").EnumerateArray()) {
@@ -135,12 +136,12 @@ internal static class PcFiles
             if (Denied(targetPath)) throw new IOException("That location is excluded.");
             if (mode == "nav-directory") {
                 if (!navScope) throw new IOException("A Nav scope is required.");
-                using var target = Open(targetPath, true, allowDriveRoot: true);
+                using var target = Open(targetPath, true);
                 return new { path = targetPath, identity = Identity(target.Info), directory = true };
             }
             if (mode == "nav-archive") {
                 if (!navScope || Path.GetFileName(targetPath) != "receipt-archives") throw new IOException("Only a Nav receipt archive can be created.");
-                using var parent = Open(Path.GetDirectoryName(targetPath)!, true, allowDriveRoot: true);
+                using var parent = Open(Path.GetDirectoryName(targetPath)!, true);
                 if (System.IO.Directory.Exists(targetPath)) {
                     using var found = Open(targetPath, true);
                     return new { path = targetPath, identity = Identity(found.Info), directory = true, created = false };
@@ -165,7 +166,7 @@ internal static class PcFiles
                 return new { items = entries.Skip(offset).Take(48), nextOffset = offset + 48 < entries.Count ? (int?)(offset + 48) : null, total = entries.Count };
             }
             if (mode == "create") {
-                using var parent = Open(Path.GetDirectoryName(targetPath)!, true, allowDriveRoot: navScope);
+                using var parent = Open(Path.GetDirectoryName(targetPath)!, true);
                 byte[] bytes = Utf8.GetBytes(Text(p, "text")); if (bytes.Length > MaxBytes) throw new IOException("Text exceeds the file limit.");
                 Console.WriteLine(JsonSerializer.Serialize(new { prepared = true, after = Hash(bytes) })); Console.Out.Flush();
                 if (input.ReadLine() != "COMMIT") throw new IOException("The change was cancelled before creation.");

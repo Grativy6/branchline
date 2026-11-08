@@ -19,7 +19,7 @@ export function pcSnapshot(state, model, workspaceId, available, workspacePath =
   const s=pcSettings(state);
   if (!available || !s?.read || s.workspaceId!==workspaceId || s.workspacePath!==workspacePath) return null;
   const roots=s.roots.filter(r=>!r.frontDoor&&r.destinations.some(d=>same(d,pcDestination(model))));
-  return { profile:PC_PROFILE,revision:s.id,workspaceId,write:s.write,roots:roots.map(r=>({id:r.id,label:r.label,write:s.write&&r.write})) };
+  return { profile:PC_PROFILE,revision:s.id,workspaceId,write:s.write,roots:roots.map(r=>({id:r.id,label:r.label,path:r.path,write:s.write&&r.write})) };
 }
 export function assertPcCurrent(state,model,workspaceId,contract,rootId,write=false,workspacePath=null) {
   const s=pcSettings(state), current=pcSnapshot(state,model,workspaceId,true,workspacePath);

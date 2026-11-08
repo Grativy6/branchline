@@ -62,7 +62,7 @@ export function replyControls(state, chat, busy = false, connectionBlocked = fal
   if (!table) return '';
   const settings = replySettings(state, chat), visitors = table.roster.visitors.length > 0;
   const canAsk = state.messages.some(m => m.chatId === chat.id) && (settings.next === 'personal' ? table.personalModel : table.visitorModel);
-  return `<div class="reply-controls"><span class="reply-controls-label">Reply from</span><div class="reply-chair-buttons" role="group" aria-label="Next reply">${['personal','visiting'].map(seat => `<button type="button" data-action="select-chair" data-id="${seat}" aria-pressed="${settings.next === seat}" ${busy || !(seat === 'personal' ? table.personalModel : table.visitorModel) ? 'disabled' : ''}>${seat === 'personal' ? 'Desk Model' : 'Visiting'}</button>`).join('')}</div><div class="reply-pattern-buttons" role="group" aria-label="Visitor rotation"><button type="button" data-action="reply-pattern" data-id="single" aria-pressed="${settings.mode === 'single'}" title="Keep the highlighted visitor selected" ${busy || !visitors ? 'disabled' : ''}>Select</button><button type="button" data-action="reply-pattern" data-id="alternate" aria-pressed="${settings.mode === 'alternate'}" title="Move to the next visitor after a complete visiting reply" ${busy || !visitors ? 'disabled' : ''}>Alternate</button></div><button class="quiet-button ask-now" type="button" data-action="ask-now" ${busy || !canAsk || connectionBlocked ? 'disabled' : ''}>Ask now</button></div>`;
+  return `<div class="reply-controls"><div class="reply-pattern-buttons" role="group" aria-label="Reply mode">${[['single','Select','Reply from the highlighted chair'],['alternate','Alternate','Take turns through occupied chairs'],['all','All','Send the complete prompt to every occupied chair']].map(([mode,label,hint])=>`<button type="button" data-action="reply-pattern" data-id="${mode}" aria-pressed="${settings.mode===mode}" title="${hint}" ${busy?'disabled':''}>${label}</button>`).join('')}</div><button class="quiet-button ask-now" type="button" data-action="ask-now" ${busy || !canAsk || connectionBlocked ? 'disabled' : ''}>Ask now</button></div>`;
 }
 
 export function tableErrors(state, chat) {
@@ -75,6 +75,7 @@ export function tableErrors(state, chat) {
 }
 
 export function replyPatternLabel(state, exchange) {
+  if(exchange?.request?.replyMode==='all')return 'All chairs';
   if (exchange?.request?.followUpOf) return 'Both · follow-up (2 of 2)';
   if (exchange?.request?.followUp) {
     const second = state.exchanges.find(turn => turn.request?.id === exchange.request.followUp.requestId);

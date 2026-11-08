@@ -4,6 +4,7 @@ import crypto from 'node:crypto';
 import { digest } from './integrity.mjs';
 import { CODEX_CATALOG, CODEX_CATALOG_SHA256 } from './codex-policy.mjs';
 import { resolveSpeaker } from './table.mjs';
+import { chairRoster } from '../public/chair-roster.js';
 import { activeImageIds, selectedImages, imageReference, imageSelectionRevision } from './images.mjs';
 
 const fail = (ok, message) => { if (!ok) throw new Error('Pictures: ' + message); };
@@ -61,17 +62,28 @@ export async function imageCapability(model) {
 export class ImagePlans {
   constructor({ capability = imageCapability } = {}) { this.plans = new Map(); this.capability = capability; }
   invalidateBundledWindow() {
-    for (const [id, plan] of this.plans) if (plan.routes.some(route => route.capability.route === 'bundled-chat-image-data-url')) this.plans.delete(id);
+    for (const [id, plan] of this.plans) if (plan.routes.some(route => route.capability?.route === 'bundled-chat-image-data-url')) this.plans.delete(id);
   }
-  async prepare(state, { chatId, speaker = null, replyMode = 'single' }) {
-    fail(['single', 'both', 'alternate'].includes(replyMode), 'unknown reply mode.');
-    const images = selectedImages(state, chatId), first = resolveSpeaker(state, chatId, speaker);
+  async prepare(state, { chatId, speaker = null, replyMode = 'single', chairIds = null, baseRevisionId = null }) {
+    fail(['single', 'both', 'alternate', 'all'].includes(replyMode), 'unknown reply mode.');
+    const images = selectedImages(state, chatId), chat=state.chats.find(c=>c.id===chatId), roster=chairRoster(state,chat);
     fail(images.length, 'choose at least one picture.');
-    const chosen = [first];
-    if (replyMode === 'both') chosen.push(resolveSpeaker(state, chatId, first.selection?.seat === 'personal' ? 'visiting' : 'personal'));
+    let chosen;
+    if(chairIds!==null){
+      fail(roster&&baseRevisionId===roster.revisionId&&Array.isArray(chairIds)&&chairIds.length>0&&chairIds.length<=32&&new Set(chairIds).size===chairIds.length,'the addressed chairs changed. Send again with the current chairs.');
+      chosen=chairIds.map(id=>{fail([roster.desk,...roster.visitors].some(c=>c.id===id),'an addressed chair is unavailable.');return resolveSpeaker(state,chatId,id===roster.desk.id?'personal':'visiting',id);});
+    }else{
+      const first=resolveSpeaker(state,chatId,speaker);chosen=[first];
+      if(replyMode==='both')chosen.push(resolveSpeaker(state,chatId,first.selection?.seat==='personal'?'visiting':'personal'));
+      if(replyMode==='all')chosen=[roster.desk,...roster.visitors].filter(c=>c.modelId).map(c=>resolveSpeaker(state,chatId,c.id===roster.desk.id?'personal':'visiting',c.id));
+    }
     const routes = [];
-    for (const choice of chosen) routes.push({ modelId: choice.model.id, modelName: choice.model.name, modelHash: digest(choice.model), selectionHash: digest(choice.selection),
-      seat: choice.selection?.seat ?? null, capability: await this.capability(choice.model,state) });
+    for (const choice of chosen) {
+      const route={chairId:choice.selection?.chairId??null,modelId:choice.model.id,modelName:choice.model.name,modelHash:digest(choice.model),selectionHash:digest(choice.selection),seat:choice.selection?.seat??null};
+      try{route.capability=await this.capability(choice.model,state);}catch(error){route.error=`${choice.selection?.displayName??choice.model.name}: ${error.message}`;}
+      routes.push(route);
+    }
+    fail(routes.some(r=>r.capability),routes.map(r=>r.error).join(' '));
     const id = 'imageplan_' + crypto.randomUUID();
     for (const [key, value] of this.plans) if (value.expires < Date.now()) this.plans.delete(key);
     // At most one current plan per branch; older clicks cannot accumulate grants.
@@ -79,9 +91,32 @@ export class ImagePlans {
     const plan = { id, chatId, ids: images.map(i => i.id), selectionRevision: imageSelectionRevision(state, chatId), imageHash: digest(images.map(imageReference)), routes, expires: Date.now() + 300000, firstExchange: null, uses: new Set() };
     this.plans.set(id, plan);
     return { id, chatId, images: images.map(i => ({ id: i.id, name: i.name, width: i.view.width, height: i.view.height })), routes,
-      imageTokenAllowance: images.length * Math.max(...routes.map(r => r.capability.imageTokensEach)), note: 'Only selected PNG viewing copies are sent. Original files stay on this device.' };
+      imageTokenAllowance: images.length * Math.max(...routes.map(r => r.capability?.imageTokensEach??0)), note: 'Only selected PNG viewing copies are sent. Original files stay on this device.' };
   }
-  check(state, body, checked) {
+  capture(state, input, tasks) {
+    const ids=activeImageIds(state,input.chatId);
+    if(!ids.length&&!input.imagePlanId)return [];
+    const plan=this.plans.get(input.imagePlanId);
+    fail(plan&&plan.expires>Date.now()&&plan.chatId===input.chatId&&plan.selectionRevision===imageSelectionRevision(state,input.chatId)&&digest(plan.ids)===digest(ids),'picture selection changed. Your draft and pictures are kept; send again.');
+    fail(plan.routes.length===tasks.length&&tasks.every(t=>plan.routes.some(r=>r.chairId===t.chairId&&r.modelHash===digest(t.model)&&r.selectionHash===digest(t.selection))),'the picture recipients changed. Send again with the current chairs.');
+    const images=selectedImages(state,input.chatId,plan.ids);
+    fail(digest(images.map(imageReference))===plan.imageHash,'selected picture changed.');
+    for(const task of tasks){
+      const route=plan.routes.find(r=>r.chairId===task.chairId);
+      if(route.error){Object.assign(task,{status:'failed',phase:'Picture unavailable',error:route.error,endedAt:new Date().toISOString()});continue;}
+      task.input.media={profile:'branchline.chair-image-input/1',preparationId:plan.id,ids:[...plan.ids],imageHash:plan.imageHash,selectionRevision:plan.selectionRevision,...structuredClone(route)};
+    }
+    return [...plan.ids];
+  }
+  check(state, body, checked, admission = null) {
+    if(admission){
+      const task=state.deskWork?.tasks.find(t=>t.id===admission.taskId),media=task?.input.media;
+      if(!media)return null;
+      fail(media.profile==='branchline.chair-image-input/1'&&media.modelHash===digest(checked.model)&&media.selectionHash===digest(checked.selection),'this chair no longer matches its admitted picture request.');
+      const images=selectedImages(state,task.chatId,media.ids);
+      fail(digest(images.map(imageReference))===media.imageHash,'an admitted picture changed.');
+      return {plan:null,chatId:task.chatId,images,route:media};
+    }
     const ids = activeImageIds(state, body.chatId);
     if (!ids.length && !body.imagePlanId) return null;
     const plan = this.plans.get(body.imagePlanId);
@@ -90,16 +125,17 @@ export class ImagePlans {
     const images = selectedImages(state, body.chatId, plan.ids);
     fail(digest(images.map(imageReference)) === plan.imageHash, 'selected picture changed.');
     const route = plan.routes.find(r => r.modelHash === digest(checked.model) && r.selectionHash === digest(checked.selection));
-    fail(route && !plan.uses.has(route.seat ?? route.modelId), 'this model destination was not cleared for these pictures.');
+    fail(route && !plan.uses.has(route.chairId ?? route.seat ?? route.modelId), 'this model destination was not cleared for these pictures.');
+    fail(!route.error,route.error);
     fail(body.followUpOf ? plan.firstExchange === body.followUpOf : plan.firstExchange === null, 'picture follow-up no longer matches the original turn.');
     return { plan, images, route };
   }
   issue(checked, exchangeId) {
     if (!checked) return null;
     const { plan, images, route } = checked;
-    plan.uses.add(route.seat ?? route.modelId); plan.firstExchange ??= exchangeId;
+    if(plan){plan.uses.add(route.chairId ?? route.seat ?? route.modelId);plan.firstExchange ??= exchangeId;}
     if(route.capability.route==='selected_vision_tool')return null;
-    const clearance = Object.freeze({ chatId: plan.chatId, modelHash: route.modelHash, imagesHash: digest(images.map(imageReference)), capability: route.capability });
+    const clearance = Object.freeze({ chatId: checked.chatId??plan.chatId, modelHash: route.modelHash, imagesHash: digest(images.map(imageReference)), capability: route.capability });
     liveClearances.add(clearance); return clearance;
   }
 }

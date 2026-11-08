@@ -28,8 +28,11 @@ export function toolBindings(contract) {
   return contract.bindings ? structuredClone(contract.bindings) : contract.tools.filter(n => TOOL_NAMES.includes(n)).map(tool => ({ tool, provider: BUILTIN_PROVIDER }));
 }
 
+function defaultBindings(contract) {
+  return [...defaultPockets().selected,...([WORK_TOOL_PROFILE,NAV_TOOL_PROFILE].includes(contract.profile)?workToolNames(contract.work).map(tool=>({tool,provider:BUILTIN_PROVIDER})):[]),...(contract.nav?NAV_TOOLS.map(tool=>({tool,provider:BUILTIN_PROVIDER})):[])];
+}
 function resolvedBindings(contract) {
-  const requested = contract.coat.pockets?.selected ?? [...defaultPockets().selected,...([WORK_TOOL_PROFILE,NAV_TOOL_PROFILE].includes(contract.profile)?workToolNames(contract.work).map(tool=>({tool,provider:BUILTIN_PROVIDER})):[]),...(contract.nav?NAV_TOOLS.map(tool=>({tool,provider:BUILTIN_PROVIDER})):[])];
+  const requested = contract.coat.pockets?.selected ?? [...defaultBindings(contract),...(contract.inheritFileTools&&contract.pc?PC_TOOLS.map(tool=>({tool,provider:BUILTIN_PROVIDER})):[])];
   return contract.conversationEnabled ? requested.filter(p => availablePocket(p)
     && (!['come_home','find_context','read_source','run_program','write_work_artifact','read_work_output','use_window','use_browser','make_picture','describe_picture'].includes(p.tool)||workToolNames(contract.work).includes(p.tool))
     && (contract.ceiling === null || contract.ceiling.some(c => sameBinding(c, p)))
@@ -71,6 +74,9 @@ export function makeToolContract(state, { chatId, model, selectedFile, enabled =
     history: { count: history.length, lastMessageId: history.at(-1)?.id ?? null, hash: digest(history) },
     grant: parallel ? 'paired_UI_turn_and_explicit_agent_settings' : 'paired_UI_tools_selection_for_this_turn', web: 'exact_URL_human_review', limits: { ...TOOL_LIMITS, calls: resources.toolCalls, totalResult: resources.toolResultBytes }, resources, delegation: false,
     ...(parallel ? { parallel: structuredClone(parallel) } : {}), ...(peerHistory?{peerHistory:structuredClone(peerHistory)}:{}) };
+  // Record this default rule without rewriting the selected Coat. Historical
+  // contracts without this marker retain their original default interpretation.
+  if (preset.pockets === undefined && pc) contract.inheritFileTools = true;
   contract.bindings = resolvedBindings(contract);
   const personal=!peerHistory&&selectedContext(state,chatId,seat);
   if(personal){contract.personalContext={profile:PERSONAL_CONTEXT_PROFILE,snapshotId:personal.id,profileId:personal.profileId,revision:personal.view.revision,memoryPolicy:memoryPolicy(state,personal.profileId).id};contract.bindings=resolvedBindings(contract);}
@@ -121,12 +127,14 @@ export function toolDefinitions(contract) {
   return contract.tools.map(name => {
     const [description, properties] = definitions[name];
     if(NAV_TOOLS.includes(name))properties.root={type:'string',enum:contract.nav.roots.map(r=>r.id),description:'Use a reviewed Nav location id, not a label or absolute path.'};
+    if(PC_TOOLS.includes(name))properties.path={...properties.path,description:'Path relative to the selected folder. Use Windows backslashes between folders; do not repeat the absolute root path.'};
     if(PC_TOOLS.includes(name))properties.root={type:'string',enum:(contract.pc?.roots??[]).filter(r=>!['create_pc_text','edit_pc_text'].includes(name)||r.write).map(r=>r.id),description:'Use one exact folder id from this list, not its human-readable label or an absolute path.'};
     return { name, description, parameters: { type: 'object', properties, required: Object.keys(properties).filter(k=>!(name==='request_hearth'&&k==='blackboard')), additionalProperties: false } };
   });
 }
 
 export function validToolContract(contract, model) {
+  if(contract?.inheritFileTools!==undefined&&(contract.inheritFileTools!==true||!contract.pc||contract.coat?.pockets!==null))return false;
   if(contract?.desk){const d=contract.desk;if(!contract.conversationEnabled||!exact(d,['taskId','chairId','chatId','chairs'])||!['taskId','chairId','chatId'].every(k=>typeof d[k]==='string'&&/^[A-Za-z0-9_-]{1,120}$/.test(d[k]))||d.chatId!==contract.chatId||!Array.isArray(d.chairs)||d.chairs.length>33||!d.chairs.some(c=>c.id===d.chairId)||!d.chairs.every(c=>exact(c,['id','name'])&&typeof c.id==='string'&&typeof c.name==='string'))return false;}
   if((contract?.profile===WORK_TOOL_PROFILE||contract?.profile===NAV_TOOL_PROFILE&&contract.work)&&!validWork(contract.work))return false;
   if(contract?.profile===NAV_TOOL_PROFILE?!validNav(contract.nav):contract?.nav!==undefined)return false;
@@ -135,7 +143,7 @@ export function validToolContract(contract, model) {
   const paged = [COAT_TOOL_PROFILE,SKETCH_TOOL_PROFILE,PC_TOOL_PROFILE,WORK_TOOL_PROFILE,NAV_TOOL_PROFILE].includes(contract?.profile);
   if((contract?.profile===SKETCH_TOOL_PROFILE || [PC_TOOL_PROFILE,WORK_TOOL_PROFILE,NAV_TOOL_PROFILE].includes(contract?.profile)&&contract.sketch) && (!exact(contract.sketch,['workspaceId','grantId','access']) || !/^[a-f0-9]{32}$/.test(contract.sketch.workspaceId) || !/^[A-Za-z0-9_-]{1,120}$/.test(contract.sketch.grantId) || !['read','edit'].includes(contract.sketch.access)))return false;
   if(![SKETCH_TOOL_PROFILE,PC_TOOL_PROFILE,WORK_TOOL_PROFILE,NAV_TOOL_PROFILE].includes(contract?.profile) && contract?.sketch!==undefined)return false;
-  if(contract?.profile===PC_TOOL_PROFILE||[WORK_TOOL_PROFILE,NAV_TOOL_PROFILE].includes(contract?.profile)&&contract.pc){const p=contract.pc;if(!exact(p,['profile','revision','workspaceId','write','roots'])||p.profile!==PC_PROFILE||!['revision','workspaceId'].every(k=>/^[a-f0-9]{32}$/.test(p[k]))||typeof p.write!=='boolean'||!Array.isArray(p.roots)||p.roots.length>16||!p.roots.every(r=>exact(r,['id','label','write'])&&/^[a-f0-9]{32}$/.test(r.id)&&typeof r.label==='string'&&r.label.length<=100&&typeof r.write==='boolean'&&(!r.write||p.write)))return false;}
+  if(contract?.profile===PC_TOOL_PROFILE||[WORK_TOOL_PROFILE,NAV_TOOL_PROFILE].includes(contract?.profile)&&contract.pc){const p=contract.pc;if(!exact(p,['profile','revision','workspaceId','write','roots'])||p.profile!==PC_PROFILE||!['revision','workspaceId'].every(k=>/^[a-f0-9]{32}$/.test(p[k]))||typeof p.write!=='boolean'||!Array.isArray(p.roots)||p.roots.length>16||!p.roots.every(r=>exact(r,['id','label','write',...(r.path!==undefined?['path']:[])])&&(r.path===undefined||typeof r.path==='string'&&r.path.length<=220)&&/^[a-f0-9]{32}$/.test(r.id)&&typeof r.label==='string'&&r.label.length<=100&&typeof r.write==='boolean'&&(!r.write||p.write)))return false;}
   else if(contract?.pc!==undefined)return false;
   const coated = paged || contract?.profile === 'branchline.conversation-tools/5';
   if(contract?.peerHistory&&(!paged||!exact(contract.peerHistory,['runId','peerId','eventCount','hash',...(Object.hasOwn(contract.peerHistory,'board')?['board']:[])])||!Number.isSafeInteger(contract.peerHistory.eventCount)||contract.peerHistory.eventCount<0||!contract.peerHistory.runId||!contract.peerHistory.peerId||!/^[a-f0-9]{64}$/.test(contract.peerHistory.hash)))return false;

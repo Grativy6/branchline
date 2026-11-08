@@ -5,7 +5,7 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { CodexRpc, publicCodexError } from './codex-rpc.mjs';
 import { codexToolContent } from './tool-images.mjs';
-import { CODEX_SHA256, CODEX_PROFILE, CODEX_VERSION, CODEX_CATALOG, CODEX_CATALOG_SHA256, codexArgs, codexInput, codexThreadParams, verifyCodexConfig, verifyCodexThread } from './codex-policy.mjs';
+import { CODEX_SHA256, CODEX_HOST_SHA256, CODEX_PROFILE, CODEX_VERSION, CODEX_CATALOG, CODEX_CATALOG_SHA256, codexArgs, codexInput, codexThreadParams, verifyCodexConfig, verifyCodexThread } from './codex-policy.mjs';
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const appVersion = JSON.parse(await fs.readFile(path.join(packageRoot, 'package.json'), 'utf8')).version;
@@ -22,10 +22,13 @@ export async function verifiedCodexBinary() {
       const real = localPath(await fs.realpath(candidate));
       const hash = crypto.createHash('sha256');
       for await (const bytes of createReadStream(real)) hash.update(bytes);
-      if (hash.digest('hex') === CODEX_SHA256) return real;
+      if (hash.digest('hex') !== CODEX_SHA256) continue;
+      const hostHash = crypto.createHash('sha256');
+      for await (const bytes of createReadStream(path.join(path.dirname(real), 'codex-code-mode-host.exe'))) hostHash.update(bytes);
+      if (hostHash.digest('hex') === CODEX_HOST_SHA256) return real;
     } catch { /* Only the pinned executable is eligible. */ }
   }
-  throw new Error('The verified ChatGPT connection runtime is missing. Use a complete Branchline installation.');
+  throw new Error('The verified ChatGPT connection or tool host is missing. Use a complete Branchline installation.');
 }
 
 export function codexEnvironment(home, cwd) {
@@ -48,10 +51,11 @@ export function validAuthUrl(value) {
 export class CodexProvider {
   constructor({ accountDir, rpcFactory = (binary, args, options) => new CodexRpc(binary, args, options), binaryResolver = verifiedCodexBinary, clock = Date.now } = {}) {
     this.accountDir = localPath(accountDir); this.rpcFactory = rpcFactory; this.binaryResolver = binaryResolver;
-    this.rpc = null; this.starting = null; this.busy = false; this.disposed = false;
+    this.rpc = null; this.starting = null; this.activeCalls = new Set(); this.disposed = false;
     this.models = []; this.login = null; this.loginError = null; this.rates = null;
     this.clock = clock; this.modelsAt = 0; this.catalogueEpoch = 0; this.cataloguePending = null; this.accountKey = null;
   }
+  get busy() { return this.activeCalls.size > 0; }
   invalidateCatalogue() { this.models = []; this.modelsAt = 0; this.catalogueEpoch++; this.cataloguePending = null; }
   async start() {
     if (this.disposed) throw new Error('Branchline is closing.');
@@ -150,15 +154,23 @@ export class CodexProvider {
     return { connected: false };
   }
   async *stream(model, messages, signal, { maxTokens = null, maxResponseBytes = 2 * 1024 * 1024, tools = null, imageData } = {}) {
-    if (this.busy) throw new Error('Codex is already replying.');
-    signal?.throwIfAborted(); this.busy = true;
-    let rpc, threadId, turnId, done = false, problem = null, notifyWait = null, total = 0;
+    signal?.throwIfAborted(); const call = {}; this.activeCalls.add(call);
+    let rpc, threadId, turnId, done = false, turnCompleted = false, problem = null, notifyWait = null, total = 0, unregisterTools, interrupting;
     const queue = [], seen = new Map(); let observedTurnId = null, lastItemId = null;
     const wake = () => { notifyWait?.(); notifyWait = null; };
-    const fail = error => { problem ??= error; done = true; wake(); };
-    const abort = () => { fail(new Error('Reply stopped.')); rpc?.close(); };
+    const fail = error => { problem ??= error; done = true; tools?.stop?.abort(); wake(); };
+    const interrupt = () => {
+      const id = turnId ?? observedTurnId;
+      if (!interrupting && rpc && !rpc.closed && threadId && id && !turnCompleted)
+        interrupting = rpc.request('turn/interrupt', { threadId, turnId: id }, 5000).catch(() => null);
+      return interrupting;
+    };
+    const abort = () => { fail(new Error('Reply stopped.')); void interrupt(); };
     const disconnected = error => fail(error);
-    const blocked = () => { fail(new Error('Codex requested a tool or permission. Branchline held this reply.')); rpc?.close(); };
+    const blocked = event => {
+      if (event?.params?.threadId && event.params.threadId !== threadId) return;
+      fail(new Error('This chair requested an unavailable tool. Its reply was stopped.')); void interrupt();
+    };
     const emit = (id, text, complete = false) => {
       const previous = seen.get(id) || '';
       if (complete) { if (!text.startsWith(previous)) return fail(new Error('Codex changed text already streamed.')); text = text.slice(previous.length); }
@@ -166,7 +178,7 @@ export class CodexProvider {
       const originalDelta = text;
       if (lastItemId && lastItemId !== id && !previous) text = '\n\n' + text;
       lastItemId = id;
-      total += Buffer.byteLength(text); if (total > maxResponseBytes) { fail(new Error('Codex reply exceeded the response limit.')); rpc.close(); return; }
+      total += Buffer.byteLength(text); if (total > maxResponseBytes) { fail(new Error('Codex reply exceeded the response limit.')); void interrupt(); return; }
       seen.set(id, previous + originalDelta); queue.push({ text }); wake();
     };
     const notification = ({ method, params: p }) => {
@@ -177,9 +189,10 @@ export class CodexProvider {
       if (method === 'item/started' && !['userMessage', 'agentMessage', 'reasoning'].includes(p.item?.type)) {
         if (!(tools && p.item?.type === 'dynamicToolCall' && tools.definitions.some(d => d.name === p.item.tool))) blocked();
       }
-      if (method === 'model/rerouted') { fail(new Error('Codex changed models during this reply. The result is held.')); rpc.close(); }
+      if (method === 'model/rerouted') { fail(new Error('Codex changed models during this reply. The result is held.')); void interrupt(); }
       if (method === 'turn/completed') {
-        if (p.turn?.status !== 'completed') problem = new Error(publicCodexError(p.turn?.error || 'Codex did not complete this reply.'));
+        turnCompleted = true;
+        if (p.turn?.status !== 'completed') problem ??= new Error(publicCodexError(p.turn?.error || 'Codex did not complete this reply.'));
         done = true; wake();
       }
       if (method === 'error' && !p.willRetry) fail(new Error(publicCodexError(p.error)));
@@ -194,13 +207,13 @@ export class CodexProvider {
       verifyCodexConfig(await rpc.request('config/read', { includeLayers: true }));
       const started = await rpc.request('thread/start', codexThreadParams(model, messages, this.cwd, maxTokens, tools?.definitions));
       threadId = started.thread?.id; verifyCodexThread(started, model);
-      if (tools) rpc.toolHandler = async p => {
+      if (tools) unregisterTools = rpc.registerToolHandler(threadId, async p => {
         if (done || signal?.aborted || p.threadId !== threadId || !p.turnId || (p.namespace != null)
           || (turnId && p.turnId !== turnId) || (observedTurnId && p.turnId !== observedTurnId)) throw new Error('Tool request escaped its episode.');
         observedTurnId = p.turnId;
         const result = await tools.invoke(p.tool, p.arguments, p.callId);
         return { contentItems: codexToolContent(result,signal), success: result.ok };
-      };
+      });
       const input = codexInput(messages, imageData);
       if (input.history.length) await rpc.request('thread/inject_items', { threadId, items: input.history });
       signal?.throwIfAborted();
@@ -209,6 +222,7 @@ export class CodexProvider {
         sandboxPolicy: { type: 'readOnly' },
         summary: 'none' });
       turnId = startedTurn.turn.id;
+      if (signal?.aborted || problem) { void interrupt(); signal?.throwIfAborted(); }
       if (observedTurnId && observedTurnId !== turnId) blocked();
       while (!done || queue.length) {
         while (queue.length) yield queue.shift();
@@ -218,13 +232,16 @@ export class CodexProvider {
       if (!total) throw new Error('Codex returned no text reply.');
       return 'stop';
     } finally {
-      if (rpc) rpc.toolHandler = null;
+      unregisterTools?.();
       signal?.removeEventListener('abort', abort);
       rpc?.off('disconnected', disconnected); rpc?.off('blockedRequest', blocked); rpc?.off('notification', notification);
-      if (rpc && !done) rpc.close();
+      if (!turnCompleted) { tools?.stop?.abort(); await interrupt(); }
+      // A local write that has crossed its commit boundary must finish recording
+      // its actual result even when the model turn has been interrupted.
+      if (threadId) await rpc?.settleTools?.(threadId);
       // A private ephemeral episode cannot carry hidden history into the next call.
-      if (rpc && threadId && !rpc.closed) await rpc.request('thread/unsubscribe', { threadId }, 3000).catch(() => rpc.close());
-      this.busy = false;
+      if (rpc && threadId && !rpc.closed) await rpc.request('thread/unsubscribe', { threadId }, 3000).catch(() => {});
+      this.activeCalls.delete(call);
     }
   }
   close() { this.disposed = true; this.rpc?.close(); }

@@ -37,7 +37,7 @@ export class HomeReader {
     await this.close();
     const env=Object.fromEntries(['SYSTEMROOT','SystemRoot','WINDIR','TEMP','TMP','USERPROFILE','PATH','PATHEXT'].filter(k=>process.env[k]).map(k=>[k,process.env[k]]));
     env.HEARTHLINE_CABIN_READ_CONFIG=this.configPath;
-    const transport=new StdioClientTransport({command:this.runtime.python,args:['-I',launcher,this.runtime.packageRoot],env,stderr:'pipe'});
+    const transport=new StdioClientTransport({command:this.runtime.python,args:['-I','-B',launcher,this.runtime.packageRoot],env,stderr:'pipe'});
     const client=new Client({name:'Branchline Home',version:'0.8.16-preview.1'},{capabilities:{}});
     this.transport=transport;
     try {

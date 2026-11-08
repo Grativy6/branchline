@@ -75,6 +75,13 @@ export function pinImage(state, chatId, id, pinned) {
 export function consumeCompletedImages(state, exchangeId) {
   const exchange = state.exchanges.find(e => e.id === exchangeId);
   if (!exchange || exchange.status !== 'completed' || exchange.truncated || !exchange.selectedImages?.length) return;
+  const task=state.deskWork?.tasks.find(t=>t.id===exchange.request?.deskTaskId);
+  if(task?.input.media){
+    const group=state.deskWork.tasks.filter(t=>t.batchId===task.batchId);
+    if(imageSelectionRevision(state,exchange.chatId)!==task.input.media.selectionRevision||group.some(t=>{
+      const reply=state.exchanges.find(e=>e.id===t.exchangeId);return !reply||reply.status!=='completed'||reply.truncated;
+    }))return;
+  }
   const active = activeImageIds(state, exchange.chatId), pinned = pinnedImageIds(state, exchange.chatId);
   const next = active.filter(id => !exchange.selectedImages.includes(id) || pinned.includes(id));
   if (next.length !== active.length) state.images.active[exchange.chatId] = next;
@@ -111,6 +118,12 @@ export function validateImages(state) {
     for (const [chatId, revision] of Object.entries(value.revisions)) fail(state.chats.some(c => c.id === chatId) && Number.isSafeInteger(revision) && revision >= 0, 'invalid picture selection revision.');
   }
   for (const exchange of state.exchanges) if (exchange.selectedImages !== undefined) selectedImages(state, exchange.chatId, exchange.selectedImages);
+  for(const batch of state.deskWork?.batches??[])if(batch.selectedImages!==undefined)selectedImages(state,batch.chatId,batch.selectedImages);
+  for(const task of state.deskWork?.tasks??[]){
+    const media=task.input.media;if(!media)continue;
+    fail(media.profile==='branchline.chair-image-input/1'&&media.chairId===task.chairId&&media.modelHash===digest(task.model)&&media.selectionHash===digest(task.selection)
+      &&media.imageHash===digest(selectedImages(state,task.chatId,media.ids).map(imageReference))&&Number.isSafeInteger(media.selectionRevision)&&media.capability?.route,'invalid captured chair pictures.');
+  }
   for (const receipt of state.handoffs?.records ?? []) if (receipt.kind === 'image.read') fail(value.selections.some(i => i.receiptId === receipt.id), 'retained image selection was removed.');
 }
 export function preserveImages(before, after) {

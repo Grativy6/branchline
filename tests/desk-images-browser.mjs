@@ -1,0 +1,40 @@
+import {chromium} from 'playwright-core';
+import sharp from 'sharp';
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import {fixture,finish,until} from './desk-helpers.mjs';
+import {MEDIA_PROFILE} from '../server/model-media.mjs';
+const f=await fixture({modelOptions:{imageCapability:async()=>({profile:MEDIA_PROFILE,route:'lmstudio-chat-image-data-url',imageTokensEach:4096,loadedTokens:32768,remote:false,destination:'synthetic vision'})}}),errors=[];
+let r=f.app.store.state.chats[0].seating;
+await f.command('table.roster.chair',{chatId:f.chatId,baseRevisionId:r.revisionId,chairId:null,name:'Luna',modelId:f.app.store.state.models[0].id,personalId:null,coat:null});
+await new Promise(resolve=>f.app.listen(0,'127.0.0.1',resolve));
+const browser=await chromium.launch({headless:true,...(process.platform==='win32'?{channel:'msedge'}:{})}),page=await browser.newPage({viewport:{width:1010,height:900}});
+page.on('pageerror',e=>errors.push(e.message));await fs.mkdir('.test-output',{recursive:true});
+try{
+ await page.goto(`http://127.0.0.1:${f.app.address().port}/#session=${f.app.sessionToken}`);await page.locator('#tour-skip').check();await page.locator('#tour-next').click();
+ await page.locator(`[data-action="select-chat"][data-id="${f.chatId}"]`).click();await page.getByRole('button',{name:'All',exact:true}).click();
+ await page.locator('[data-action="reply-pattern"][data-id="all"][aria-pressed="true"]').waitFor();
+ const png=await sharp({create:{width:60,height:40,channels:3,background:'#3a97db'}}).png().toBuffer();
+ const chooserPromise=page.waitForEvent('filechooser');await page.locator('#configure-model').click();const chooser=await chooserPromise;
+ await chooser.setFiles({name:'shared.png',mimeType:'image/png',buffer:png});
+ await page.locator('#selected-images .picture-card').waitFor();await page.locator('#message-input').fill('Describe the shared picture.');
+ const recipients=await page.locator('.picture-selection-heading').innerText();for(const name of ['Hearthline','Qwen','Luna'])assert(recipients.includes(name));
+ await page.locator('#tools-enabled').uncheck();await page.locator('#send-button').click();await until(()=>f.requests.length===3,()=>JSON.stringify(f.app.store.state.deskWork?.tasks));
+ for(const request of f.requests)assert(request.body.messages.some(m=>Array.isArray(m.content)&&m.content.some(c=>c.type==='image_url')));
+ finish(f.requests[2],'Luna saw the picture.');finish(f.requests[0],'Hearthline saw the picture.');finish(f.requests[1],'Qwen saw the picture.');
+ await until(()=>f.app.store.state.deskWork.tasks.every(t=>t.status==='completed'),'all image turns finish');
+ await page.locator('#conversation .message.assistant').filter({hasText:'Qwen saw the picture.'}).waitFor();
+ assert.equal(await page.locator('#conversation .message.user .picture-grid img').count(),1);
+ await page.waitForFunction(()=>document.querySelector('#selected-images').hidden);
+ await page.screenshot({path:'.test-output/shared-picture-browser.png'});
+ await page.locator('#conversation .picture-card [data-action="picture-reuse"]').click();await page.locator('#selected-images .picture-card').waitFor();
+ await page.locator('#message-input').fill('Only two. @Qwen @Luna');
+ const subset=await page.locator('.picture-selection-heading').innerText();assert(subset.includes('Qwen')&&subset.includes('Luna')&&!subset.includes('Hearthline'));
+ await page.locator('#message-input').fill('');await page.getByRole('button',{name:'Ask now',exact:true}).click();await until(()=>f.requests.length===6,'image-only All invitation');
+ for(const request of f.requests.slice(3))finish(request,'Saw the picture again.');await until(()=>f.app.store.state.deskWork.tasks.every(t=>t.status==='completed'),'image-only turns finish');
+ await page.waitForFunction(()=>document.querySelectorAll('#conversation .message.user .picture-grid img').length===2);
+ assert.equal(await page.locator('#conversation .message.assistant .picture-grid img').count(),0);
+ assert.deepEqual(errors,[]);const result={status:'PASS',allImageSend:true,threeRequests:true,oneSharedPictureInHistory:true,consumedAfterGroup:true,reuseAndSubsetDestinations:true,imageOnlyInvitation:true,pageErrors:errors};
+ await fs.writeFile('.test-output/shared-picture-browser.json',JSON.stringify(result,null,2)+'\n');console.log(JSON.stringify(result));
+}catch(error){await page.screenshot({path:'.test-output/shared-picture-failure.png'}).catch(()=>{});console.error(JSON.stringify({error:error.message,pageErrors:errors,tail:(await page.locator('body').innerText()).slice(-1600)}));throw error;}
+finally{await browser.close();await f.close();}

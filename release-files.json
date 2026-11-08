@@ -1,6 +1,6 @@
 {
   "profile": "branchline.public-release-files/2",
-  "version": "0.9.1-preview.3",
+  "version": "0.10.0",
   "source": [
     ".gitattributes",
     ".gitignore",
@@ -46,6 +46,7 @@
     "provenance/bundled-model-inputs.json",
     "provenance/codex-model-catalog-0712.json",
     "provenance/codex-runtime-080.json",
+    "provenance/codex-runtime.json",
     "provenance/codex-upstream-LICENSE.txt",
     "provenance/desktop-source.json",
     "provenance/installer-inputs.json",
@@ -475,14 +476,24 @@
     "tests/chatgpt-models-browser.mjs",
     "tests/chatgpt-models.test.mjs",
     "tests/desk-browser.mjs",
+    "tests/desk-crew-browser.mjs",
+    "tests/desk-crew.test.mjs",
     "tests/desk-helpers.mjs",
     "tests/desk-lifecycle.test.mjs",
     "tests/desk-work.test.mjs",
+    "tests/pc-drive-roots-native.mjs",
     "tools/configure-peaches.mjs",
     "tools/document-reader.py",
     "tools/document-requirements.txt",
     "tools/home-reader.py",
-    "tools/prepare-peaches-notices.mjs"
+    "tools/prepare-peaches-notices.mjs",
+    "public/chair-scroll.js",
+    "public/conversation-copy.js",
+    "tests/compact-desk-browser.mjs",
+    "tests/desk-images-browser.mjs",
+    "tests/desk-images.test.mjs",
+    "tests/pc-recovery-native.mjs",
+    "tests/fixtures/compact-header-before.json"
   ],
   "binary": [
     "public/agent-profiles/hearthline.json",
@@ -910,7 +921,13 @@
       "file": "bundled-model-inputs.json"
     },
     "server/codex-models.mjs",
-    "UPGRADE-NOTES.md"
+    "UPGRADE-NOTES.md",
+    {
+      "source": "provenance/codex-runtime.json",
+      "file": "codex-runtime/origin.json"
+    },
+    "public/chair-scroll.js",
+    "public/conversation-copy.js"
   ],
   "auditExceptions": [
     {

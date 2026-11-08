@@ -1,11 +1,24 @@
 import crypto from 'node:crypto';
 import { digest } from './integrity.mjs';
 import { sketchDestination } from './sketches.mjs';
+import {win32 as windowsPath} from 'node:path';
+import {protectedPcPaths} from './runtime-paths.mjs';
 export const HOME_PROFILE='branchline.home/1';
 export const HOME_TOOL_NAMES=['come_home','find_context','read_source'];
 export const homeSettings=s=>s.home?.settings.at(-1)??null;
 export const homeDestination=sketchDestination;
-export const homeAllowed=(s,model)=>homeSettings(s)?.destinations.some(d=>digest(d)===digest(homeDestination(model)))===true;
+export function homeFolderAccess(s,model){
+ const h=homeSettings(s),pc=s.pcAccess?.settings.at(-1);
+ if(!h||!pc?.read||pc.workspaceId!==h.workspaceId||pc.workspacePath!==h.workspacePath||!h.config.roots.length)return false;
+ const normal=p=>windowsPath.normalize(p).toLowerCase(),under=(p,root)=>p===root||p.startsWith(root.replace(/\\$/,'')+'\\');
+ const recipient=digest(homeDestination(model)),blocked=[...pc.denied.map(d=>d.path),...protectedPcPaths(h.workspacePath),...(pc.protectedPaths??[])].map(normal);
+ return h.config.roots.every(source=>{
+  if(!/^[a-z]:[\\/]/i.test(source.path))return false;
+  const target=normal(source.path);
+  return !blocked.some(p=>under(target,p)||under(p,target))&&pc.roots.some(r=>!r.frontDoor&&r.directory&&under(target,normal(r.path))&&r.destinations.some(d=>digest(d)===recipient));
+ });
+}
+export const homeAllowed=(s,model)=>homeFolderAccess(s,model)||homeSettings(s)?.destinations.some(d=>digest(d)===digest(homeDestination(model)))===true;
 const fail=(ok,why)=>{if(!ok)throw new Error('Home: '+why);};
 export function homeSnapshot(s,model,workspaceId,workspacePath){
  const h=homeSettings(s);
@@ -18,7 +31,7 @@ export function assertHomeDisclosure(s,chatId,model,workspaceId=null,workspacePa
  const used=sharedSketch||(s.home?.arrivals??[]).some(a=>a.rootId===rootId)||(s.home?.exposures??[]).some(e=>e.rootId===rootId);
  if(!used)return;
  const h=homeSettings(s);
- fail(h&&homeAllowed(s,model)&&(!workspaceId||h.workspaceId===workspaceId)&&(!workspacePath||h.workspacePath===workspacePath),'this conversation carries Home sources. Review this connection’s Home sharing before sending them.');
+ fail(h&&homeAllowed(s,model)&&(!workspaceId||h.workspaceId===workspaceId)&&(!workspacePath||h.workspacePath===workspacePath),`${model.name||model.model} needs access to this desk's Home sources. Open Settings → Agents for folder access, or Settings → Models → Home sources for Home-only sharing.`);
 }
 export function homeMessages(s,chatId){
  const h=homeSettings(s);if(!h?.enabled)return [];

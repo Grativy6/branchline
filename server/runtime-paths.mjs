@@ -2,6 +2,11 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 const appRoot=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
+export function protectedPcPaths(dataDir,executable=process.env.BRANCHLINE_NATIVE_FILES??null,additional=[]) {
+ const home=process.env.USERPROFILE;
+ return [dataDir,path.win32.resolve(dataDir,'../codex-connection'),path.win32.resolve(dataDir,'../webview'),
+  ...(executable?[path.win32.dirname(executable)]:[]),...(home?['AppData','.codex','.ssh','.aws','.azure','.kube'].map(n=>path.win32.join(home,n)):[]),...additional].map(p=>path.win32.normalize(p));
+}
 // Packaged runtime paths travel with the app. Development manifests remain a
 // local fallback only when the packaged manifest is absent, never when invalid.
 export async function readRuntime(name,explicit=null){

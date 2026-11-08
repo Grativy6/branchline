@@ -8,7 +8,7 @@
 .reply-controls { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; font-size: 12px; }
 #table-reply-controls { margin-left: auto; }
 .reply-controls-label { color: var(--muted); margin-right: 4px; }
-.reply-chair-buttons, .reply-pattern-buttons { display: inline-flex; gap: 2px; padding: 3px; border: 1px solid var(--line); border-radius: 7px; }
+.reply-pattern-buttons { display: inline-flex; gap: 2px; padding: 3px; border: 1px solid var(--line); border-radius: 7px; }
 .reply-controls [aria-pressed] { padding: 4px 8px; border: 0; border-radius: 4px; background: transparent; color: var(--muted); }
 .reply-controls [aria-pressed="true"] { color: var(--ink); background: var(--accent-wash); font-weight: 650; }
 .reply-controls [aria-pressed="true"]:disabled { opacity: .85; }

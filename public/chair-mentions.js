@@ -39,6 +39,24 @@ export function parseChairPrompt(text, chairs, selectedChairId = null) {
   if (!markers.length) return { routed: false, sharedContext: '', sections: text.trim() && selectedChairId ? [{ chairId: selectedChairId, content: text.trim(), start: 0, end: text.length }] : [], markers, errors };
   if (markers.length > 32) errors.push('Use at most 32 addressed sections in one message.');
   const sections = markers.map((m, n) => ({ chairId: m.chairId, label: m.label, content: text.slice(m.end, markers[n + 1]?.start ?? text.length).replace(/^\s*:\s*/, '').trim(), start: m.end, end: markers[n + 1]?.start ?? text.length }));
-  for (const section of sections) if (!section.content) errors.push(`Write an instruction after @${section.label}; empty sections do not start work.`);
   return { routed: true, sharedContext: text.slice(0, markers[0].start).trim(), sections, markers, errors };
+}
+
+// Explicit addresses choose the recipients; All is the unaddressed broadcast
+// default. Repeated addresses collect directions into one turn for that chair.
+export function routeChairPrompt(text, chairs, selectedChairId = null, mode = 'single') {
+  const parsed = parseChairPrompt(text, chairs, selectedChairId);
+  if (!parsed.routed && mode === 'all') {
+    const occupied = chairs.filter(c => c.modelId !== null);
+    return {...parsed, routed:true, broadcast:true, sections:occupied.map(c=>({chairId:c.id,label:c.name,content:String(text??'').trim()})),
+      errors:occupied.length?parsed.errors:['Choose a model for at least one chair.']};
+  }
+  if (!parsed.routed || parsed.errors.length) return parsed;
+  const sections=[];
+  for (const section of parsed.sections) {
+    const prior=sections.find(s=>s.chairId===section.chairId);
+    if (prior) { prior.content=[prior.content,section.content].filter(Boolean).join('\n\n'); prior.end=section.end; }
+    else sections.push({...section});
+  }
+  return {...parsed,sections};
 }
