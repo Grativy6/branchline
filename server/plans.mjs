@@ -3,7 +3,7 @@ import os from 'node:os';
 import {digest} from './integrity.mjs';
 import {applyCommand} from './domain.mjs';
 import {applyRosterCommand} from './chair-roster.mjs';
-import {findHarness,harnessDeleted,usualCoat,defaultHarnessRef} from '../public/harness-catalog.js';
+import {findHarness,harnessDeleted,usualCoat,defaultHarnessRef,currentHarnessRef} from '../public/harness-catalog.js';
 import {RESOURCE_DEFAULTS} from '../public/resource-settings.js';
 import {pcSettings,pcSnapshot} from './pc-permissions.mjs';
 import {validateSchedule,nextOccurrence,latestDue,wallInstant} from '../public/plan-schedule.js';
@@ -66,12 +66,13 @@ export class Plans {
         // links; only one bounded previous summary is supplied to a later run.
         if(!rootId){Object.assign(s,applyCommand(s,{type:'root.create',payload:{name:'Plan · '+plan.name,mode:'personal'}}));rootId=s.roots.at(-1).id;plans(s).items.find(v=>v.id===p.id).ownedRootId=rootId;}
         Object.assign(s,applyCommand(s,{type:'chat.create',payload:{rootId,title:plan.name+' · '+new Date(occurrence).toISOString(),setupChairs:true}}));
-        const chat=s.chats.at(-1);applyRosterCommand(s,'table.roster.start',{chatId:chat.id});applyRosterCommand(s,'table.roster.chair',{chatId:chat.id,baseRevisionId:chat.seating.revisionId,chairId:chat.seating.desk.id,modelId:plan.modelId,personalId:null,name:model.name,coat:plan.coat});
+        const coat=currentHarnessRef(plan.coat,s);
+        const chat=s.chats.at(-1);applyRosterCommand(s,'table.roster.start',{chatId:chat.id});applyRosterCommand(s,'table.roster.chair',{chatId:chat.id,baseRevisionId:chat.seating.revisionId,chairId:chat.seating.desk.id,modelId:plan.modelId,personalId:null,name:model.name,coat});
         // A dedicated root avoids changing the person's foreground resource limits.
         chat.planLimits={seconds:plan.seconds,toolCalls:plan.toolCalls};
         chat.carrySettings={automatic:false,speaker:'personal',review:false,nearPopup:false,showCount:true};s.ui=ui;
         const previous=plans(s).runs.findLast(r=>r.planId===plan.id&&r.status==='finished');
-        run={id,planId:plan.id,plan:structuredClone(plan),occurrenceAt:new Date(occurrence).toISOString(),startedAt:now(),status:'running',chatId:chat.id,rootId,model:structuredClone(model),coat:plan.coat,summary:'',previousSummary:previous?.summary.slice(0,1800)??'',manual};
+        run={id,planId:plan.id,plan:structuredClone(plan),occurrenceAt:new Date(occurrence).toISOString(),startedAt:now(),status:'running',chatId:chat.id,rootId,model:structuredClone(model),coat,summary:'',previousSummary:previous?.summary.slice(0,1800)??'',manual};
         plans(s).runs.push(run);const current=plans(s).items.find(v=>v.id===plan.id);current.nextAt=nextOccurrence(current.schedule,this.clock());current.attention=null;if(current.nextAt===null)current.enabled=false;return s;
       });
     }catch(error){this.running=null;await this.store.transact(s=>{const p=plans(s).items.find(p=>p.id===plan.id);if(p){p.enabled=false;p.attention=error.message;}plans(s).runs.push({id,planId:plan.id,status:'needs_attention',startedAt:now(),finishedAt:now(),summary:error.message,chatId:null});return s;});return {id,status:'needs_attention'};}

@@ -1,4 +1,7 @@
 import { applyArchiveCommand, validateModelArchives, assertModelAvailable } from './model-archives.mjs';
+import {assertLocalFileProfile,validateLocalModels} from './local-model-state.mjs';
+import { checkNoteSettings, noteSettings } from '../public/reasoning-notes-settings.js';
+import { saveGoal, currentGoal, goalRevision, INPUT_MODES } from './desk-goals.mjs';
 import { validateDeskWork } from './desk-work.mjs';
 import { assertChairAvailable } from './table.mjs';
 import { chairView } from '../public/chair-roster.js';
@@ -48,10 +51,11 @@ const MODES = new Set(['personal', 'fs']);
 const EXCHANGE_STATUSES = new Set(['pending', 'completed', 'failed', 'cancelled']);
 const ROLES = new Set(['user', 'assistant']);
 const REPLY_LENGTHS = new Set(['short', 'medium', 'long']);
-const MODEL_RUNTIMES = new Set(['compatible', 'lmstudio', 'codex', 'bundled', 'openai']);
+const MODEL_RUNTIMES = new Set(['compatible', 'lmstudio', 'codex', 'bundled', 'openai', 'gguf']);
 function validateModelRoute(model) {
   if(model.runtime==='openai')return validateOpenAI(model);
   if (model.runtime === 'bundled') return assertBundledProfile(model);
+  if (model.runtime === 'gguf') return assertLocalFileProfile(model);
   if (model.runtime !== 'codex') return validateLoopback(model.baseUrl);
   if (model.baseUrl !== CODEX_ADDRESS || model.thinking === true || (model.inputFormat && model.inputFormat !== 'chat')) throw new Error('Codex uses the fixed ChatGPT subscription connection.');
 }
@@ -106,7 +110,7 @@ export function validateState(state) {
   assert(state.schemaVersion!==3||state.deskWork?.profile==='branchline.desk-work/1','The shared-desk workspace is missing its work records.');
   assert(state.schemaVersion!==2||state.easel?.profile==='branchline.easel/1','The newer workspace is missing its Easel records.');
   for (const root of state.roots || []) if (root.resources !== undefined) checkResources(root.resources);
-  for (const chat of state.chats || []) { assert(chat.contextPolicy===undefined||chat.contextPolicy===2,'invalid conversation policy'); if (chat.carrySettings !== undefined) checkCarrySettings(chat.carrySettings);
+  for (const chat of state.chats || []) { if (chat.reasoningNotes !== undefined) checkNoteSettings(chat.reasoningNotes, true); assert(chat.contextPolicy===undefined||chat.contextPolicy===2,'invalid conversation policy'); if (chat.carrySettings !== undefined) checkCarrySettings(chat.carrySettings);
     if (chat.carryWriter !== undefined && chat.carryWriter !== null) assert(/^[a-f0-9]{64}$/.test(chat.carryWriter), 'invalid recorder binding'); }
   for (const name of ['roots', 'chats', 'messages', 'exchanges', 'models']) {
     assertUniqueIds(state[name], name);
@@ -253,6 +257,7 @@ export function validateState(state) {
   validateAgentProfiles(state);
   validateMind(state);
   validateModelArchives(state);
+  validateLocalModels(state);
   validateCarry(state);
   validateParallel(state);
   validatePony(state);
@@ -301,6 +306,22 @@ export function applyCommand(state, command) {
     if(s.exchanges.some(e=>e.chatId===p.id&&e.status==='pending'))throw new Error('This desk is working; keep its current context policy.');assert(Object.keys(p).sort().join()==='id,policy'&&p.policy===2,'invalid conversation policy');const chat=requireChat(s,p.id);chat.contextPolicy=2;
     if(chat.carrySettings===undefined){try{const writer=resolveRecorder(s,p.id,'personal').model;chat.carrySettings={automatic:true,speaker:'personal',review:false,nearPopup:false,showCount:true};chat.carryWriter=digest(writer);}catch{/* A missing Desk Model waits for an explicit recorder choice. */}}
     validateState(s);return s;
+  }
+  if(type==='goal.save'){saveGoal(s,p);validateState(s);return s;}
+  if(type==='goal.copy'){
+    const original=currentGoal(s,p.fromChatId);assert(original,'Choose a source goal.');
+    const v=goalRevision(original),copy=saveGoal(s,{chatId:p.chatId,text:v.text,criteria:v.criteria,limits:v.limits,newGoal:true});
+    copy.origin={goalId:original.id,revisionId:v.id};validateState(s);return s;
+  }
+  if(type==='input.preference'){assert(INPUT_MODES.includes(p.mode)&&Object.keys(p).join()==='mode','Choose a busy-chair input preference.');s.ui.busyInputMode=p.mode;validateState(s);return s;}
+  if (type === 'chat.reasoningNotes') {
+    assert(Object.keys(p).sort().join() === 'id,settings', 'invalid reasoning note settings');
+    checkNoteSettings(p.settings);
+    const chat = requireChat(s, p.id), previous = noteSettings(chat);
+    const changed = previous.enabled !== p.settings.enabled || previous.cadenceSeconds !== p.settings.cadenceSeconds;
+    const revision = previous.revision + Number(changed);
+    chat.reasoningNotes = { ...p.settings, revision, offRevision: changed && !p.settings.enabled ? revision : previous.offRevision };
+    validateState(s); return s;
   }
   if (type === 'chat.carrySettings') {
     assertInferenceIdle(s);
@@ -438,6 +459,7 @@ export function applyCommand(state, command) {
     if (existing && isModelArchived(s,existing.id)) throw new Error('Return this archived connection to the active list before editing it.');
     if(existing && (existing.runtime==='openai')!==((p.runtime??existing.runtime)==='openai'))throw new Error('Save a separate connection when changing API billing routes.');
     if (existing && (existing.runtime === 'bundled') !== ((p.runtime ?? existing.runtime) === 'bundled')) throw new Error('Save a separate connection when changing the included model.');
+    if (existing && (existing.runtime === 'gguf') !== ((p.runtime ?? existing.runtime) === 'gguf')) throw new Error('Use the local-model library to choose a different file connection.');
     validateModelRoute({ ...existing, ...p, baseUrl, runtime: p.runtime ?? existing?.runtime });
     if (existing && (existing.runtime === 'codex') !== (p.runtime === 'codex' || (!p.runtime && existing.runtime === 'codex'))) throw new Error('Save a separate connection when changing between local and subscription models.');
     if (p.id && (s.exchanges.some(e => e.status === 'pending' && e.modelId === p.id) || s.roots.some(root => root.continuity?.jobs?.some(job => job.status === 'pending' && job.modelId === p.id)))) throw new Error('model locked during active work');

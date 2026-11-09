@@ -40,7 +40,7 @@ export function capacityControls(state, chat, status) {
     const fixed = Math.max(0, item.fixedCharacters ?? 0);
     const conversation = Math.max(0, item.characters - fixed);
     let window;
-    if (item.modelRuntime === 'bundled') window = budget.loadedTokens != null
+    if (['bundled','gguf'].includes(item.modelRuntime)) window = budget.loadedTokens != null
       ? `Loaded window: ${amount(budget.loadedTokens)} tokens`
       : `Selected window: ${amount(budget.configuredTokens)} tokens · not loaded yet`;
     else if (item.modelRuntime === 'lmstudio') window = budget.loadedTokens != null

@@ -24,16 +24,10 @@ export function harnessSnapshot(state, chatId, seat = 'visiting') {
     fail(preset, 'The selected Coat is unavailable.');
     return { profile:'branchline.chair-coat/1', selectionId:chat.seating.revisionId, shared:false, seat, key:resolved.key, mode:resolved.mode, ref:structuredClone(resolved.ref), preset:structuredClone(preset), hash:digest(preset), role:'response_guidance_only' };
   }
-  if (chat?.coatPolicy) {
-    const resolved = resolvedCoat(state, chat, seat);
-    const preset = findHarness(resolved.ref, state);
-    fail(preset, 'The selected Coat version is unavailable.');
-    return { profile:'branchline.coat-selection/2', selectionId:resolved.source, shared:false, seat, key:resolved.key, mode:resolved.mode, preset:structuredClone(preset), hash:digest(preset), role:'response_guidance_only' };
-  }
-  const choice = harnessChoice(chat);
-  const preset = findHarness(choice[seat === 'personal' ? 'personal' : 'visiting'], state);
-  fail(preset, 'The selected Coat version is unavailable.');
-  return { selectionId: choice.id, shared: choice.shared, seat, preset: structuredClone(preset), hash: digest(preset), role: 'response_guidance_only' };
+  const resolved = resolvedCoat(state, chat, seat === 'personal' ? 'personal' : 'visiting');
+  const preset = findHarness(resolved.ref, state);
+  fail(preset, 'The selected Coat is unavailable.');
+  return { profile:'branchline.coat-selection/2', selectionId:resolved.source, shared:false, seat, key:resolved.key, mode:resolved.mode, ref:structuredClone(resolved.ref), preset:structuredClone(preset), hash:digest(preset), role:'response_guidance_only' };
 }
 
 export function applyHarnessCommand(state, type, p) {
@@ -53,11 +47,11 @@ export function applyHarnessCommand(state, type, p) {
   const chat = state.chats.find(c => c.id === p.chatId), root = state.roots.find(r => r.id === chat?.rootId);
   fail(chat && root && !chat.archivedAt && !root.archivedAt, 'Choose an active branch.');
   fail((harnessChoice(chat).id ?? null) === p.baseRevisionId, 'The harness changed. Reopen its settings before saving.');
-  fail(typeof p.shared === 'boolean' && validRef(p.personal, state) && validRef(p.visiting, state), 'Choose available harness versions.');
+  fail(typeof p.shared === 'boolean' && validRef(p.personal, state) && validRef(p.visiting, state), 'Choose available Coats.');
   const current = resolvedHarnessChoice(state, chat);
   for (const seat of ['personal', 'visiting']) fail(!retiredCoat(p[seat]) || digest(p[seat]) === digest(current[seat]), 'This starter Coat is retired. Existing choices stay available in their own branches.');
-  for (const seat of ['personal', 'visiting']) fail(!harnessDeleted(p[seat], state) || digest(p[seat]) === digest(harnessChoice(chat)[seat]), 'Restore a deleted harness before choosing it for another chair.');
-  fail(!p.shared || digest(p.personal) === digest(p.visiting), 'A shared harness must use the same version for both chairs.');
+  for (const seat of ['personal', 'visiting']) fail(!harnessDeleted(p[seat], state) || digest(p[seat]) === digest(current[seat]), 'Restore a deleted Coat before choosing it for another chair.');
+  fail(!p.shared || digest(p.personal) === digest(p.visiting), 'Choose the same Coat for both chairs.');
   fail(typeof p.saveAsDefault === 'boolean', 'Choose whether to save the desk default.');
   if (p.saveAsDefault) {
     fail(!harnessDeleted(p.personal, state) && !harnessDeleted(p.visiting, state), 'Restore the deleted harness before saving it as a desk default.');
@@ -75,7 +69,7 @@ function saveCustomHarness(state, type, p) {
   checkHarnessContent(p.content);
   const library = state.customHarnesses ??= [];
   let harness = editing ? library.find(h => h.id === p.id) : null;
-  if (editing) fail(harness && harness.versions.at(-1).version === p.baseVersion, 'This Coat changed. Keep your draft and reopen the latest version before saving.');
+  if (editing) fail(harness && harness.versions.at(-1).version === p.baseVersion, 'This Coat changed elsewhere. Keep your draft and reopen it before saving.');
   if (editing) fail(!harness.deletedAt, 'This Coat was deleted. Restore it before saving an edit. Your draft can be kept.');
   let source = null;
   if (p.importFile !== undefined) {
@@ -90,7 +84,7 @@ function saveCustomHarness(state, type, p) {
   const version = harness.versions.length + 1;
   harness.versions.push({ ...structuredClone(p.content), version, createdAt, source });
   if (p.use !== undefined) {
-    fail(exact(p.use, ['chatId', 'baseRevisionId', 'seat']) && ['shared', 'personal', 'visiting'].includes(p.use.seat), 'Choose the chairs that should use this version.');
+    fail(exact(p.use, ['chatId', 'baseRevisionId', 'seat']) && ['shared', 'personal', 'visiting'].includes(p.use.seat), 'Choose the chairs that should use this Coat.');
     const chat = state.chats.find(c => c.id === p.use.chatId), choice = resolvedHarnessChoice(state,chat), ref = { id: harness.id, version };
     const priorCount=chat.coatChoices?.length??0;
     applyHarnessCommand(state, 'harness.select', {
@@ -154,7 +148,8 @@ export function validateHarnesses(state) {
       const record = [...(state.coatUsuals??[]),...(chat?.coatChoices??[])].find(r=>r.id===h.selectionId);
       const legacy=chat?.harnessSelections?.find(r=>r.id===h.selectionId);
       const ref=record?.mode==='override'?record.ref:legacy?.[h.seat]??(h.selectionId===null?defaultHarnessRef():null);
-      fail(h.seat===(turn.speaker?.seat??'visiting') && ['follow','override','preserved','starter'].includes(h.mode) && h.role==='response_guidance_only' && digest(h.preset)===h.hash && ref && digest(findHarness(ref,state))===h.hash && (!record||record.key===h.key), 'Recorded model Coat changed.');
+      const capturedRef=h.ref??ref;
+      fail(h.seat===(turn.speaker?.seat??'visiting') && ['follow','override','preserved','starter'].includes(h.mode) && h.role==='response_guidance_only' && digest(h.preset)===h.hash && ref && (!h.ref || validRef(h.ref,state)&&h.ref.id===ref.id&&h.ref.version>=ref.version) && digest(findHarness(capturedRef,state))===h.hash && (!record||record.key===h.key), 'Recorded model Coat changed.');
       continue;
     }
     const choice = h.selectionId === null ? { shared: true, personal: defaultHarnessRef(), visiting: defaultHarnessRef() } : chat?.harnessSelections?.find(r => r.id === h.selectionId);
@@ -195,7 +190,7 @@ function selectCoat(state,type,p) {
   if(type==='harness.branch') fail(chat && !chat.archivedAt && !state.roots.find(r=>r.id===chat.rootId)?.archivedAt,'Choose an active branch.');
   else fail(p.key.startsWith('personal:') ? state.personalParticipants?.some(x=>'personal:'+x.id===p.key) : state.models.some(x=>'model:'+x.id===p.key),'Choose a saved model.');
   const mode=type==='harness.usual'?'override':p.mode;
-  fail(['override','follow'].includes(mode) && (mode==='follow'?p.ref===null:validRef(p.ref,state)&&!harnessDeleted(p.ref,state)),'Choose an available exact Coat version.');
+  fail(['override','follow'].includes(mode) && (mode==='follow'?p.ref===null:validRef(p.ref,state)&&!harnessDeleted(p.ref,state)),'Choose an available Coat.');
   const rows=type==='harness.usual'?(state.coatUsuals??=[]):(chat.coatChoices??=[]);
   if (mode === 'override' && retiredCoat(p.ref)) {
     const seat = chat && ['personal','visiting'].find(seat => coatIdentity(state,chat,seat) === p.key);

@@ -29,11 +29,11 @@ export function previewHarnessImport(file) {
 
 export function exportHarness(state, ref, format = 'json') {
   const preset = findHarness(ref, state);
-  if (!preset) throw new Error('The selected Coat version is unavailable.');
+  if (!preset) throw new Error('The selected Coat is unavailable.');
   if (!['json', 'md'].includes(format)) throw new Error('Choose JSON or Markdown export.');
   return {
     text: format === 'json' ? JSON.stringify(harnessDocument(preset), null, 2) + '\n' : preset.instructions,
     type: format === 'json' ? 'application/json; charset=utf-8' : 'text/markdown; charset=utf-8',
-    filename: `branchline-coat-${preset.id}-v${preset.version}.${format}`,
+    filename: `branchline-coat-${preset.id}.${format}`,
   };
 }

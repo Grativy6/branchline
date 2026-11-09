@@ -1,6 +1,6 @@
 // Shared composer/server parser. Only the current human draft is parsed.
 export const chairAlias = name => String(name).normalize('NFKC').trim().toLocaleLowerCase().replace(/\s+/g, '-');
-export const chairMention = name => /\s/.test(name) ? `@{${name}}` : `@${name}`;
+export const chairMention = name => /^[\p{L}\p{N}_-]+$/u.test(name) ? `@${name}` : `@{${name}}`;
 export function parseChairPrompt(text, chairs, selectedChairId = null) {
   text = String(text ?? '');
   const aliases = new Map();
@@ -27,10 +27,14 @@ export function parseChairPrompt(text, chairs, selectedChairId = null) {
       if (end >= 0) { i = end + 1; continue; }
     }
     if (c !== '@' || i > 0 && !/[\s([{]/.test(text[i - 1])) { i++; continue; }
-    const match = /^@(?:\{([^}\n]{1,200})\}|([\p{L}\p{N}_-]{1,200}))/u.exec(text.slice(i));
+    let match = /^@(?:\{([^}\n]{1,200})\}|([\p{L}\p{N}\p{M}\p{S}_\-\u200d]{1,200}))/u.exec(text.slice(i));
+    if(text[i+1]!=='{'){
+      const named=chairs.map(chair=>chair.name).sort((a,b)=>b.length-a.length).find(name=>text.slice(i+1,i+1+name.length).toLocaleLowerCase()===name.toLocaleLowerCase()&&!/^[\p{L}\p{N}\p{M}\p{S}\u200d_.@-]/u.test(text.slice(i+1+name.length)));
+      if(named){const raw=text.slice(i+1,i+1+named.length);match=['@'+raw,undefined,raw];}
+    }
     if (!match) { i++; continue; }
     const end = i + match[0].length;
-    if (/[\p{L}\p{N}_.@-]/u.test(text[end] ?? '')) { i = end; continue; }
+    if (/^[\p{L}\p{N}\p{M}\p{S}\u200d_.@-]/u.test(text.slice(end))) { i = end; continue; }
     const name = match[1] ?? match[2], matches = aliases.get(chairAlias(name)) ?? [];
     const marker = { start: i, end, name, chairId: matches.length === 1 ? matches[0].id : null, label: matches.length === 1 ? matches[0].name : name };
     if (matches.length !== 1) errors.push(`${matches.length ? 'More than one chair matches' : 'No chair at this desk matches'} @${name}. Choose a unique chair name.`);

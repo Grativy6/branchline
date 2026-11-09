@@ -1,6 +1,6 @@
 {
   "profile": "branchline.public-release-files/2",
-  "version": "0.10.0",
+  "version": "0.10.3-preview.1",
   "source": [
     ".gitattributes",
     ".gitignore",
@@ -493,7 +493,36 @@
     "tests/desk-images-browser.mjs",
     "tests/desk-images.test.mjs",
     "tests/pc-recovery-native.mjs",
-    "tests/fixtures/compact-header-before.json"
+    "tests/fixtures/compact-header-before.json",
+    "REASONING-NOTES.md",
+    "public/reasoning-notes-settings.js",
+    "public/reasoning-notes.js",
+    "server/reasoning-notes.mjs",
+    "tests/reasoning-notes.test.mjs",
+    "tests/reasoning-notes-browser.mjs",
+    "CREW-GOALS.md",
+    "public/crew-controls.js",
+    "public/desk-input.js",
+    "server/desk-goals.mjs",
+    "server/resource-meters.mjs",
+    "tests/coat-current-browser.mjs",
+    "tests/coat-current.test.mjs",
+    "tests/crew-goals.test.mjs",
+    "tests/crew-input.test.mjs",
+    "tests/crew-meters.test.mjs",
+    "tests/crew-codex-protocol.test.mjs",
+    "tests/crew-fixtures.mjs",
+    "tests/crew-controls-browser.mjs",
+    "tests/crew-usage-browser.mjs",
+    "tests/crew-steering-browser.mjs",
+    "public/local-models.js",
+    "server/gguf.mjs",
+    "server/local-model-state.mjs",
+    "server/local-models.mjs",
+    "server/local-runner.mjs",
+    "tests/local-model-fixtures.mjs",
+    "tests/local-models.test.mjs",
+    "tests/local-models-browser.mjs"
   ],
   "binary": [
     "public/agent-profiles/hearthline.json",
@@ -927,7 +956,21 @@
       "file": "codex-runtime/origin.json"
     },
     "public/chair-scroll.js",
-    "public/conversation-copy.js"
+    "public/conversation-copy.js",
+    "REASONING-NOTES.md",
+    "public/reasoning-notes-settings.js",
+    "public/reasoning-notes.js",
+    "server/reasoning-notes.mjs",
+    "CREW-GOALS.md",
+    "public/crew-controls.js",
+    "public/desk-input.js",
+    "server/desk-goals.mjs",
+    "server/resource-meters.mjs",
+    "public/local-models.js",
+    "server/gguf.mjs",
+    "server/local-model-state.mjs",
+    "server/local-models.mjs",
+    "server/local-runner.mjs"
   ],
   "auditExceptions": [
     {

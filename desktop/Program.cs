@@ -167,12 +167,20 @@ internal sealed class PreviewWindow : Form
             web.CoreWebView2.Settings.AreHostObjectsAllowed = false;
             web.CoreWebView2.Settings.IsWebMessageEnabled = true;
             await web.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync("window.branchlineBackdropHost = " + (WindowBackdrop.Supported ? "true" : "false") + ";");
+            await web.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync("window.branchlineLocalModelPicker = true;");
             web.CoreWebView2.WebMessageReceived += (_, e) => {
                 if (!Uri.TryCreate(e.Source, UriKind.Absolute, out var source) || source.GetLeftPart(UriPartial.Authority) != origin.GetLeftPart(UriPartial.Authority)) return;
                 try {
                     if (e.WebMessageAsJson.Length > 256) return;
                     using var value = JsonDocument.Parse(e.WebMessageAsJson);
-                    if (value.RootElement.GetProperty("type").GetString() != "appearance") return;
+                    string? messageType = value.RootElement.GetProperty("type").GetString();
+                    if (messageType == "local-model-folder") {
+                        using var picker = new FolderBrowserDialog { Description = "Choose a folder containing your local models", UseDescriptionForTitle = true, ShowNewFolderButton = false };
+                        string? selected = picker.ShowDialog(this) == DialogResult.OK ? picker.SelectedPath : null;
+                        web.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(new { type = "local-model-folder", path = selected }));
+                        return;
+                    }
+                    if (messageType != "appearance") return;
                     int transparency = Math.Clamp(value.RootElement.GetProperty("transparency").GetInt32(), 0, 90);
                     bool active = WindowBackdrop.Apply(this, transparency > 0);
                     web.DefaultBackgroundColor = active ? Color.Transparent : Color.FromArgb(244, 242, 234);
@@ -192,12 +200,12 @@ internal sealed class PreviewWindow : Form
             web.CoreWebView2.PermissionRequested += (_, e) => { e.State = CoreWebView2PermissionState.Deny; e.Handled = true; };
             web.CoreWebView2.NewWindowRequested += (_, e) => {
                 e.Handled = true;
-                // Only an explicit click can open the official account sign-in in the browser.
+                // Explicit UI links open sign-in or the local-model catalog in the browser.
                 if (e.IsUserInitiated && Uri.TryCreate(e.Uri, UriKind.Absolute, out var auth)
-                    && auth.Scheme == "https" && auth.Host == "auth.openai.com" && auth.IsDefaultPort
+                    && auth.Scheme == "https" && (auth.Host == "auth.openai.com" || auth.AbsoluteUri == "https://huggingface.co/models") && auth.IsDefaultPort
                     && auth.UserInfo.Length == 0) {
                     try { Process.Start(new ProcessStartInfo(auth.AbsoluteUri) { UseShellExecute = true }); }
-                    catch (Exception) { MessageBox.Show(this, "Open your browser and retry sign-in from Models.", "Branchline sign-in"); }
+                    catch (Exception) { MessageBox.Show(this, "Open your browser and retry the link from Models.", "Branchline link"); }
                 }
             };
             web.CoreWebView2.DownloadStarting += (_, e) => {

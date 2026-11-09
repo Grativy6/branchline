@@ -1,4 +1,4 @@
-# Before updating to 0.10.0
+# Before updating to 0.10.3-preview.1
 
 Close Branchline and keep a verified backup of its app and actual workspace. Existing installations can have different workspace paths; check the shortcut's --data-dir option and Settings -> Workspace.
 

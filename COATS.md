@@ -4,7 +4,7 @@ A **Coat** holds the instructions and tool preferences you want a model to wear
 for a conversation. Each saved model identity can have a usual Coat, with optional branch-specific changes.
 
 Open **My Coats** from Home or **Settings → Coats & pockets** for the same library and editor. Choose **Coat** between the model chairs to change this branch.
-Create a new Coat, duplicate a starter, or edit your own saved version.
+Create a new Coat, duplicate a starter, or edit your own saved Coat.
 You can share one Coat between both chairs or give each chair its own.
 
 ## Play, Create and Work
@@ -40,16 +40,16 @@ New Coats show these tools checked before saving:
 - Reopen chat sources.
 - Read a public page.
 
-Uncheck anything you do not want. Saving remembers this exact list for that
-version. Empty pockets are allowed, even with no extra instruction text.
+Use **Select all** or **Clear all** at either end of the list, or change individual
+checkboxes. Saving remembers these choices for the Coat. Empty pockets are allowed, even with no extra instruction text.
 The conversation's **Tools** switch must also be on; it does not change when
 you switch Coats. A selected tool needs a compatible connection and any relevant
 source material. Reading a public page still asks you to approve its exact URL.
 Agent and hearth request controls remain separate.
 
 Existing Coats keep their previous behavior. Their editor says they use the
-current built-in tools. Changing a pocket saves an explicit list in a new
-version; changing only the instructions preserves their previous tool behavior.
+current built-in tools. Changing a pocket saves an explicit list; changing only the instructions
+preserves their previous tool behavior.
 Duplicating a starter begins a new Coat with today's tools visibly checked.
 
 Image generation, voices and external plugin tools are not connected by this
@@ -60,12 +60,18 @@ silent replacement and no pretend provider chooser.
 
 ## Save, change or take off a Coat
 
-**Save to library** makes a new version without changing a branch's choice.
-**Save and use here** applies that version to the chair(s) you select.
-The selector can also use your choices as defaults for new branches in a desk.
-Existing branches keep their selected version as a preserved override. New branches follow a model’s usual Coat, then their copied desk default, then Conversation. Tend and Finis Solutus can have intentional starting choices. Returning to a model restores its branch override. **Follow usual Coat** removes that override for later replies.
+**Save to library** saves your edits to the same Coat. Every picker shows one
+entry per Coat, with its current name. Chairs wearing it use the updated
+instructions and pockets for their next reply, including queued work that has
+not started yet. **Save and use here** also selects it for the chosen chairs.
 
-Usual choices use saved identities rather than display names. Saving a new library version alone changes no choices. An active call retains the exact version it started with, even if the library or usual choice changes.
+A model can have a usual Coat, and a chair or branch can choose a different one.
+These choices follow the Coat itself. **Follow usual Coat** removes the branch
+override. Editing a Coat does not change which chairs wear it.
+
+Replies already underway keep their captured instructions and tool choices.
+Earlier replies retain their exact instructions in Details. The app keeps those
+records for conversation history; old saves do not become extra picker entries.
 
 Delete removes a Coat from the
 library, while existing branch selections and reply evidence remain intact.
@@ -87,8 +93,8 @@ They do not certify the model's answer or grant permission to act.
 
 Import accepts UTF-8 JSON, Markdown or plain text up to 64 KiB. You review a draft
 before saving it. JSON exports with pockets use `branchline.coat/1`; old
-`branchline.harness/1` instruction files remain supported. Old versions keep their
-old format until they actually gain pocket metadata. **Export instructions only**
+`branchline.harness/1` instruction files remain supported. Older instruction-only files keep their
+format until they gain pocket metadata. **Export instructions only**
 creates Markdown without pockets. These files contain preferences, not connections,
 credentials or executable grants. Review the instruction text before sharing it.
 

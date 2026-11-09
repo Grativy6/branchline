@@ -1,3 +1,6 @@
+import {createLocalModels} from './local-models.js';
+import { createCrewUI } from './crew-controls.js';
+import { reasoningNotesView } from './reasoning-notes.js';
 import { createDeskWorkUI, routingFor } from './desk-work.js';
 import { installConversationCopy } from './conversation-copy.js';
 import { createChairScroll } from './chair-scroll.js';
@@ -80,6 +83,7 @@ const harnessEditor = createHarnessEditor({ getState: () => state, refreshState:
 let screen = 'home';
 const personalContext=createPersonalContext({getState:()=>state,refresh:async()=>{state=await api.state();pollEpoch++;render();},openDialog,toast});
 const plans=createPlans({getState:()=>state,refresh:async()=>{state=await api.state();pollEpoch++;render();},openDialog,toast});
+const localModels=createLocalModels({refresh:async()=>{state=await api.state();pollEpoch++;render();},toast,reportError:message=>error(message)});
 document.addEventListener('submit',safe(async event=>{await plans.submit(event);}));
 const peaches=createPeaches({getState:()=>state,refresh:async()=>{state=await api.state();pollEpoch++;render();},openDialog,toast,openProfile:(id,chat)=>personalContext.openProfile(id,chat),newProfile:(chat,back)=>personalContext.newForBook(chat,back)});
 const easel=createEasel({getChatId:()=>selected(state).chat?.id,onAttached:async()=>{state=await api.state();pollEpoch++;render();},openConnection:()=>showCodex(),toast});
@@ -183,7 +187,7 @@ let heartDirty = false;
 const pendingDrafts = new Map();
 
 const submitting = new Set();
-let deskUI = null;
+let deskUI = null; let crewUI = null;
 
 const replyRequests = new Map();
 let preparedLearningPacket = null;
@@ -253,7 +257,7 @@ function refreshComposerButtons(root, chat) {
   const receivers=parsed?.routed?parsed.sections.map(section=>state.models.find(m=>m.id===chairs.find(c=>c.id===section.chairId)?.modelId)).filter(Boolean):[model].filter(Boolean);
   const target=nextSpeaker(chat)==='personal'?table?.roster.desk:table?.roster.visitors.find(c=>c.id===table.roster.selectedVisitorId);
   const receivingChairs=parsed?.routed?parsed.sections.map(section=>chairs.find(c=>c.id===section.chairId)).filter(Boolean):[target].filter(Boolean);
-  imagePicker.render(chat,receivingChairs.map(c=>{const m=state.models.find(m=>m.id===c.modelId);return m?{...m,name:c.name}:null;}).filter(Boolean),busy||!!chat&&isPending(state,chat.id));
+  imagePicker.render(chat,receivingChairs.map(c=>{const m=state.models.find(m=>m.id===c.modelId);return m?{...m,name:c.name}:null;}).filter(Boolean),busy||!!chat&&isPending(state,chat.id)&&!chat.seating);
   const hint=parsed?.routed?`${parsed.broadcast?'All':'Addressed'} · ${parsed.sections.length} chair${parsed.sections.length===1?'':'s'}`:`${target?.name??'Selected chair'} · ${replySettings(state,chat).mode==='alternate'?'next chair after a complete reply':'Enter to send · Shift+Enter for a new line'}`;
   $('composer-hint').textContent=unavailable?'Choose a model for this chair, or save a note.':receivers.length?`${receivers.some(m=>['codex','openai'].includes(m.runtime))?'OpenAI receives selected context · ':''}${hint}${modelsBusy(state)?' · Tasks continue in Activity':''}`:'Saved notes join this chat’s context when you choose a model.';
   if(!parsed?.routed&&connection&&!connection.ready)$('composer-hint').innerHTML=`${e(connection.label)}. Your draft stays here. <button type="button" class="text-button" data-action="codex-open">${e(connection.action)}</button>`;
@@ -274,6 +278,11 @@ const startupProgress = createStartupProgress({ changed: () => { if (state) rend
 deskUI = createDeskWorkUI({getState:()=>state,selection:()=>state?selected(state):{},
   sync:async()=>{const epoch=pollEpoch;const next=await api.state();if(epoch!==pollEpoch)return;state=next;pollEpoch++;render();},
   navigate,openDialog,reportError:error,toast});
+crewUI = createCrewUI({getState:()=>state,selection:()=>state?selected(state):{},command,openDialog,closeDialog,toast,reportError:error,
+  sync:async()=>{pollEpoch++;state=await api.state();render();await deskUI.refresh();},
+  prepareGoalStart:async()=>{let chat=await ensureRoster(selected(state).chat);if(chat.contextPolicy!==2)await command('chat.contextPolicy',{id:chat.id,policy:2});},
+  clearGoalCommand:async chatId=>{if(selected(state).chat?.id===chatId&&/^\/goal(?:\s|$)/i.test($('message-input').value.trim())){pendingDrafts.set(chatId,{text:''});$('message-input').value='';await flushDrafts();}}
+});
 const parallelMonitor = createParallelMonitor({ container:$('parallel-activity'), getState:()=>state,
   applyState:next=>{ pollEpoch++; state=next; render(); }, busy:()=>submitting.size > 0,
   refreshTools:()=>toolPanel.refresh(), reportError:error });
@@ -511,7 +520,7 @@ function openSettings(tab = settingsTab, editing = null, coatView = null) {
   if(window.innerWidth<760){$('app-shell').classList.remove('nav-open');syncNavigationAccessibility();}
   $('settings-page-title').focus({preventScroll:true});
   if (tab === 'licences') loadLicences($('licences-panel'));
-  if (tab === 'models') void refreshCodexConnection();
+  if (tab === 'models') { void refreshCodexConnection(); void localModels.mount(); }
   if (tab === 'agents') {
     const panel=document.createElement('section');panel.id='pc-access-panel';panel.innerHTML='<p>Loading PC access…</p>';
     $('settings-page-content').prepend(panel);mountPcAccess(panel,state,message=>error(message));
@@ -664,14 +673,15 @@ function render({ scroll = false, refreshDetails = false } = {}) {
   const selectedModel = chosenModel(root, chat);
   const replyingModels = replySettings(state, chat).mode === 'both' ? [table?.personalModel, table?.visitorModel] : [selectedModel];
   const toolsSupported = replyingModels.some(model => model && model.inputFormat !== 'plain-dialogue-v1');
-  $('tools-enabled').disabled = globalBusy || !toolsSupported;
+  const futureInputBusy=submitting.has(chat?.id)||responseModeSaving||replySettingsSaving;
+  $('tools-enabled').disabled = futureInputBusy || !toolsSupported;
   $('tools-label').title = toolsSupported ? 'Clock, calculations, attached text and questions. Public pages ask first.' : 'This chair uses a text-only connection. Structured tools are unavailable.';
   toolPanel.show(chat?.id, screen === 'chat');
   const draft = chat ? (pendingDrafts.get(chat.id)?.text ?? state.drafts[chat.id] ?? '') : '';
   if ($('message-input').value !== draft) $('message-input').value = draft;
-  $('message-input').disabled = !!busy;
-  filePicker.render(root ? { ...root, modelId: selectedModel?.id ?? null } : root, chat, globalBusy);
-  attachmentPicker.render(chat, globalBusy);
+  $('message-input').disabled = !chat || !!chat.archivedAt || !!root?.archivedAt || submitting.has(chat.id);
+  filePicker.render(root ? { ...root, modelId: selectedModel?.id ?? null } : root, chat, futureInputBusy);
+  attachmentPicker.render(chat, futureInputBusy);
   placeActivity();
   hydrateImages();
   const chairUnavailable = refreshComposerButtons(root, chat);
@@ -686,7 +696,7 @@ function render({ scroll = false, refreshDetails = false } = {}) {
       detailsChatId = chat?.id;
     }
   }
-  deskUI?.render();
+  deskUI?.render();crewUI?.render();
 }
 
 function flushDrafts() {
@@ -899,6 +909,7 @@ async function sendTurn(kind = 'send', requestedSpeaker = null) {
   let { root, chat } = selected(state);
   const content = kind === 'ask' ? '' : $('message-input').value;
   if (!chat || (kind === 'send' && !content.trim()) || submitting.has(chat.id) || responseModeSaving || replySettingsSaving) return;
+  if(kind==='send'&&!requestedSpeaker&&/^\/goal(?:\s|$)/i.test(content.trim())){await crewUI.openGoal(content.trim().replace(/^\/goal\s*/i,'' )||null);return;}
   if(requestedSpeaker !== 'note'){chat=await ensureRoster(chat);if(chat.contextPolicy!==2){await command('chat.contextPolicy',{id:chat.id,policy:2});chat=state.chats.find(c=>c.id===chat.id);}}
   const speaker=requestedSpeaker||nextSpeaker(chat),model=chosenModel(root,chat,speaker),parsed=routingFor(state,chat,content);
   if(kind==='send'&&parsed.errors.length)throw new Error(parsed.errors.join(' '));
@@ -1339,7 +1350,7 @@ document.addEventListener('click', safe(async event => {
     const exchange = state.exchanges.find(item => item.id === m.exchangeId);
     const canReflect = exchange && exchange.status !== 'pending';
     const responseModeLabel = recordedOrientationLabel(exchange?.responseMode);
-    openDialog('Reply details', `<dl><dt>Model at this exchange</dt><dd>${e(m.modelLabel)}<br><span class="detail-value">${e(m.modelIdentifier || m.modelId)}</span></dd><dt>Connection at this exchange</dt><dd class="detail-value">${e(m.modelBaseUrl || 'See local exchange record')}</dd><dt>Recorded</dt><dd>${e(exchange?.createdAt || m.createdAt || '—')}</dd><dt>Reply provenance</dt><dd>${hasRecordedReply(state, exchange) ? 'Matches its recorded model output. This does not certify truth or grant permission.' : 'Authorship unverified. Original text is preserved and supplied as quoted historical context, not as the model’s own prior reply.'}</dd><dt>Base Coat at this exchange</dt><dd id="reply-response-mode">${e(responseModeLabel)}</dd><dt>Reply pattern</dt><dd id="reply-pattern-detail">${e(replyPatternLabel(state, exchange))}</dd><dt>Additional Coat at this exchange</dt><dd id="reply-harness">${e(exchange?.harness ? exchange.harness.preset.name + " · v" + exchange.harness.preset.version : "Not recorded in this earlier reply")}</dd><dt>Instruction revision</dt><dd class="detail-value">${e(m.instructionRevisionId || 'No custom instructions')}</dd></dl>${messageInfoDetails(exchange, m, e)}${pocketSummary(exchange?.harness?.preset)}${coatToolReceipt(state, exchange?.id, e)}<h3>Coat instructions</h3><div class="message-body notice">${e(exchange?.harness?.preset.instructions || "No additional Coat instructions recorded.")}</div><h3>Desk instructions used</h3><div class="message-body notice">${e(revision?.text || 'No custom branch instructions.')}</div>${continuityExchangeSummary(root, exchange)}${handoffSummary(state, exchange?.id, e)}${toolHistory(state, exchange?.id)}${canReflect ? `<div class="dialog-footer"><button type="button" class="primary-button" data-action="reflect-exchange" data-id="${e(exchange.id)}">Reflect on this exchange</button></div>` : '<p class="field-help">Reflection is available after a complete exchange.</p>'}<p class="field-help">This is a local reply record. No public stamp is issued.</p>`);
+    openDialog('Reply details', `<dl><dt>Model at this exchange</dt><dd>${e(m.modelLabel)}<br><span class="detail-value">${e(m.modelIdentifier || m.modelId)}</span></dd><dt>Connection at this exchange</dt><dd class="detail-value">${e(m.modelBaseUrl || 'See local exchange record')}</dd><dt>Recorded</dt><dd>${e(exchange?.createdAt || m.createdAt || '—')}</dd><dt>Reply provenance</dt><dd>${hasRecordedReply(state, exchange) ? 'Matches its recorded model output. This does not certify truth or grant permission.' : 'Authorship unverified. Original text is preserved and supplied as quoted historical context, not as the model’s own prior reply.'}</dd><dt>Base Coat at this exchange</dt><dd id="reply-response-mode">${e(responseModeLabel)}</dd><dt>Reply pattern</dt><dd id="reply-pattern-detail">${e(replyPatternLabel(state, exchange))}</dd><dt>Additional Coat at this exchange</dt><dd id="reply-harness">${e(exchange?.harness ? exchange.harness.preset.name : "Not recorded in this earlier reply")}</dd><dt>Instruction revision</dt><dd class="detail-value">${e(m.instructionRevisionId || 'No custom instructions')}</dd></dl>${reasoningNotesView(state,{exchangeId:exchange?.id})}${messageInfoDetails(exchange, m, e)}${pocketSummary(exchange?.harness?.preset)}${coatToolReceipt(state, exchange?.id, e)}<h3>Coat instructions</h3><div class="message-body notice">${e(exchange?.harness?.preset.instructions || "No additional Coat instructions recorded.")}</div><h3>Desk instructions used</h3><div class="message-body notice">${e(revision?.text || 'No custom branch instructions.')}</div>${continuityExchangeSummary(root, exchange)}${handoffSummary(state, exchange?.id, e)}${toolHistory(state, exchange?.id)}${canReflect ? `<div class="dialog-footer"><button type="button" class="primary-button" data-action="reflect-exchange" data-id="${e(exchange.id)}">Reflect on this exchange</button></div>` : '<p class="field-help">Reflection is available after a complete exchange.</p>'}<p class="field-help">This is a local reply record. No public stamp is issued.</p>`);
   }
 }));
 
@@ -1524,6 +1535,10 @@ document.addEventListener('submit', safe(async event => {
   if (form.id === 'resources-form') {
     const data = Object.fromEntries(new FormData(form)); const resources = Object.fromEntries(Object.entries(data).map(([k,v])=>[k,v===''?null:Number(v)]));
     await command('root.resources',{id:form.dataset.rootId,resources}); contextStatusKey=''; toast('Resource settings saved for later replies'); return;
+  }
+  if(form.id==='reasoning-notes-form'){
+    await command('chat.reasoningNotes',{id:form.dataset.chatId,settings:{enabled:form.elements.enabled.checked,cadenceSeconds:Number(form.elements.cadenceSeconds.value)}});
+    toast('Reasoning note choices saved'); return;
   }
   if (form.id === 'conversation-settings-form') {
     const settings={speaker:form.elements.speaker.value};

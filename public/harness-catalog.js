@@ -20,13 +20,20 @@ export function findHarness(ref, state = {}) {
   const version = custom?.versions.find(v => v.version === ref?.version);
   return version ? { id: custom.id, version: version.version, name: version.name, description: version.description, instructions: version.instructions, ...pocketContent(version) } : undefined;
 }
+// Live choices follow the Coat's identity; recorded replies still use findHarness
+// with their exact captured reference.
+export function currentHarnessRef(ref, state = {}) {
+  const custom = state.customHarnesses?.find(h => h.id === ref?.id);
+  return custom?.versions.some(v => v.version === ref.version)
+    ? { id: custom.id, version: custom.versions.at(-1).version } : ref;
+}
 export const harnessKey = ref => ref.id.startsWith('custom_') ? `${ref.id}@${ref.version}` : ref.id;
 export function harnessRef(key) {
   const [id, version] = String(key).split('@');
   return { id, version: version === undefined ? 1 : Number(version) };
 }
 export const harnessDeleted = (ref, state) => Boolean(state.customHarnesses?.find(h => h.id === ref?.id)?.deletedAt);
-export const allHarnesses = state => [...STARTER_HARNESSES, ...(state.customHarnesses ?? []).filter(h => !h.deletedAt).flatMap(h => h.versions.map(v => findHarness({ id: h.id, version: v.version }, state)))];
+export const allHarnesses = state => [...STARTER_HARNESSES, ...(state.customHarnesses ?? []).filter(h => !h.deletedAt).map(h => findHarness({ id: h.id, version: h.versions.at(-1).version }, state))];
 export const harnessChoice = chat => chat?.harnessSelections?.at(-1) ?? { id: null, shared: true, personal: defaultHarnessRef(), visiting: defaultHarnessRef() };
 
 // Stable identities, independent of display labels and occupied chair positions.
@@ -38,16 +45,17 @@ export function coatIdentity(state, chat, seat) {
 }
 export const usualCoat = (state, key) => state.coatUsuals?.filter(r=>r.key===key).at(-1) ?? null;
 export function resolvedCoat(state, chat, seat, key = coatIdentity(state, chat, seat)) {
+  const resolved = (ref, source, mode) => ({ ref:currentHarnessRef(ref,state), source, mode, key });
   const chair = chat?.seating && rosterChair(state, chat, seat);
-  if (chair?.coat) return { ref:chair.coat, source:chat.seating.revisionId, mode:'override', key };
+  if (chair?.coat) return resolved(chair.coat,chat.seating.revisionId,'override');
   const choice = chat?.coatChoices?.filter(r=>r.key===key).at(-1);
   const usual = usualCoat(state,key);
   const legacy = harnessChoice(chat);
-  if (!chat?.coatPolicy) return { ref:legacy[seat], source:legacy.id, mode:'preserved', key };
-  if(chat?.coatStarter && !choice) return {ref:chat.coatDefault?.[seat]??legacy[seat],source:chat.coatDefault?.selectionId??legacy.id,mode:'starter',key};
-  if (choice?.mode === 'override') return { ref:choice.ref, source:choice.id, mode:'override', key };
+  if (!chat?.coatPolicy) return resolved(legacy[seat],legacy.id,'preserved');
+  if(chat?.coatStarter && !choice) return resolved(chat.coatDefault?.[seat]??legacy[seat],chat.coatDefault?.selectionId??legacy.id,'starter');
+  if (choice?.mode === 'override') return resolved(choice.ref,choice.id,'override');
   const fallback = chat?.coatDefault?.[seat] ?? defaultHarnessRef();
-  return { ref:usual?.ref ?? fallback, source:usual?.id ?? chat?.coatDefault?.selectionId ?? null, mode:'follow', key };
+  return resolved(usual?.ref ?? fallback,usual?.id ?? chat?.coatDefault?.selectionId ?? null,'follow');
 }
 export function resolvedHarnessChoice(state, chat) {
   const a=resolvedCoat(state,chat,'personal'), b=resolvedCoat(state,chat,'visiting');

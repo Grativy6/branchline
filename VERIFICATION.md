@@ -1,5 +1,15 @@
 # Verification for Branchline v0.10
 
+## 0.10.3-preview.1 preparation — 9 November 2026
+
+The unchanged application baseline at 9143bb0 passed 78 backend tests, the local-model finder browser flow and the existing subscription/steering browser flow. The finder checks cover search, description before Add, duplicate identity, removal retaining the file, restoration, retry errors, page order and saved-state replay. The meter flow checks 75% left for 25% used.
+
+Two existing Apertus-family files were checked against their recorded SHA-256 identities, loaded through the owned Vulkan runtime with 8,192-token windows, and answered a short greeting. Both stopped naturally after the final minimal local instruction and plain user message were applied. Earlier scaffolding-echo attempts were retained as failures, not successful greetings. This establishes these two file routes, not universal GGUF compatibility.
+
+The local 0.10.3 native host passed an isolated history/reopen check. The user tested the installed finder, reported success and supplied a screenshot of a saved Gemma4 entry; that is not a claim of a Gemma4 inference test. Final release-package installation/upgrade and artifact identities are recorded separately in INSTALLER-VERIFICATION.json after packaging. No production account or private workspace is included.
+
+The sections below retain earlier qualification and its dates.
+
 Prepared on Dust, 8 November 2026, by Hearthline under Christopher Daniel Pang's v0.10 publication request. The records below distinguish the earlier baseline from the current feature qualification; final package and installer results are in INSTALLER-VERIFICATION.json.
 
 - The earlier preview.3 baseline passed its 20 backend tests, including provider pagination, refresh, account-change invalidation, stale results, idempotent model registration, session protection, and the shared-desk regression suite.

@@ -1,0 +1,39 @@
+import {chromium} from 'playwright-core';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+import {fixture,until} from './desk-helpers.mjs';
+import {writeGguf} from './local-model-fixtures.mjs';
+const dir=await fs.mkdtemp(path.join(os.tmpdir(),'branchline-model-ui-'));
+await writeGguf(path.join(dir,'alpha.gguf'),{name:'Alpha local',description:'A model description from the selected file.'});
+await writeGguf(path.join(dir,'beta.gguf'),{name:'Beta local',template:'{{messages}}',seed:2});
+await writeGguf(path.join(dir,'mmproj.gguf'),{architecture:'clip',name:'Vision companion'});
+const f=await fixture({modelOptions:{localModelFolders:[dir]}}),errors=[];
+await new Promise(r=>f.app.listen(0,'127.0.0.1',r));
+const browser=await chromium.launch({headless:true,...(process.platform==='win32'?{channel:'msedge'}:{})});
+const page=await browser.newPage({viewport:{width:1100,height:1000}});page.on('pageerror',e=>errors.push(e.message));await fs.mkdir('.test-output',{recursive:true});
+try{
+  await page.goto(`http://127.0.0.1:${f.app.address().port}/#session=${f.app.sessionToken}`);await page.locator('#tour-skip').check();await page.locator('#tour-next').click();
+  await page.locator('#settings-button').click();await page.locator('[data-action="settings-tab"][data-id="models"]').click();
+  await page.locator('[data-local-action="search"]').waitFor();
+  const order=await page.locator('#settings-page-content').evaluate(el=>['Your personal models','Your locally saved models','Included Qwen','Work tools','Home sources','ChatGPT subscription','OpenAI API'].map(t=>el.innerText.indexOf(t)));
+  assert(order.every((n,i)=>n>=0&&(!i||n>order[i-1])),'Models page follows the sketch');
+  await page.locator('[data-local-action="search"]').click();await page.locator('#local-model-folder').fill(path.join(dir,'missing'));await page.locator('[data-local-action="find"]').click();await page.getByText('That folder could not be opened. Choose its current location.',{exact:true}).waitFor();assert.equal(await page.locator('#error-text').innerText(),'');await page.locator('#local-model-folder').fill(dir);await page.locator('[data-local-action="find"]').click();await page.locator('.local-model-results button').filter({hasText:'Alpha local'}).click();
+  await page.locator('.local-model-preview').getByText('A model description from the selected file.',{exact:true}).waitFor();
+  assert.equal(f.app.store.state.models.filter(m=>m.runtime==='gguf').length,0);
+  await page.screenshot({path:'.test-output/local-model-preview.png'});
+  await page.locator('[data-local-action="find"]').click();assert(await page.locator('[data-local-action="add"]').isDisabled());await page.locator('.local-model-results button').filter({hasText:'Alpha local'}).click();
+  await page.locator('#local-model-name').fill('My Alpha');await page.locator('[data-local-action="add"]').click();
+  await until(()=>f.app.store.state.models.some(m=>m.name==='My Alpha'),'explicit Add saved');await page.locator('.local-model-list').getByRole('option',{name:/My Alpha/}).waitFor();
+  assert.equal(await page.locator('[data-local-action="online"]').getAttribute('href'),'https://huggingface.co/models');
+  await page.locator('.local-model-list').getByRole('option',{name:/My Alpha/}).click();await page.locator('[data-local-action="remove"]').click();
+  await page.getByText('Removed from the list. The model file remains on disk.',{exact:true}).waitFor();assert((await fs.stat(path.join(dir,'alpha.gguf'))).isFile());
+  await page.locator('.local-model-results button').filter({hasText:'Alpha local'}).click();await page.locator('[data-local-action="add"]').click();await page.locator('.local-model-list').getByRole('option',{name:/My Alpha/}).waitFor();
+  await page.reload();await page.locator('#settings-button').click();await page.locator('[data-action="settings-tab"][data-id="models"]').click();await page.locator('.local-model-list').getByRole('option',{name:/My Alpha/}).waitFor();
+  assert.equal(f.app.store.state.models.filter(m=>m.runtime==='gguf').length,1);assert.equal(f.requests.length,0);assert.deepEqual(errors,[]);
+  await page.screenshot({path:'.test-output/local-model-library.png'});
+  const result={status:'PASS',pageOrder:true,searchPreviewBeforeAdd:true,removeRetainsFile:true,reAddKeepsIdentity:true,reload:true,huggingFaceDestination:true,noInferenceDuringDiscovery:true,errors,fixture:f.dir};
+  await fs.writeFile('.test-output/local-models-browser.json',JSON.stringify(result,null,2)+'\n');console.log(JSON.stringify(result));
+}catch(error){await page.screenshot({path:'.test-output/local-models-failure.png'});console.error(JSON.stringify({errors,visibleError:await page.locator('#error-text').textContent().catch(()=>''),localMessage:await page.locator('#local-model-library [role="status"]').textContent().catch(()=>'' )}));throw error;}
+finally{await browser.close();await f.close();}

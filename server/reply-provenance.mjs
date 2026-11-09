@@ -99,8 +99,18 @@ export function validateReplyProvenance(state) {
         && interruptions[0].detail?.recoveredResult === false, 'interruption cannot supply a model reply.');
       continue;
     }
+    const amendments = related.filter(r => r.kind === 'input.amendment.accepted');
+    for (const amendment of amendments) {
+      const source = related.find(r => r.id === amendment.parents[1] && r.kind === 'input.amendment.request');
+      const queued = state.deskWork?.tasks.find(t => t.id === amendment.detail?.sourceTaskId);
+      fail(source && queued && !queued.automatic && !queued.originTaskId && queued.chatId === turn.chatId && queued.chairId === turn.speaker?.chairId
+        && same(amendment.scope, scope) && amendment.from === 'paired_local_ui' && amendment.to === 'model_episode'
+        && same(amendment.parents, [context.id, source.id]) && same(source.detail.input, amendment.detail.input)
+        && amendment.detail.acknowledgement?.accepted === true && typeof amendment.detail.acknowledgement.turnId === 'string'
+        && amendment.contentHash === digest({ input: amendment.detail.input, acknowledgement: amendment.detail.acknowledgement }), 'input amendment lost its human request or acknowledgement.');
+    }
     fail(turn.status !== 'pending' && output.from === 'model_episode' && output.to === 'chat_transcript'
-      && same(output.parents, [context.id]) && ['WITHIN_LOCAL_PROFILE', 'HELD'].includes(output.status), 'output lost its transcript destination or terminal state.');
+      && same(output.parents, [context.id, ...amendments.map(r => r.id)]) && ['WITHIN_LOCAL_PROFILE', 'HELD'].includes(output.status), 'output lost its transcript destination or terminal state.');
     fail(output.detail?.capabilityHash === digest(task.capability) && same(task.allowedEffects, ['record_reply'])
       && output.detail.effect === (output.status === 'WITHIN_LOCAL_PROFILE' ? 'record_reply' : 'retain_output_only'),
     'output belongs to a different effect.');

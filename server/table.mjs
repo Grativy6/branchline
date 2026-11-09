@@ -1,8 +1,9 @@
+import { taskInput } from '../public/desk-input.js';
 import { assertModelAvailable, preserveModelArchives } from './model-archives.mjs';
 import crypto from 'node:crypto';
 import { rosterAssignment, rosterChair, chairView, CHAIR_PROFILE } from '../public/chair-roster.js';
 import { applyRosterCommand, validateRoster } from './chair-roster.mjs';
-import { resolvedCoat } from '../public/harness-catalog.js';
+import { resolvedCoat, currentHarnessRef } from '../public/harness-catalog.js';
 import { digest } from './integrity.mjs';
 import { responseModeFor } from './response-mode.mjs';
 import { permitsDreamTransition, preserveDreamHistory } from './dream-history.mjs';
@@ -214,9 +215,12 @@ export function checkTurnRequest(state, body, admission = null) {
   }
   if (admission) {
     const task = state.deskWork?.tasks.find(t => t.id === admission.taskId);
-    fail(task && ['preparing','running'].includes(task.status) && task.chatId === body.chatId && task.requestId === body.requestId && (task.kind==='ask'?(body.content??'')==='':task.content === (body.content ?? '')), 'The admitted chair task changed.');
+    fail(task && ['preparing','running'].includes(task.status) && task.chatId === body.chatId && task.requestId === body.requestId && (task.kind==='ask'?(body.content??'')==='':taskInput(state,task) === (body.content ?? '')), 'The admitted chair task changed.');
     const chosen = resolveSpeaker(state, body.chatId, task.selection.seat, task.chairId);
-    fail(digest(chosen.selection) === digest(task.selection) && digest(chosen.model) === digest(task.model), 'This chair changed after its task was assigned.');
+    // A queued reply follows edits to the same Coat. The original task selection
+    // remains recorded; the exchange captures the exact instructions at dispatch.
+    const selection = task.selection.coat ? { ...task.selection, coat: { ...task.selection.coat, ref: currentHarnessRef(task.selection.coat.ref,state) } } : task.selection;
+    fail(digest(chosen.selection) === digest(selection) && digest(chosen.model) === digest(task.model), 'This chair changed after its task was assigned.');
     assertChairAvailable(state, body.chatId, task.chairId);
     return { fingerprint, kind, ...chosen, replyMode:task.input.replyMode??'single' };
   }

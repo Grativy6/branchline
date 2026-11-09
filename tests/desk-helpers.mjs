@@ -11,7 +11,7 @@ export async function fixture({hold=true,reply=null,modelOptions={},codex={close
   const fake=http.createServer(async(req,res)=>{let text='';for await(const c of req)text+=c;const body=JSON.parse(text);requests.push({body,res,at:Date.now()});if(reply)await reply(requests.at(-1),requests);else if(!hold)finish(requests.at(-1));});
   await new Promise(r=>fake.listen(0,'127.0.0.1',r));
   const dir=await fs.mkdtemp(path.join(os.tmpdir(),'branchline-desk-test-'));
-  const app=await createApp({dataDir:path.join(dir,'workspace'),bundledDir:path.join(dir,'no-model'),modelOptions:{codex,...modelOptions}});
+  const app=await createApp({dataDir:path.join(dir,'workspace'),bundledDir:path.join(dir,'no-model'),modelOptions:{codex,hardwareMeter:{async sample(){return {sampledAt:new Date().toISOString(),scope:'whole_device',cpu:{utilizationPercent:25,logicalProcessors:8},memory:{usedBytes:4*1073741824,totalBytes:16*1073741824},gpus:[{id:'fixture-gpu',name:'Fixture GPU',utilizationPercent:30,usedBytes:2*1073741824,totalBytes:8*1073741824,scope:'whole_device',source:'Synthetic fixture'}],gpuError:null};}},...modelOptions}});
   const command=async(type,payload)=>app.store.transact(s=>applyCommand(s,{type,payload}));
   await command('root.create',{name:'Test desk',mode:'personal'});
   for(const name of ['Hearthline','Qwen'])await command('model.save',{name,model:name.toLowerCase(),baseUrl:`http://127.0.0.1:${fake.address().port}/v1`,runtime:'compatible',thinking:false});

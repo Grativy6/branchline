@@ -1,8 +1,12 @@
-# Branchline v0.10
+# Branchline 0.10.3-preview.1
 
 A local home for conversations, ideas and shared work with AI. Keep your desks, branches and history while choosing the models you work with.
 
-[Download Branchline v0.10 for Windows](https://github.com/Grativy6/branchline/releases/tag/v0.10.0) or start with [START-HERE.md](START-HERE.md). The normal installer includes stock Qwen3.5-4B. It needs no Branchline account or purchased stamp. This is an unsigned Windows x64 pre-1.0 release. Dreams and built-in training remain under development.
+[Download Branchline for Windows](https://github.com/Grativy6/branchline/releases/tag/v0.10.3-preview.1) or start with [START-HERE.md](START-HERE.md). The normal installer includes stock Qwen3.5-4B. It needs no Branchline account or purchased stamp. This is an unsigned Windows x64 pre-1.0 release. Dreams and built-in training remain under development.
+
+## New in this release
+
+Find compatible GGUF files on your computer, preview their descriptions, and add them through the [local-model library](LOCAL-MODEL.md). They load when used. Subscription meters show the allowance left, and recorded usage is grouped by chair. [Conversation goals and queue/steer](CREW-GOALS.md) keep shared work organized. Optional [reasoning notes](REASONING-NOTES.md) use 10/30/60-second choices and wait behind current work. Coats have one current choice, with Select all and Clear all for their tool pockets.
 
 ## ChatGPT connection
 
@@ -45,7 +49,7 @@ The Windows binary payload keeps hash-pinned Node, Python, Codex, dependency and
 
 ```powershell
 pwsh -File scripts/Build-Preview.ps1 -RuntimeFolder C:\BuildInputs\Branchline -WithModel
-pwsh -File scripts/Build-Installer.ps1 -PackageFolder releases/Branchline-v0.10.0-Windows-x64 -InputFolder C:\BuildInputs\Prerequisites -Compiler C:\BuildTools\Inno\ISCC.exe -OutputFolder releases/Installer
+pwsh -File scripts/Build-Installer.ps1 -PackageFolder releases/Branchline-v0.10.3-preview.1-Windows-x64 -InputFolder C:\BuildInputs\Prerequisites -Compiler C:\BuildTools\Inno\ISCC.exe -OutputFolder releases/Installer
 ```
 
 The installer inputs and their hashes are in `provenance/installer-inputs.json`. Existing outputs are never merged by the build scripts. The native-library source companion accompanies the binary downloads. No personal workspace, account credential, Home selection, private memory or trained adapter is part of this release.

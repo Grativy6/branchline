@@ -1,6 +1,7 @@
 // Chris's adopted continuity wording, 2026-10-07. These guide participation;
 // effect-boundary and actions independently enforce the executable limits.
 export const EPISODE_PROMPT_PROFILE = 'episode-participation/3';
+export const LOCAL_MODEL_INSTRUCTION = 'You are a local AI model running in Branchline. You will work collaboratively at a metaphorical desk.';
 export const EPISODE_INSTRUCTION = `[System]
 
 You are participating in an episodic encounter with continuity to the room. Continue from your assigned chair, carrying the conversation already here and preserving who said what.

@@ -1,3 +1,4 @@
+import { codexUsage } from './resource-meters.mjs';
 import fs from 'node:fs/promises';
 import { createReadStream } from 'node:fs';
 import path from 'node:path';
@@ -52,7 +53,7 @@ export class CodexProvider {
   constructor({ accountDir, rpcFactory = (binary, args, options) => new CodexRpc(binary, args, options), binaryResolver = verifiedCodexBinary, clock = Date.now } = {}) {
     this.accountDir = localPath(accountDir); this.rpcFactory = rpcFactory; this.binaryResolver = binaryResolver;
     this.rpc = null; this.starting = null; this.activeCalls = new Set(); this.disposed = false;
-    this.models = []; this.login = null; this.loginError = null; this.rates = null;
+    this.models = []; this.login = null; this.loginError = null; this.rates = null; this.ratesAt=null; this.accountRevision=0;
     this.clock = clock; this.modelsAt = 0; this.catalogueEpoch = 0; this.cataloguePending = null; this.accountKey = null;
   }
   get busy() { return this.activeCalls.size > 0; }
@@ -74,8 +75,8 @@ export class CodexProvider {
         if (method === 'account/login/completed' && params.loginId === this.login?.loginId) {
           this.login = null; this.invalidateCatalogue(); this.loginError = params.success ? null : publicCodexError(params.error || 'Sign-in did not complete.');
         }
-        if (method === 'account/updated') this.invalidateCatalogue();
-        if (method === 'account/rateLimits/updated') this.rates = params;
+        if (method === 'account/updated') {this.invalidateCatalogue();this.rates=null;this.ratesAt=null;this.accountRevision++;}
+        if (method === 'account/rateLimits/updated' && this.accountKey && (!this.rates?.accountId || !params.accountId || this.rates.accountId===params.accountId)) {this.rates=params;this.ratesAt=new Date(this.clock()).toISOString();}
       });
       try {
         const hello = await rpc.request('initialize', { clientInfo: { name: 'branchline', title: 'Branchline', version: appVersion }, capabilities: { experimentalApi: true } });
@@ -92,7 +93,7 @@ export class CodexProvider {
     const { account } = await rpc.request('account/read', { refreshToken: false });
     if (account && account.type !== 'chatgpt') throw new Error('This connection requires ChatGPT sign-in; API billing is not enabled.');
     const key = account ? JSON.stringify([account.type, account.id ?? account.accountId ?? null, account.email, account.planType]) : null;
-    if (key !== this.accountKey) { this.accountKey = key; this.invalidateCatalogue(); this.rates = null; }
+    if (key !== this.accountKey) { this.accountKey = key; this.invalidateCatalogue(); this.rates = null; this.ratesAt=null;this.accountRevision++; }
     return account;
   }
   async catalogue({ refresh = false } = {}) {
@@ -137,6 +138,14 @@ export class CodexProvider {
       modelsCheckedAt: this.modelsAt ? new Date(this.modelsAt).toISOString() : null,
       profile: CODEX_PROFILE, mode: 'conversation_only' };
   }
+  async meterStatus() {
+    const account=await this.account(),epoch=this.accountRevision;
+    if(!account)return {connected:false,rates:null,ratesCheckedAt:null};
+    const rates=await this.rpc.request('account/rateLimits/read').catch(()=>null);
+    if(epoch!==this.accountRevision)return {connected:false,rates:null,error:'Account changed while reading usage.'};
+    this.rates=rates;this.ratesAt=rates?new Date(this.clock()).toISOString():null;
+    return {connected:true,account:{plan:account.planType},rates,ratesCheckedAt:this.ratesAt,error:rates?null:'The connection did not provide allowance data.'};
+  }
   async loginStart() {
     if (this.busy) throw new Error('Finish or stop the current reply before signing in.');
     const rpc = await this.start();
@@ -150,13 +159,15 @@ export class CodexProvider {
     if (this.busy) throw new Error('Finish or stop the current reply before signing out.');
     const rpc = await this.start();
     if (this.login) await rpc.request('account/login/cancel', { loginId: this.login.loginId });
-    await rpc.request('account/logout'); this.login = null; this.accountKey = null; this.invalidateCatalogue(); this.rates = null;
+    await rpc.request('account/logout'); this.login = null; this.accountKey = null; this.invalidateCatalogue(); this.rates = null; this.ratesAt=null;this.accountRevision++;
     return { connected: false };
   }
-  async *stream(model, messages, signal, { maxTokens = null, maxResponseBytes = 2 * 1024 * 1024, tools = null, imageData } = {}) {
+  async *stream(model, messages, signal, { maxTokens = null, maxResponseBytes = 2 * 1024 * 1024, tools = null, imageData, notes = null, onSteerReady = null, onUsage = null } = {}) {
     signal?.throwIfAborted(); const call = {}; this.activeCalls.add(call);
     let rpc, threadId, turnId, done = false, turnCompleted = false, problem = null, notifyWait = null, total = 0, unregisterTools, interrupting;
-    const queue = [], seen = new Map(); let observedTurnId = null, lastItemId = null;
+    const summaries = notes?.enabled() && notes.source==='provider_summary';
+    let summaryBytes=0;
+    const queue = [], seen = new Map(), steering = new Set(); let observedTurnId = null, lastItemId = null;
     const wake = () => { notifyWait?.(); notifyWait = null; };
     const fail = error => { problem ??= error; done = true; tools?.stop?.abort(); wake(); };
     const interrupt = () => {
@@ -184,6 +195,15 @@ export class CodexProvider {
     const notification = ({ method, params: p }) => {
       if (!threadId || p?.threadId !== threadId || (turnId && p.turnId && p.turnId !== turnId)) return;
       if (p.turnId) { if (observedTurnId && observedTurnId !== p.turnId) return blocked(); observedTurnId = p.turnId; }
+      if(method==='thread/tokenUsage/updated'){const usage=codexUsage(p);if(usage)onUsage?.(usage);}
+      if(summaries && notes.enabled()){
+        const emitNote=(itemId,part,text,complete=false)=>{
+          if(typeof text!=='string'||summaryBytes>262144)return; summaryBytes+=Buffer.byteLength(text);
+          queue.push({note:{source:'provider_summary',threadId,turnId:p.turnId??turnId,itemId,part,text,complete}});wake();
+        };
+        if(method==='item/reasoning/summaryTextDelta') emitNote(p.itemId,p.summaryIndex,p.delta);
+        if(method==='item/completed' && p.item?.type==='reasoning' && Array.isArray(p.item.summary)) p.item.summary.forEach((text,index)=>emitNote(p.item.id,index,text,true));
+      }
       if (method === 'item/agentMessage/delta') emit(p.itemId, p.delta);
       if (method === 'item/completed' && p.item?.type === 'agentMessage') emit(p.item.id, p.item.text, true);
       if (method === 'item/started' && !['userMessage', 'agentMessage', 'reasoning'].includes(p.item?.type)) {
@@ -220,8 +240,19 @@ export class CodexProvider {
       const startedTurn = await rpc.request('turn/start', { threadId, input: input.input, model: model.model,
         environments: [], runtimeWorkspaceRoots: [], approvalPolicy: 'never', approvalsReviewer: 'user',
         sandboxPolicy: { type: 'readOnly' },
-        summary: 'none' });
+        summary: summaries ? 'auto' : 'none' });
       turnId = startedTurn.turn.id;
+      onSteerReady?.(input => {
+        if(done||signal?.aborted||!turnId)return Promise.resolve({accepted:false,reason:'The turn ended before delivery.'});
+        const expectedTurnId=turnId;
+        const operation=(async()=>{
+          const prepared=codexInput([{role:'user',content:input.content,...(input.images?.length?{images:input.images}:{})}],input.imageData);
+          const accepted=await rpc.request('turn/steer',{threadId,expectedTurnId,input:prepared.input,clientUserMessageId:input.id},15000);
+          if(accepted?.turnId!==expectedTurnId)throw new Error('The steering acknowledgement did not identify the requested turn. Delivery is uncertain.');
+          return {accepted:true,threadId,turnId:expectedTurnId};
+        })();
+        steering.add(operation);operation.then(()=>steering.delete(operation),()=>steering.delete(operation));return operation;
+      });
       if (signal?.aborted || problem) { void interrupt(); signal?.throwIfAborted(); }
       if (observedTurnId && observedTurnId !== turnId) blocked();
       while (!done || queue.length) {
@@ -232,6 +263,8 @@ export class CodexProvider {
       if (!total) throw new Error('Codex returned no text reply.');
       return 'stop';
     } finally {
+      onSteerReady?.(null);
+      await Promise.allSettled([...steering]);
       unregisterTools?.();
       signal?.removeEventListener('abort', abort);
       rpc?.off('disconnected', disconnected); rpc?.off('blockedRequest', blocked); rpc?.off('notification', notification);

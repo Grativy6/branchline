@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import { digest } from './integrity.mjs';
 import { assertModelAvailable } from './model-archives.mjs';
-import { findHarness, harnessDeleted } from '../public/harness-catalog.js';
+import { findHarness, harnessDeleted, currentHarnessRef } from '../public/harness-catalog.js';
 import { retiredCoat } from '../public/legacy-coats.js';
 import { chairRoster, ROSTER_PROFILE, CHAIR_PROFILE } from '../public/chair-roster.js';
 const fail = (ok, why) => { if (!ok) throw new Error(why); };
@@ -28,8 +28,8 @@ export function applyRosterCommand(state, type, p) {
     fail(name(p.name), 'Give the chair a name of up to 200 characters.');
     fail(p.modelId === null && old === r.desk || ref(p.modelId) && state.models.some(m => m.id === p.modelId), 'Choose an available model connection.');
     if (p.modelId) assertModelAvailable(state, p.modelId);
-    fail(p.coat === null || exact(p.coat, ['id', 'version']) && findHarness(p.coat, state), 'Choose an available Coat version.');
-    if (p.coat && (harnessDeleted(p.coat, state) || retiredCoat(p.coat))) fail(digest(p.coat) === digest(old?.coat ?? null), 'Choose an active Coat or restore it first.');
+    fail(p.coat === null || exact(p.coat, ['id', 'version']) && findHarness(p.coat, state), 'Choose an available Coat.');
+    if (p.coat && (harnessDeleted(p.coat, state) || retiredCoat(p.coat))) fail(digest(p.coat) === digest(currentHarnessRef(old?.coat ?? null,state)), 'Choose an active Coat or restore it first.');
     const personalId = p.personalId ?? null;
     const participant = state.personalParticipants?.find(x => x.id === personalId);
     fail(personalId === null || old === r.desk && participant?.connections.at(-1)?.modelId === p.modelId, 'The saved identity does not match this Desk Model connection.');

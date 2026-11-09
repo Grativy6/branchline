@@ -1,3 +1,4 @@
+import {preserveLocalModels} from './local-model-state.mjs';
 import fs from 'node:fs/promises';
 import { preserveDeskWork } from './desk-work.mjs';
 import {preserveWorkAccess} from './work-access.mjs';
@@ -201,6 +202,7 @@ export class Store {
       } else {
         validateState(next);
         preserveDeskWork(this.state, next);
+        preserveLocalModels(this.state, next);
         preserveImages(this.state, next);
         preserveImageConnection(this.state, next);
         preserveHandoffHistory(this.state, next);

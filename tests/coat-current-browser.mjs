@@ -1,0 +1,40 @@
+import {chromium} from 'playwright-core';
+import fs from 'node:fs/promises';
+import assert from 'node:assert/strict';
+import {fixture,until} from './desk-helpers.mjs';
+const f=await fixture(),errors=[];
+await new Promise(r=>f.app.listen(0,'127.0.0.1',r));
+const browser=await chromium.launch({headless:true,...(process.platform==='win32'?{channel:'msedge'}:{})});
+const page=await browser.newPage({viewport:{width:1010,height:850}});page.on('pageerror',e=>errors.push(e.message));
+await fs.mkdir('.test-output',{recursive:true});
+const closeDialog=()=>page.getByRole('button',{name:'Close dialog',exact:true}).click();
+const coats=async()=>{await page.locator('#settings-button').click();await page.locator('[data-action="settings-tab"][data-id="coats"]').click();};
+const chair=async()=>{await page.locator('#settings-button').click();await page.locator(`[data-action="select-chat"][data-id="${f.chatId}"]`).click();await page.locator('[data-action="visitor-edit"]').click();};
+try{
+  await page.goto(`http://127.0.0.1:${f.app.address().port}/#session=${f.app.sessionToken}`);await page.locator('#tour-skip').check();await page.locator('#tour-next').click();
+  await page.locator(`[data-action="select-chat"][data-id="${f.chatId}"]`).click();await page.locator('.visitor-row').click();
+  await coats();await page.locator('[data-action="harness-new"]').click();
+  const form=page.locator('#harness-editor-form');await form.locator('[name="name"]').fill('Builder');await form.locator('[name="instructions"]').fill('Original builder instructions.');
+  await form.getByRole('button',{name:'Select all',exact:true}).last().click();await form.locator('[type="submit"][value="save"]').click();
+  await until(()=>f.app.store.state.customHarnesses?.length===1,'saved first Coat');const id=f.app.store.state.customHarnesses[0].id;
+  await chair();await page.locator('#roster-chair-form [name="coat"]').selectOption(id+'@1');await page.locator('#roster-chair-form [type="submit"]').click();
+  await coats();await page.locator(`[data-harness-id="${id}"] summary`).click();await page.locator(`[data-action="harness-edit"][data-id="${id}"]`).click();
+  assert(!(await form.innerText()).includes('Editing v'));await form.locator('[name="name"]').fill('Builder ready');await form.locator('[name="instructions"]').fill('Updated builder instructions.');
+  await form.locator('[type="submit"][value="save"]').click();await until(()=>f.app.store.state.customHarnesses[0].versions.length===2,'saved edit');
+  assert.equal(await page.locator(`[data-harness-id="${id}"] summary`).innerText(),'Builder ready');
+  assert.equal(await page.locator(`.usual-coat-form option[value="${id}@2"]`).count(),2);assert.equal(await page.locator(`.usual-coat-form option[value="${id}@1"]`).count(),0);
+  await chair();const options=page.locator('#roster-chair-form [name="coat"]');
+  assert.equal(await options.locator(`option[value^="${id}@"]`).count(),1);assert.equal(await options.inputValue(),id+'@2');
+  assert.equal(await options.locator(`option[value="${id}@2"]`).innerText(),'Builder ready');
+  await page.screenshot({path:'.test-output/coat-current-picker.png'});await closeDialog();
+  await page.locator('.visitor-row').filter({hasText:'Builder ready'}).waitFor();
+  await page.reload();await page.locator(`[data-action="select-chat"][data-id="${f.chatId}"]`).click();await page.locator('[data-action="visitor-edit"]').click();
+  assert.equal(await page.locator('#roster-chair-form [name="coat"]').inputValue(),id+'@2');await closeDialog();
+  await page.locator('#open-toy-shelf').click();await page.locator('#dialog [data-action="plans-open"]').click();await page.locator('[data-action="plans-new"]').click();
+  assert.equal(await page.locator('#plan-form [name="coat"] option').filter({hasText:'Builder ready'}).count(),1);
+  assert.equal(await page.locator('#plan-form [name="coat"] option').filter({hasText:'Builder ready'}).innerText(),'Builder ready');
+  assert.equal(f.requests.length,0);assert.deepEqual(errors,[]);
+  const result={status:'PASS',userCreatedAndEdited:true,singleCurrentChoice:true,selectedChairFollowsEdit:true,usualAndPlanPickersClean:true,reload:true,bulkSelectionRetained:true,modelCalls:0,errors,fixture:f.dir};
+  await fs.writeFile('.test-output/coat-current-browser.json',JSON.stringify(result,null,2)+'\n');console.log(JSON.stringify(result));
+}catch(error){await page.screenshot({path:'.test-output/coat-current-failure.png'});throw error;}
+finally{await browser.close();await f.close();}

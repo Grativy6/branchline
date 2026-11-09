@@ -2,7 +2,10 @@
 
 This is an early Windows x64 preview. Keep backups and inspect results before relying on model work.
 
-- Independent chairs can work concurrently. Jobs sharing the included local runner or the current ChatGPT bridge queue for that connection's single slot. Activity identifies the wait; a queued task is not active inference.
+- Independent ChatGPT chairs can work concurrently through one connection, subject to provider limits. Qwen and added GGUF models share one owned local runtime slot. Activity identifies waits; a queued task is not active inference.
+- The local finder supports complete compatible GGUF language-model files. It does not convert models, download weights or add native tool/image support. Base models use text completion; selected windows default to at most 8,192 tokens. Search and Add do not start inference.
+- Subscription allowance is account-wide and shown as percent left; chair token counts describe recorded turns, not a fraction of a subscription. GPU readings are device-wide when available. Missing provider counts or unsupported sensors remain unavailable.
+- Goals belong to the current conversation and its chairs. Reasoning notes observe existing work; their 10/30/60-second pings queue behind it and do not keep an idle task running.
 - Drawers keep separate chair work and attributed logs. A chair can inspect a peer's recorded log through the desk tools. These records are not the peer's private internal reasoning, and inspection does not transfer its identity.
 - Shared artifact writes use revision checks. Conflicting work is retained for review; Stop cannot undo external effects already completed.
 - The original transcript stays saved separately from selected model input and context handoff accounts. Context estimates are not exact token counts. A larger selected window is not proof that the runtime loaded it.

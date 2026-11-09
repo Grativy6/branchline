@@ -53,13 +53,18 @@ export function recordImageSelection(state, chatId, snapshot) {
 }
 export function applyImageSelection(state, chatId, ids) {
   scopeFor(state, chatId); selectedImages(state, chatId, ids);
-  fail(!state.exchanges.some(e => e.chatId === chatId && e.status === 'pending'), 'finish or stop the reply before changing pictures.');
+  assertNextImageSelection(state, chatId);
   imageState(state).active[chatId] = [...ids];
   if (state.images.pinned?.[chatId]) state.images.pinned[chatId] = state.images.pinned[chatId].filter(id => ids.includes(id));
   reviseSelection(state, chatId);
   recordHandoff(state, { kind: 'image.context.selection', scope: scopeFor(state, chatId), from: 'local_ui', to: 'workspace_store', payload: { ids },
     detail: { purpose: 'Choose pictures for the next reply', authority: 'local_UI_request', executionAuthority: 'NONE' } });
   return state;
+}
+export function assertNextImageSelection(state, chatId) {
+  // Modern chair tasks own an immutable media snapshot. Selecting pictures for
+  // a later message cannot replace the pixels of an already dispatched task.
+  fail(!state.exchanges.some(e => e.chatId === chatId && e.status === 'pending' && !e.request?.deskTaskId), 'Finish the earlier legacy reply before changing its picture selection.');
 }
 export function pinImage(state, chatId, id, pinned) {
   fail(typeof pinned === 'boolean', 'choose whether to keep this picture in view.');
@@ -74,7 +79,22 @@ export function pinImage(state, chatId, id, pinned) {
 // follow-up can still use its original, separately bound picture plan.
 export function consumeCompletedImages(state, exchangeId) {
   const exchange = state.exchanges.find(e => e.id === exchangeId);
-  if (!exchange || exchange.status !== 'completed' || exchange.truncated || !exchange.selectedImages?.length) return;
+  if (!exchange || exchange.status !== 'completed' || exchange.truncated) return;
+  // An image-bearing queued message can join an already active reply through
+  // steering. Its captured audience and source remain in the original batch.
+  for (const batch of state.deskWork?.batches ?? []) {
+    if (!batch.selectedImages?.length || batch.chatId !== exchange.chatId) continue;
+    const group = state.deskWork.tasks.filter(t => t.batchId === batch.id);
+    const deliveries = group.map(t => state.deskWork.events.findLast(e => e.taskId === t.id && e.kind === 'input.delivery')?.detail);
+    if (!deliveries.some(d => d?.state === 'accepted' && d.exchangeId === exchangeId)) continue;
+    if (!group.every((t, i) => {
+      const delivery = deliveries[i], reply = state.exchanges.find(e => e.id === (delivery?.state === 'accepted' ? delivery.exchangeId : t.exchangeId));
+      return t.input.media && imageSelectionRevision(state, batch.chatId) === t.input.media.selectionRevision && reply?.status === 'completed' && !reply.truncated;
+    })) continue;
+    const pinned = pinnedImageIds(state, batch.chatId);
+    state.images.active[batch.chatId] = activeImageIds(state, batch.chatId).filter(id => !batch.selectedImages.includes(id) || pinned.includes(id));
+  }
+  if (!exchange.selectedImages?.length) return;
   const task=state.deskWork?.tasks.find(t=>t.id===exchange.request?.deskTaskId);
   if(task?.input.media){
     const group=state.deskWork.tasks.filter(t=>t.batchId===task.batchId);

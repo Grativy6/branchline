@@ -15,7 +15,7 @@ export function messageInfoSettings(value) {
 }
 const seconds = ms => (ms / 1000).toFixed(ms < 10000 ? 2 : 1) + ' s';
 const number = n => n.toLocaleString('en-US');
-const connection = runtime => runtime === 'codex' ? 'ChatGPT subscription' : runtime === 'lmstudio' ? 'LM Studio' : runtime === 'bundled' ? 'Included Qwen · local' : runtime === 'compatible' ? 'Local connection' : 'Connection not recorded';
+const connection = runtime => runtime === 'codex' ? 'ChatGPT subscription' : runtime === 'lmstudio' ? 'LM Studio' : runtime === 'gguf' ? 'Saved local model' : runtime === 'bundled' ? 'Included Qwen · local' : runtime === 'compatible' ? 'Local connection' : 'Connection not recorded';
 function items(exchange, message) {
   const metrics = exchange?.metrics;
   const timingHelp = 'Measured from model dispatch, including connection, queue, prompt processing, and tool waits. Final history saving is excluded.';

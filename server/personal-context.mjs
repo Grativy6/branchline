@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import {digest} from './integrity.mjs';
-import {resolvedCoat} from '../public/harness-catalog.js';
+import {resolvedCoat,currentHarnessRef} from '../public/harness-catalog.js';
 import {resolveSpeaker} from './table.mjs';
 import {applyRosterCommand} from './chair-roster.mjs';
 export const PERSONAL_CONTEXT_PROFILE='branchline.personal-context/1';
@@ -14,7 +14,7 @@ export const memoryPolicy=(s,profileId)=>contextLibrary(s).memoryPolicies?.findL
 export const contextBinding=(s,chatId,seat)=>contextLibrary(s).bindings.findLast(b=>b.chatId===chatId&&b.seat===seat)??null;
 export function boundContext(s,chatId,seat){
   const b=contextBinding(s,chatId,seat);
-  if(!b?.profileId||digest(resolvedCoat(s,s.chats.find(c=>c.id===chatId),seat).ref)!==digest(b.coat))return null;
+  if(!b?.profileId||digest(resolvedCoat(s,s.chats.find(c=>c.id===chatId),seat).ref)!==digest(currentHarnessRef(b.coat,s)))return null;
   return b;
 }
 export function contextAllowed(s,profileId,model){

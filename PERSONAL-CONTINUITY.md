@@ -15,9 +15,10 @@ Unfinished profile drafts stay in this window until it closes. Saved profiles
 and proposals survive app restart.
 
 In a conversation, select the chairs and model destinations allowed to receive
-the profile. **Review and use here** binds it to their currently selected Coat
-versions. Each new reply reads the latest kept revision. Taking off or changing
-the additional Coat pauses that association. Attach it again deliberately in
+the profile. **Review and use here** binds it to their currently selected Coats.
+Editing the same Coat keeps its profile connected. Each new reply reads the
+latest kept profile revision. Taking off the Coat or choosing a different one
+pauses that association. Attach it again deliberately in
 a new conversation. Earlier replies retain their exact context and attribution.
 
 Reviewing, searching, importing and attaching make no model call. The normal

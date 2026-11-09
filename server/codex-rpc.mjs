@@ -56,7 +56,7 @@ export class CodexRpc extends EventEmitter {
         const request = this.pending.get(value.id);
         if (!request) continue;
         this.pending.delete(value.id); clearTimeout(request.timer);
-        if (value.error) request.reject(new Error(publicCodexError(value.error)));
+        if (value.error) { const error = new Error(publicCodexError(value.error)); error.providerRejected = true; request.reject(error); }
         else request.resolve(value.result);
       }
     }

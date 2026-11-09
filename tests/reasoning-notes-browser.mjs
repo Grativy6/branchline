@@ -1,0 +1,55 @@
+import { chromium } from 'playwright-core';
+import fs from 'node:fs/promises';
+import assert from 'node:assert/strict';
+import { fixture, finish, callTool, until } from './desk-helpers.mjs';
+const f = await fixture(), errors = [];
+await new Promise(resolve => f.app.listen(0, '127.0.0.1', resolve));
+const browser = await chromium.launch({ headless: true, ...(process.platform === 'win32' ? { channel: 'msedge' } : {}) });
+const page = await browser.newPage({ viewport: { width: 1365, height: 950 } });
+page.on('pageerror', error => errors.push(error.message));
+await fs.mkdir('.test-output', { recursive: true });
+try {
+  await page.goto(`http://127.0.0.1:${f.app.address().port}/#session=${f.app.sessionToken}`);
+  await page.locator('#tour-skip').check(); await page.locator('#tour-next').click();
+  await page.locator(`[data-action="select-chat"][data-id="${f.chatId}"]`).click();
+  const settings = async () => { await page.locator('#settings-button').click(); await page.locator('[data-action="settings-tab"][data-id="conversation"]').click(); };
+  await settings();
+  const form = page.locator('#reasoning-notes-form');
+  assert.equal(await form.locator('[name="enabled"]').isChecked(), false);
+  assert.deepEqual(await form.locator('[name="cadenceSeconds"]').evaluateAll(items => items.map(e => e.value)), ['10', '30', '60']);
+  assert.equal(await form.locator('[name="cadenceSeconds"]:checked').inputValue(), '30');
+  await form.locator('[name="enabled"]').check(); await form.locator('[value="10"]').check(); await form.locator('button[type="submit"]').click();
+  await until(() => f.app.store.state.chats[0].reasoningNotes?.enabled, 'notes setting saved');
+  await page.screenshot({ path: '.test-output/reasoning-notes-settings.png' });
+  await page.reload(); await page.locator(`[data-action="select-chat"][data-id="${f.chatId}"]`).click(); await settings();
+  assert(await form.locator('[name="enabled"]').isChecked()); assert.equal(await form.locator('[name="cadenceSeconds"]:checked').inputValue(), '10');
+  await page.locator('#settings-button').click();
+  await page.locator('#message-input').fill('Please work through the example.'); await page.locator('#tools-enabled').check(); await page.locator('#send-button').click();
+  await until(() => f.requests.length === 1, 'notes task');
+  callTool(f.requests[0], 'record_reasoning_note', { text: 'I am checking whether the two observations agree.', ping_id: '', corrects: '' });
+  await until(() => f.requests.length === 2, 'note saved and work continued');
+  await page.locator('#chair-live-tasks .reasoning-notes').waitFor();
+  await page.locator('#chair-live-tasks .reasoning-notes > summary').click();
+  await page.getByText('I am checking whether the two observations agree.', { exact: true }).waitFor();
+  await page.screenshot({ path: '.test-output/reasoning-notes-live.png' });
+  // Saving Off while the inference is held must not Stop it.
+  await settings(); await form.locator('[name="enabled"]').uncheck(); await form.locator('[value="60"]').check(); await form.locator('button[type="submit"]').click();
+  await until(() => f.app.store.state.chats[0].reasoningNotes?.enabled === false, 'off saved');
+  await page.locator('#settings-button').click();
+  await until(() => f.app.deskTasks.entries.size === 1, 'main task remains active');
+  finish(f.requests[1], 'The example checks out.');
+  await until(() => f.app.store.state.deskWork.tasks.every(t => t.status === 'completed'), 'answer completed');
+  await page.locator('[data-action="reply-details"]').last().click();
+  await page.locator('#dialog .reasoning-notes > summary').click();
+  await page.getByText('I am checking whether the two observations agree.', { exact: true }).waitFor();
+  assert.equal(await page.locator('#dialog .reasoning-note').count(), 1);
+  await page.screenshot({ path: '.test-output/reasoning-notes-details.png' });
+  await page.reload(); await page.locator(`[data-action="select-chat"][data-id="${f.chatId}"]`).click(); await page.locator('[data-action="reply-details"]').last().click();
+  assert.equal(await page.locator('#dialog .reasoning-note').count(), 1);
+  assert.deepEqual(errors, []);
+  await fs.writeFile('.test-output/reasoning-notes-browser.json', JSON.stringify({ status: 'PASS', controls: [10, 30, 60], defaults: 'off/30', reload: true, liveView: true, offDuringWork: true, detailsWhileOff: true, errors, fixture: f.dir }, null, 2));
+  console.log('PASS: fixed choices, persisted settings, live notes, off while working, saved Details after reload');
+} catch (error) {
+  await page.screenshot({ path: '.test-output/reasoning-notes-browser-failure.png' });
+  console.error(JSON.stringify({ error: error.message, errors, visibleError: await page.locator('#error-text').textContent().catch(() => '') })); throw error;
+} finally { await browser.close(); await f.close(); }

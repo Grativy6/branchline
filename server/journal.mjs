@@ -1,3 +1,4 @@
+import {preserveLocalModels} from './local-model-state.mjs';
 import { journalChunks } from './journal-codec.mjs';
 import { preserveDeskWork } from './desk-work.mjs';
 import { preserveImages } from './images.mjs';
@@ -64,6 +65,7 @@ export async function replayJournal(file, { onProgress, seed, ...readerOptions }
     const next = event.type === 'snapshot' ? event.state : applyJournalChange(state, event);
     validateState(next);
     preserveDeskWork(state, next);
+    preserveLocalModels(state, next);
     preserveImages(state, next);
     preserveHandoffHistory(state, next);
     preserveTableHistory(state, next);

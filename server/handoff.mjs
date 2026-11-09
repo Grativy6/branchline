@@ -130,13 +130,17 @@ function contextView(state, scope, selection = null, kind = 'reply', taskId = nu
   const chosen = kind === 'carry' && selection?.seat === 'recorder'
     ? resolveRecorder(state, scope.chatId, selection.recorder.choice)
     : peer ? {model:peer.model,selection:peer.selection} : selection ? resolveSpeaker(state, scope.chatId, selection.seat) : null;
+  // A library edit affects future replies. An existing turn keeps the Coat it
+  // captured; changes to the actual chair, chosen Coat identity or model remain visible.
+  if(conversational&&!peer&&selection?.coat?.ref&&selection.coat.ref.id===chosen?.selection?.coat?.ref?.id)
+    chosen.selection={...chosen.selection,coat:{...chosen.selection.coat,ref:selection.coat.ref}};
   if(peer) fail(digest(selection)===digest(peer.selection) && digest(state.models.find(m=>m.id===peer.model.id))===peer.modelHash,'selected peer connection changed');
   const model = chosen?.model ?? state.models.find(m => m.id === root.modelId) ?? null;
   const memory = (root.continuity?.journal || []).filter(e => e.chatId === scope.chatId && !e.removedAt);
   const results = (state.mcpContext?.[scope.chatId] || []).map(id => state.mcpResults.find(r => r.id === id));
   fail(results.every(r => r && r.rootId === scope.rootId && r.chatId === scope.chatId), 'selected tool result escaped scope');
   return {
-    workingMethod: PAL_GUIDE_PROFILE,
+    workingMethod: chosen?.selection?.modelSnapshot?.runtime==='gguf'?'branchline.local-desk/1':PAL_GUIDE_PROFILE,
     ...(state.home?.arrivals.findLast(a=>a.chatId===scope.chatId&&a.settingsId===homeSettings(state)?.id)?{home:{settingsId:homeSettings(state).id,arrivalHash:digest(state.home.arrivals.findLast(a=>a.chatId===scope.chatId&&a.settingsId===homeSettings(state)?.id))}}:{}),
     instruction: instruction ? { id: instruction.id, hash: digest(instruction.text), role: 'user_adopted_guidance' } : null,
     ...(conversational ? { harness: peer?.coat || (taskId && state.exchanges.find(e=>e.id===taskId)?.harness) || harnessSnapshot(state, scope.chatId, selection?.seat ?? 'visiting') } : {}),
@@ -214,6 +218,23 @@ export function assertModelInvocation(handle, messages, model) {
   dispatched.add(handle);
 }
 
+// A paired human input adds evidence to one live episode. Its original request,
+// context hash and tool capability remain immutable.
+export function recordInputAmendment(state, handle, sourceTask, input, acknowledgement = null, requestId = null) {
+  fail(invocations.has(handle) && dispatched.has(handle) && handle.kind === 'reply', 'input amendment has no dispatched reply');
+  const exchange = state.exchanges.find(e => e.id === handle.taskId);
+  const target = state.deskWork?.tasks.find(t => t.id === exchange?.request?.deskTaskId);
+  fail(exchange?.status === 'pending' && target && sourceTask.chatId === target.chatId && sourceTask.chairId === target.chairId
+    && !sourceTask.originTaskId && !sourceTask.automatic && digest(sourceTask.model) === digest(target.model), 'input amendment escaped its human-selected chair');
+  fail(typeof input.content === 'string' && input.content.length <= 220000, 'input amendment is too large');
+  if (requestId) fail(state.handoffs.records.some(r => r.id === requestId && r.kind === 'input.amendment.request' && r.taskId === handle.taskId), 'input amendment lost its request');
+  return recordHandoff(state, { kind: acknowledgement ? 'input.amendment.accepted' : 'input.amendment.request', taskId: handle.taskId,
+    scope: handle.scope, from: 'paired_local_ui', to: 'model_episode', payload: { input, acknowledgement },
+    parents: [handle.contextId, ...(requestId ? [requestId] : [])], status: acknowledgement ? 'ACCEPTED_BY_CONNECTION' : 'REQUEST_RECORDED',
+    detail: { sourceTaskId: sourceTask.id, sourceBatchId: sourceTask.batchId, chairId: target.chairId, input: structuredClone(input), acknowledgement,
+      executionAuthority: 'UNCHANGED', originalContextId: handle.contextId } });
+}
+
 export function assertToolInvocation(state, handle, contract) {
   fail(invocations.has(handle) && dispatched.has(handle) && ['reply', 'parallel'].includes(handle.kind), 'tool request has no active model episode');
   const task = state.handoffs?.records.find(r => r.id === handle.requestId)?.detail.task;
@@ -263,7 +284,8 @@ export function receiveModelOutput(state, handle, content, { complete = true, pr
     } : {}),
   }, problem ? [[8, 4, digest(problem)]] : []);
   const accepted = reviewAllowsEffect(review);
-  const receipt = recordHandoff(state, { kind: 'model.to_record', taskId: handle.taskId, scope: handle.scope, from: 'model_episode', to: ['reply','parallel'].includes(handle.kind) ? 'chat_transcript' : 'continuity_review', payload: content, parents: [context.id],
+  const amendments = records.filter(r => r.taskId === handle.taskId && r.kind === 'input.amendment.accepted');
+  const receipt = recordHandoff(state, { kind: 'model.to_record', taskId: handle.taskId, scope: handle.scope, from: 'model_episode', to: ['reply','parallel'].includes(handle.kind) ? 'chat_transcript' : 'continuity_review', payload: content, parents: [context.id, ...amendments.map(r => r.id)],
     status: accepted ? 'WITHIN_LOCAL_PROFILE' : 'HELD', checks: ['context_identity', 'single_result', 'source_is_model_output', ...(current ? ['current_scope_and_context'] : [])],
     unresolved: ['No semantic truth or complete PEA review is certified.', ...(!current ? ['Context or branch changed before the result returned.'] : []), ...(!complete ? ['Model output is incomplete.'] : []), ...(!wasDispatched ? ['No model dispatch was recorded for this invocation.'] : []), ...(!withinSize ? ['Returned text is empty or exceeds the destination limit.'] : []), ...(problem ? [problem] : [])],
     detail: { effect: accepted ? effect : 'retain_output_only', peaJudgment: null, reviewProfile: 'local-record-effects/0.1', executionAuthority: 'NONE', dispatched: wasDispatched, capabilityHash: digest(request.detail.task.capability), reviewBasis, review } });
@@ -271,13 +293,13 @@ export function receiveModelOutput(state, handle, content, { complete = true, pr
   return { accepted, receipt };
 }
 
-export function protocolMessages(messages) {
+export function protocolMessages(messages, {includeWorkingMethod=true} = {}) {
   // Local templates commonly accept only one leading system message. Format
   // before binding the receipt; preserve each instruction block and its order.
   const leading = [];
   let index = 0;
   while (messages[index]?.role === 'system') leading.push(messages[index++].content);
-  if (!leading.some(text => text.includes(PAL_INSTRUCTION))) leading.push(PAL_INSTRUCTION);
+  if (includeWorkingMethod && !leading.some(text => text.includes(PAL_INSTRUCTION))) leading.push(PAL_INSTRUCTION);
   const conversation = messages.slice(index);
   fail(!conversation.some(message => message.role === 'system'), 'instruction block appeared inside conversation data');
   return [...(leading.length ? [{ role: 'system', content: leading.join('\n\n') }] : []), ...conversation];

@@ -1,5 +1,7 @@
 import { peerSources,readPeerSource,readBoardSource } from './peer-context.mjs';
 import crypto from 'node:crypto';
+import { GOAL_TOOL } from './desk-goals.mjs';
+import { NOTE_TOOL } from './reasoning-notes.mjs';
 import { DESK_TOOLS, PRIVATE_DESK_TOOLS } from './desk-work.mjs';
 import { digest, recordHandoff, assertToolInvocation } from './handoff.mjs';
 import { TOOL_LIMITS, toolDefinitions } from './tool-contract.mjs';
@@ -48,8 +50,8 @@ export class ToolInteractions {
 }
 
 export class ConversationTools {
-  constructor({ store, handoff, contract, signal, interactions, onEvent = () => {}, pageReader = fetchPublicPage, parallelRequest = null, hearthRequest = null, ponyRequest = null, sharedBudget = null, guard = null, pcFiles = null, personalContexts = null, home = null, workTools = null, nav = null, localRunner = null, deskTasks = null }) {
-    this.deskTasks=deskTasks;
+  constructor({ store, handoff, contract, signal, interactions, onEvent = () => {}, pageReader = fetchPublicPage, parallelRequest = null, hearthRequest = null, ponyRequest = null, sharedBudget = null, guard = null, pcFiles = null, personalContexts = null, home = null, workTools = null, nav = null, localRunner = null, deskTasks = null, notes = null }) {
+    this.deskTasks=deskTasks; this.notes=notes;
     this.store = store; this.handoff = handoff; this.contract = structuredClone(contract);
     this.stop = new AbortController(); this.signal = AbortSignal.any([signal, this.stop.signal]);
     this.interactions = interactions; this.onEvent = onEvent; this.pageReader = pageReader;
@@ -125,7 +127,13 @@ export class ConversationTools {
     if (prior) return prior.fingerprint === fingerprint ? prior.promise : Promise.resolve({ ok:false,error:'A tool call identity cannot be reused with different arguments.' });
     if (this.calls.size >= this.contract.limits.calls) return Promise.resolve({ ok:false,error:`This exchange reached its ${this.contract.limits.calls}-call allowance. Retain source offsets and unfinished questions for the next reply.` });
     try { this.sharedBudget?.take('toolCalls'); } catch (error) { return Promise.resolve({ ok: false, error: error.message }); }
-    const promise = this.execute(name,args,callId);
+    if(this.notes && name!==NOTE_TOOL) this.notes.work++;
+    const promise = this.execute(name,args,callId).then(async result=>{
+      if(!this.notes || name===NOTE_TOOL) return result;
+      this.notes.work--;
+      if(this.signal.aborted || this.calls.size>=this.contract.limits.calls) return result;
+      return this.notes.checkpoint(result);
+    },error=>{if(this.notes && name!==NOTE_TOOL)this.notes.work--;throw error;});
     this.calls.set(callId,{ fingerprint,promise }); return promise;
   }
   async execute(name,args,callId) {
@@ -136,6 +144,7 @@ export class ConversationTools {
       if (Buffer.byteLength(JSON.stringify(args) ?? '') > TOOL_LIMITS.arguments) throw new Error('Tool arguments exceed the limit.');
       const definition = this.definitions.find(d => d.name === name);
       if (!args||typeof args!=='object'||Array.isArray(args)||!definition.parameters.required.every(k=>Object.hasOwn(args,k))||Object.keys(args).some(k=>!Object.hasOwn(definition.parameters.properties,k))) throw new Error('Use only the declared tool arguments.');
+      if(name===NOTE_TOOL) return this.notes ? this.notes.authored(args,callId) : {ok:true,value:{saved:false,reason:'Reasoning notes are unavailable for this reply.'}};
       if (name === 'run_calculation' && (!text(args.program,6000) || args.input === undefined)) throw new Error('Supply a small program and JSON input.');
       if (name === 'ask_user' && (!text(args.question,1000) || !Array.isArray(args.choices) || args.choices.length > 3 || !args.choices.every(c => text(c,200)))) throw new Error('Use one concise question and at most three choices.');
       if (name === 'read_selected_document' && !this.contract.documents.some(d => d.id === args.document_id)) throw new Error('That document was not selected for this conversation.');
@@ -153,11 +162,11 @@ export class ConversationTools {
       this.assertCurrent();
       if (name === 'read_sketch_book' || name === 'write_sketch') return await this.sketchCall(name,args,callId,request);
       let value,toolImage;
-      if(DESK_TOOLS.includes(name)){
+      if(DESK_TOOLS.includes(name)||name===GOAL_TOOL){
         if(!this.deskTasks||!this.contract.desk)throw new Error('Chair work tools are unavailable.');
         const task=this.store.state.deskWork?.tasks.find(t=>t.id===this.contract.desk.taskId);
         if(!task||task.requestId!==this.store.state.exchanges.find(e=>e.id===this.handoff.taskId)?.request?.id)throw new Error('The drawer tool belongs to another task.');
-        value=await this.deskTasks.call(task.id,name,args);
+        value=await this.deskTasks.call(task.id,name,args,callId);
         const result={ok:true,value};const bytes=Buffer.byteLength(JSON.stringify(result));
         await this.receipt('operation.result',result,{tool:name,callId,result,visibility:PRIVATE_DESK_TOOLS.includes(name)?'drawer':'desk',executionAuthority:'CAPTURED_DESK_CHAIR'},[request.id]);
         if(bytes>this.contract.limits.result||this.resultBytes+bytes>this.contract.limits.totalResult)throw new Error('The result is saved but exceeds this reply’s reading allowance. Reopen a smaller passage.');

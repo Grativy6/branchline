@@ -1,12 +1,12 @@
-# Start with Branchline 0.10.0
+# Start with Branchline 0.10.3-preview.1
 
 Branchline is a Windows x64 preview for conversations and shared work with AI. The full installer includes stock Qwen3.5-4B for local replies and supported pictures. No Branchline account is required.
 
 ## Install
 
-Download **Install-Branchline.exe** from [this release](https://github.com/Grativy6/branchline/releases/tag/v0.10.0). It downloads the matching Setup executable and data parts, checks their hashes, and opens the ordinary installer. Choose the full installation to include Qwen. The default location is your Windows user's Local AppData Programs folder.
+Download **Install-Branchline.exe** from [this release](https://github.com/Grativy6/branchline/releases/tag/v0.10.3-preview.1). It downloads the matching Setup executable and data parts, checks their hashes, and opens the ordinary installer. Choose the full installation to include Qwen. The default location is your Windows user's Local AppData Programs folder.
 
-For an offline installation, download `Branchline-v0.10.0-Setup.exe` and every matching `Setup-*.bin` file. Keep them together. Compare their hashes with `SHA256SUMS.txt`, then run Setup. Do not mix parts from different releases.
+For an offline installation, download `Branchline-v0.10.3-preview.1-Setup.exe` and every matching `Setup-*.bin` file. Keep them together. Compare their hashes with `SHA256SUMS.txt`, then run Setup. Do not mix parts from different releases.
 
 Windows 10 build 19041 or later, x64, is the supported OS floor. The included model needs at least 4 GiB of available memory to start; larger context windows need more. Performance depends on your CPU, available memory and compatible GPU. The app is unsigned, so Windows may display a warning. If Windows blocks it, stop and inspect the publisher, source and checksums; do not disable security protections.
 

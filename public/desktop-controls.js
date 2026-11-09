@@ -1,3 +1,5 @@
+import { inputPreferenceForm } from './crew-controls.js';
+import { reasoningNotesForm } from './reasoning-notes.js';
 import { escapeHtml as e } from './views.js';
 import { recorderSelect, recorderHint } from './recorder.js';
 import { RESOURCE_FIELDS, RESOURCE_DEFAULTS, resourceSettings, carrySettings } from './resource-settings.js';
@@ -17,7 +19,7 @@ export function conversationSettings(state, root, chat) {
   const personal = state.personalParticipants?.find(p => p.id === assignment?.personalId);
   const labels = { personal: state.models.find(m => m.id === personal?.connections.at(-1)?.modelId)?.name,
     visiting: state.models.find(m => m.id === (assignment ? assignment.visitorModelId : root?.modelId))?.name };
-  return `<form id="conversation-settings-form" data-chat-id="${e(chat.id)}"><p>One shared account for both chairs. Original history stays in this branch, with sources available to reopen.</p>
+  return `${inputPreferenceForm(state)}${reasoningNotesForm(chat)}<form id="conversation-settings-form" data-chat-id="${e(chat.id)}"><p>One shared account for both chairs. Original history stays in this branch, with sources available to reopen.</p>
     <label class="form-field">Handoff recorder${recorderSelect(state, chat, v.speaker)}</label><p class="field-help recorder-role">${e(recorderHint(v.speaker))}</p>
     <label class="settings-check"><input type="checkbox" name="automatic" ${v.automatic ? 'checked' : ''}> Prepare automatically as space fills</label>
     <p class="field-help">Turning this on permits bounded account-writing requests on the selected connection, including sending the selected older conversation to that provider. It can use your subscription or provider allowance. Existing sharing review still applies. The recorder receives selected sources and the writing task, with no tools. One attempt per eligible cutoff; Stop pauses automatic preparation until you deliberately continue again. Nothing resumes automatically after an interrupted request.</p>

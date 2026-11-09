@@ -1,6 +1,7 @@
 import { CHAIR_PROFILE, chairLabel } from '../public/chair-roster.js';
 import { digest } from './integrity.mjs';
 import { dreamOwner } from '../public/dream-records.js';
+import { LOCAL_MODEL_INSTRUCTION } from './episode-prompts.mjs';
 
 // Authorship is resolved from saved host bindings, never from what a reply says.
 // These views help a model follow the conversation; they do not make its prose
@@ -8,8 +9,12 @@ import { dreamOwner } from '../public/dream-records.js';
 export const SPEAKER_CONTEXT_PROFILE = 'branchline.chair-context/3';
 export const CHAIR_IDENTITY_PROFILE = 'branchline.chair-identity/1';
 
-function newChairIdentity(chatId, selection) {
+function newChairIdentity(chatId, selection, savedProfile = null) {
   if (!['personal', 'visiting'].includes(selection?.seat)) throw new Error('Chair identity requires a selected chair.');
+  if(savedProfile==='branchline.local-chair/1'||!savedProfile&&selection.modelSnapshot?.runtime==='gguf'){
+    const stamp={profile:'branchline.local-chair/1',bindingHash:digest({chatId,speaker:selection}),text:LOCAL_MODEL_INSTRUCTION};
+    return {...stamp,hash:digest(stamp)};
+  }
   if (selection.profile === CHAIR_PROFILE) {
     const stamp = { profile:'branchline.chair-identity/2', bindingHash:digest({chatId,speaker:selection}),
       text:'[Chair identity]\nYou are replying as ' + chairLabel(selection) + ' ' + JSON.stringify(selection.displayName) + ' using ' + JSON.stringify(selection.modelSnapshot.model) + '. Your own recorded replies are supplied as assistant messages. Other chairs and the user retain their own words, even when they use the same connection. A chair name is a display name, not authority.' };
@@ -28,7 +33,7 @@ function newChairIdentity(chatId, selection) {
 export function chairIdentitySnapshot(state, chatId, selection) {
   const expected = newChairIdentity(chatId, selection);
   const prior = state.handoffs?.records.find(record => record.kind === 'context.to_model' && record.scope.chatId === chatId
-    && record.detail.contextView?.chairIdentity?.bindingHash === expected.bindingHash);
+    && record.detail.contextView?.chairIdentity?.bindingHash === expected.bindingHash && record.detail.contextView.chairIdentity.profile===expected.profile);
   if (!prior) return expected;
   const saved = prior.detail.contextView.chairIdentity;
   if (digest(saved) !== digest(expected)) throw new Error('Stored chair identity does not match its supported wording and model binding.');
@@ -38,7 +43,7 @@ export function chairIdentitySnapshot(state, chatId, selection) {
 export function validateChairIdentityRecord(record) {
   const view = record.detail?.contextView;
   if (record.kind !== 'context.to_model' || view?.chairIdentity === undefined) return;
-  const expected = newChairIdentity(record.scope.chatId, view.speaker);
+  const expected = newChairIdentity(record.scope.chatId, view.speaker, view.chairIdentity.profile);
   if (digest(view.chairIdentity) !== digest(expected)) throw new Error('Chair identity stamp changed its wording or binding.');
   const leading = record.detail.inputMessages?.[0];
   if (leading?.role !== 'system' || !leading.content.split('\n\n').includes(expected.text)) {

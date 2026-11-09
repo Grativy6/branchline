@@ -1,4 +1,24 @@
-# Included Qwen: first reply and recovery
+# Local models
+
+## Find and add a saved model
+
+Open **Settings → Models → Your locally saved models**. **Search Local** searches familiar or remembered folders; **Choose a folder** uses the Windows folder picker. Highlight a result to see its name, size, location, model information and input format. **Add Model** saves that selection to your library. Searching and adding do not run inference or copy the model weights.
+
+**Search Online** opens the Hugging Face model catalog in your browser. Downloading stays with that site/browser; Branchline does not download a model automatically.
+
+Choose an added model for a chair using the ordinary model selector. It loads when you send a message. The owned runtime uses one local slot shared with included Qwen. Activity shows when another local task is waiting. **Remove** archives the library entry while retaining its file and recorded conversations. Finding and adding it again restores the saved connection.
+
+The first file route handles standalone GGUF language models supported by the bundled runtime. Supporting projectors, embedding models and split files are identified separately. Files without an embedded chat template use text completion and have no native app-tool interface. Runtime errors remain visible; discovery alone does not establish that a model can load.
+
+Added local-file models use this built-in instruction, supplied by Chris:
+
+> You are a local AI model running in Branchline. You will work collaboratively at a metaphorical desk.
+
+User-selected Coats, guidance, sources and conversation history still apply when present. Internal chair bookkeeping is retained in host records rather than being repeated as the model's basic instruction. The initial file window is up to 8,192 tokens, bounded by declared metadata; selected and actually loaded windows are displayed separately.
+
+Models remain where you selected them. A changed or missing file is reported; adding the same verified weights from their new location can reconnect the existing identity. No sign-in is needed for these local replies.
+
+## Included Qwen: first reply and recovery
 
 The full installer includes stock Qwen3.5-4B Q4_K_M plus its picture projector. The app-only ZIP does not. Qwen loads on the first message, not while Branchline is opening. A loading line explains the file check and chosen backend; Stop cancels it. Verified files are reused for that app session.
 

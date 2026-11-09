@@ -27,7 +27,7 @@ export function savedPeer(state,chatId,key) {
  const view={...state,chats:state.chats.map(c=>c.id===chatId?{...c,table:{assignments:[assignment]}}:c)};
  const selection=resolveSpeaker(view,chatId,seat).selection;
  const resolved=resolvedCoat(state,chat,seat,key),preset=findHarness(resolved.ref,state);
- ensure(preset,'The saved Coat version is unavailable.');
+ ensure(preset,'The saved Coat is unavailable.');
  const coat={profile:'branchline.coat-selection/2',selectionId:resolved.source,shared:false,seat,key,mode:resolved.mode,preset:structuredClone(preset),hash:digest(preset),role:'response_guidance_only'};
  return {key,model,selection,coat};
 }

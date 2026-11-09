@@ -63,7 +63,7 @@ export function createHarnessEditor({ getState, refreshState, command, openDialo
       if (!event.target.closest('#harness-editor-form')) return;
       if (event.target.matches('[data-pocket-tool]')) draft.pocketsCustomized = true;
       capture(); document.getElementById('harness-length').textContent = `${draft.content.instructions.length.toLocaleString('en-US')} / 24,000 characters`;
-      if (draft.pocketsCustomized) document.getElementById('coat-pocket-mode').textContent = 'These exact pocket choices will be saved with this version.';
+      if (draft.pocketsCustomized) document.getElementById('coat-pocket-mode').textContent = 'These pocket choices will be saved with this Coat.';
     },
     async action(action, target) {
       if (!action.startsWith('harness-')) return false;
@@ -78,6 +78,12 @@ export function createHarnessEditor({ getState, refreshState, command, openDialo
       else if (action === 'harness-pocket-provider' && draft) {
         const checkbox = [...form().querySelectorAll('[data-pocket-tool]')].find(el => el.dataset.pocketTool === target.dataset.tool);
         if (checkbox) { checkbox.dataset.pocketProvider = BUILTIN_PROVIDER; checkbox.checked = true; draft.pocketsCustomized = true; capture(); edit(); }
+      }
+      else if ((action === 'harness-pockets-all' || action === 'harness-pockets-none') && draft && form()) {
+        for (const checkbox of form().querySelectorAll('[data-pocket-tool]')) checkbox.checked = action === 'harness-pockets-all';
+        draft.pocketsCustomized = true;
+        capture();
+        document.getElementById('coat-pocket-mode').textContent = 'These pocket choices will be saved with this Coat.';
       }
       else if (action === 'harness-keep') { capture(); if (surface().id === 'settings-page') library(); else closeDialog(); }
       else if (action === 'harness-resume' && draft) edit();

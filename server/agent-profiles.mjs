@@ -178,7 +178,7 @@ export function validateAgentProfiles(state) {
   for (const r of l.sharing) {
     record(r, 'agentsharing');
     fail(exact(r, ['id', 'createdAt', 'selectionId', 'destinations']) && l.selections.some(s => s.id === r.selectionId && s.profileId) && Array.isArray(r.destinations) && r.destinations.length > 0 && r.destinations.length <= 100
-      && r.destinations.every(d => exact(d, ['runtime', 'baseUrl', 'model']) && ['compatible', 'lmstudio', 'codex', 'bundled'].includes(d.runtime) && text(d.baseUrl, 2000) && text(d.model, 200)), 'invalid disclosure clearance.');
+      && r.destinations.every(d => exact(d, ['runtime', 'baseUrl', 'model']) && ['compatible', 'lmstudio', 'codex', 'bundled', 'gguf'].includes(d.runtime) && text(d.baseUrl, 2000) && text(d.model, 200)), 'invalid disclosure clearance.');
   }
   for (const turn of state.exchanges) if (turn.agentProfile) {
     const s = l.selections.find(s => s.id === turn.agentProfile.selectionId), p = agentProfileById(state, s?.profileId);

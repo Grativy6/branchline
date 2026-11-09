@@ -10,10 +10,10 @@ export function validateReplyMetrics(value) {
   const validCount = n => n === null || (Number.isSafeInteger(n) && n >= 0 && n <= 900000000);
   if (!value || typeof value !== 'object' || Array.isArray(value)
     || Object.keys(value).length !== fields.length || !fields.every(key => Object.hasOwn(value, key))
-    || value.version !== 1 || !validTime(value.elapsedMs)
+    || ![1,2].includes(value.version) || !validTime(value.elapsedMs)
     || !(value.firstTextMs === null || (validTime(value.firstTextMs) && value.firstTextMs <= value.elapsedMs))
     || !['inputTokens', 'outputTokens', 'reasoningTokens'].every(key => validCount(value[key]))
-    || !Number.isInteger(value.rounds) || value.rounds < 1 || value.rounds > 9
+    || !Number.isInteger(value.rounds) || value.rounds < 1 || value.rounds > (value.version===2?129:9)
     || !(value.reportedTokensPerSecond === null || rate(value.reportedTokensPerSecond) !== null)
     || (value.rounds !== 1 && value.reportedTokensPerSecond !== null)
     || (value.reasoningTokens !== null && (value.outputTokens === null || value.reasoningTokens > value.outputTokens))) {
@@ -30,7 +30,7 @@ export class ReplyMetrics {
   elapsed() { return Math.min(MAX_TIME, Math.max(0, Math.round(this.clock() - this.started))); }
   text(value) { if (this.firstTextMs === null && typeof value === 'string' && value.trim()) this.firstTextMs = this.elapsed(); }
   beginRound(round) {
-    if (!Number.isInteger(round) || round < 0 || round > 8) return;
+    if (!Number.isInteger(round) || round < 0 || round > 128) return;
     this.round = round;
     if (!this.usage.has(round)) this.usage.set(round, {});
   }
@@ -44,6 +44,7 @@ export class ReplyMetrics {
       const reasoning = count(usage.completion_tokens_details?.reasoning_tokens);
       previous.reasoningTokens = reasoning !== null && previous.outputTokens !== null && reasoning <= previous.outputTokens ? reasoning : null;
     }
+    if(usage)this.onUsage?.(this.snapshot());
     const speed = rate(data.stats?.tokens_per_second) ?? rate(data.timings?.predicted_per_second);
     if (speed !== null) previous.reportedTokensPerSecond = speed;
   }
@@ -51,7 +52,7 @@ export class ReplyMetrics {
     const rounds = [...this.usage.values()];
     const sum = key => complete && rounds.every(r => r[key] !== undefined && r[key] !== null)
       ? rounds.reduce((n, r) => n + r[key], 0) : null;
-    return validateReplyMetrics({ version: 1, elapsedMs: this.elapsed(), firstTextMs: this.firstTextMs,
+    return validateReplyMetrics({ version: rounds.length>9?2:1, elapsedMs: this.elapsed(), firstTextMs: this.firstTextMs,
       inputTokens: sum('inputTokens'), outputTokens: sum('outputTokens'), reasoningTokens: sum('reasoningTokens'),
       rounds: rounds.length, reportedTokensPerSecond: complete && rounds.length === 1 ? rounds[0].reportedTokensPerSecond ?? null : null });
   }
