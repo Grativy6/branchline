@@ -10,7 +10,7 @@ const uid = prefix => prefix + '_' + crypto.randomUUID();
 const now = () => new Date().toISOString();
 const fail = (ok, message) => { if (!ok) throw new Error(message); };
 const text = (v, max) => typeof v === 'string' && v.length <= max;
-export function deskWork(state) { state.schemaVersion=3; return state.deskWork ??= { profile: DESK_PROFILE, tasks: [], batches: [], drawers: [], artifacts: [], events: [] }; }
+export function deskWork(state) { state.schemaVersion=Math.max(3,state.schemaVersion); return state.deskWork ??= { profile: DESK_PROFILE, tasks: [], batches: [], drawers: [], artifacts: [], events: [] }; }
 export function drawerFor(state, chatId, chairId, create = false) {
   const work = create ? deskWork(state) : state.deskWork;
   let drawer = work?.drawers.find(d => d.chatId === chatId && d.chairId === chairId);

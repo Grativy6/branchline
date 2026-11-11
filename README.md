@@ -1,16 +1,32 @@
-# Branchline 0.10.3-preview.1
+# Branchline 1.0
 
 A local home for conversations, ideas and shared work with AI. Keep your desks, branches and history while choosing the models you work with.
 
-[Download Branchline for Windows](https://github.com/Grativy6/branchline/releases/tag/v0.10.3-preview.1) or start with [START-HERE.md](START-HERE.md). The normal installer includes stock Qwen3.5-4B. It needs no Branchline account or purchased stamp. This is an unsigned Windows x64 pre-1.0 release. Dreams and built-in training remain under development.
+[Download Branchline 1.0 for Windows](https://github.com/Grativy6/branchline/releases/tag/v1.0.0) or start with [START-HERE.md](START-HERE.md). The normal installer includes stock Qwen3.5-4B. It needs no Branchline account or purchased stamp. This is an unsigned Windows x64 application.
 
-## New in this release
+## New in 1.0
+
+The 1.0 repair pass adds interrupted-save recovery, process-owned writer locking,
+compact exact-input storage, corrected Dream training masks and stable Resume data.
+It also repairs Plan rescheduling, late hearth clarifications, downloads and image
+intake contention. [Upgrade and recovery](UPGRADE-NOTES.md) explains the retained
+workspace location and how to open a restored copy. The conversation fills the
+available window width, message options live behind their gears, and desk activity
+records open from Activity instead of taking space beneath the last reply.
+
+[Pony Post](PONY-POST.md) now carries mail between different desks through its own saved home. Each desk has one On/Off switch and a receiving conversation/chair. Notices make no model call; requests join the receiving chair’s queue. Returns wait at Pony Post when a desk is off. Open it from the Toy Shelf or Activity, or send a message using its gear. Earlier helper-task trip records remain readable.
+
+The Desk Model menu button uses concentric rings, or the selected personal model’s saved picture when available. The button stays beside the name, inset within the card border, with the same size and menu behavior.
+
+[Dreams](DREAM-REVIEW.md) can now prepare chosen conversation or workflow notes, train the included Qwen locally, and export a new generation to try or adopt. The original stays available. The first supported training backend is Ubuntu 24.04 / WSL 2 on an NVIDIA GPU. Home contains the note list and job controls; Settings → Dreams chooses the preparation model. Usual Coats is now one collapsible section.
 
 Find compatible GGUF files on your computer, preview their descriptions, and add them through the [local-model library](LOCAL-MODEL.md). They load when used. Subscription meters show the allowance left, and recorded usage is grouped by chair. [Conversation goals and queue/steer](CREW-GOALS.md) keep shared work organized. Optional [reasoning notes](REASONING-NOTES.md) use 10/30/60-second choices and wait behind current work. Coats have one current choice, with Select all and Clear all for their tool pockets.
 
 ## ChatGPT connection
 
 Settings -> Models shows the account status and returned model list directly. Models from the signed-in connection are registered automatically, so you choose a model at the chair instead of saving each one first. Refresh retains existing model IDs, custom names, chairs, archives and source-sharing choices.
+
+Message options live behind the gear beside each timestamp: Dream notes, sketches, memory, images and Details. The menu floats over the chat and retains the chosen message while other chairs reply.
 
 ## Work at the same desk
 
@@ -37,11 +53,11 @@ Attached pictures follow Select, Alternate, All and explicit chair groups. One s
 - Optional context handoffs, local backups and export/restore.
 - Local Qwen and separately chosen provider connections, including the existing ChatGPT sign-in route.
 
-Read [PREVIEW-LIMITS.md](PREVIEW-LIMITS.md) and [VERIFICATION.md](VERIFICATION.md) for practical boundaries and the checks actually performed. Back up an existing workspace before updating. Chair work, including an ordinary model reply, creates workspace format 3; an older app needs the preserved older workspace copy for rollback.
+Read [PREVIEW-LIMITS.md](PREVIEW-LIMITS.md) and [VERIFICATION.md](VERIFICATION.md) for practical boundaries and the checks actually performed. Back up an existing workspace before updating. Chair work, including an ordinary model reply, creates workspace format 4; an older app needs the preserved older workspace copy for rollback.
 
 ## Development and packaging
 
-Use Node.js 22 or later. `npm ci`, `npm test`, `npm run test:browser`, and `npm run test:connections` run the supplied source checks with synthetic data. Browser tests use Edge on Windows and the pinned Playwright Chromium headless shell on Linux. Install the latter with `node node_modules/playwright-core/cli.js install chromium --only-shell` after installing its normal system dependencies.
+Use Node.js 24.19.0 or later. `npm ci`, `npm test`, `npm run test:browser`, and `npm run test:connections` run the supplied source checks with synthetic data. Browser tests use Edge on Windows and the pinned Playwright Chromium headless shell on Linux. Install the latter with `node node_modules/playwright-core/cli.js install chromium --only-shell` after installing its normal system dependencies.
 
 The native host targets .NET 8.0.29 and WebView2 SDK 1.0.3296.44. The release was built with .NET SDK 10.0.302. Its recovered desktop source is identified in `provenance/desktop-source.json`; the version change is recorded there. This source is an allowlisted public snapshot, not the private development repository or its full history.
 
@@ -49,7 +65,7 @@ The Windows binary payload keeps hash-pinned Node, Python, Codex, dependency and
 
 ```powershell
 pwsh -File scripts/Build-Preview.ps1 -RuntimeFolder C:\BuildInputs\Branchline -WithModel
-pwsh -File scripts/Build-Installer.ps1 -PackageFolder releases/Branchline-v0.10.3-preview.1-Windows-x64 -InputFolder C:\BuildInputs\Prerequisites -Compiler C:\BuildTools\Inno\ISCC.exe -OutputFolder releases/Installer
+pwsh -File scripts/Build-Installer.ps1 -PackageFolder releases/Branchline-v1.0.0-Windows-x64 -InputFolder C:\BuildInputs\Prerequisites -Compiler C:\BuildTools\Inno\ISCC.exe -OutputFolder releases/Installer
 ```
 
 The installer inputs and their hashes are in `provenance/installer-inputs.json`. Existing outputs are never merged by the build scripts. The native-library source companion accompanies the binary downloads. No personal workspace, account credential, Home selection, private memory or trained adapter is part of this release.

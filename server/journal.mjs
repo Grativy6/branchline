@@ -1,3 +1,6 @@
+import {HistoryInputs,currentInputReader} from './history-inputs.mjs';
+import {freezeAndShare,shareReceiptCopies} from './immutable-json.mjs';
+import path from 'node:path';
 import {preserveLocalModels} from './local-model-state.mjs';
 import { journalChunks } from './journal-codec.mjs';
 import { preserveDeskWork } from './desk-work.mjs';
@@ -49,7 +52,8 @@ export async function* journalRecords(file, { highWaterMark = 64 * 1024, start =
   if (length || parts.length) throw new Error('The last journal record is incomplete.');
 }
 
-export async function replayJournal(file, { onProgress, seed, ...readerOptions } = {}) {
+export function replayJournal(file,options={}){return (currentInputReader()??new HistoryInputs(options.materialDir??path.dirname(file))).run(()=>replayWithInputs(file,options));}
+async function replayWithInputs(file, { onProgress, seed, materialDir, ...readerOptions } = {}) {
   // Only the startup-checkpoint reader supplies a seed after validating its
   // journal binding. Backups always call this with no seed for a full replay.
   let state = seed?.state ?? initialState(), recordCount = seed?.recordCount ?? 0;
@@ -63,6 +67,7 @@ export async function replayJournal(file, { onProgress, seed, ...readerOptions }
       throw new Error('Invalid journal envelope at record ' + sequence + '.');
     }
     const next = event.type === 'snapshot' ? event.state : applyJournalChange(state, event);
+    freezeAndShare(next,state);
     validateState(next);
     preserveDeskWork(state, next);
     preserveLocalModels(state, next);
@@ -77,7 +82,7 @@ export async function replayJournal(file, { onProgress, seed, ...readerOptions }
     preserveAgentProfiles(state, next);
     preserveCarryHistory(state, next);
     preserveParallelHistory(state, next);
-    state = next; recordCount = sequence; bytes = record.bytes; boundary = record.boundary;
+    state = shareReceiptCopies(next); recordCount = sequence; bytes = record.bytes; boundary = record.boundary;
     if (onProgress && Date.now() - lastProgress >= 500) {
       onProgress({ phase: seed ? 'tail' : 'replay', recordCount, bytes }); lastProgress = Date.now();
     }

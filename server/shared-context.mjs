@@ -16,7 +16,7 @@ export async function sharedContextPlan(state, chatId, options = {}) {
     const { model, selection } = resolveSpeaker(state, chatId, seat);
     const deskCeiling = resourceSettings(root,model).inputCharacters;
     const budget = await contextBudget(model, { maxContextCharacters: deskCeiling, ...options, maxTokens: replyTokenLimit(root, model) });
-    const measured = measureContext(state, chatId, state.drafts[chatId] || '', { selection, originalWindow:budget.characters });
+    const measured = measureContext(state, chatId, state.drafts[chatId] || '', { ...options, selection, originalWindow:budget.characters });
     return { seat, modelId: model.id, modelLabel: model.name, modelRuntime: model.runtime ?? 'compatible', deskCeiling, ...measured, budget };
   }));
   if (!participants.length) throw new Error('Choose a model before preparing the shared context.');

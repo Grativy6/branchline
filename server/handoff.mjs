@@ -1,3 +1,5 @@
+import {saveInput,inputHash,receiptDigest,originalReceipt} from './history-inputs.mjs';
+import {isImmutable} from './immutable-json.mjs';
 import { isContinuing } from './continuing-state.mjs';
 import { chairView } from '../public/chair-roster.js';
 import crypto from 'node:crypto';
@@ -40,22 +42,9 @@ const withoutHash = ({ hash, ...value }) => value;
 // Snapshots repeat identical receipts. Cache only a successful hash check of
 // the EXACT serialized receipt; ordering, source, review and scope checks still
 // run on every validation. Nothing is trusted from a disk cache or a hash alone.
-const checkedReceiptBytes = new Map();
-let checkedReceiptChars = 0;
-const RECEIPT_CACHE_CHARS = 4 * 1024 * 1024;
-function receiptHashMatches(record) {
-  const encoded = JSON.stringify(record);
-  if (checkedReceiptBytes.has(encoded)) return true;
-  if (record.hash !== digest(withoutHash(record))) return false;
-  // Whole-ledger scans are ordered. Evicting the prefix to admit the suffix
-  // made every next scan a complete miss once the ledger exceeded this bound.
-  // Retain the admitted prefix; uncached bytes still receive their full check.
-  if (checkedReceiptChars + encoded.length <= RECEIPT_CACHE_CHARS && checkedReceiptBytes.size < 4096) {
-    checkedReceiptBytes.set(encoded, true); checkedReceiptChars += encoded.length;
-  }
-  return true;
-}
-const sameRecord = (before, after) => JSON.stringify(before) === JSON.stringify(after) || digest(before) === digest(after);
+const checkedReceipts=new WeakSet();
+function receiptHashMatches(record){return checkedReceipts.has(record)||record.hash===receiptDigest(record);}
+const sameRecord=(a,b)=>a===b||digest(a)===digest(b)||digest(originalReceipt(a))===digest(originalReceipt(b));
 
 function ledger(state) {
   if (!state.handoffs) state.handoffs = { profile: PROFILE, records: [], heldOutputs: [] };
@@ -74,9 +63,8 @@ export function validateHandoffs(state) {
     fail(Array.isArray(r.parents) && r.parents.every(p => seen.has(p)), 'missing predecessor');
     fail(object(r.scope) && typeof r.kind === 'string' && typeof r.taskId === 'string', 'missing task boundary');
     fail(r.authorityCreated === false, 'a receipt cannot create authority');
-    validateRecordedReview(r);
+    if(!checkedReceipts.has(r)){validateRecordedReview(r);validateChairIdentityRecord(r);if(isImmutable(r))checkedReceipts.add(r);}
     validateReviewSources(r, byHash);
-    validateChairIdentityRecord(r);
     if (r.scope.chatId !== null) {
       fail(state.chats.some(c => c.id === r.scope.chatId && c.rootId === r.scope.rootId), 'receipt crossed chat boundary');
     } else if (r.scope.rootId !== null) fail(state.roots.some(root => root.id === r.scope.rootId), 'missing branch');
@@ -100,6 +88,7 @@ export function preserveHandoffHistory(before, after) {
 
 export function recordHandoff(state, { kind, taskId = uid('task'), scope = { rootId: null, chatId: null }, from, to, payload, parents = [], status = 'RECORDED', checks = [], unresolved = [], detail = {} }) {
   const l = ledger(state);
+  if(kind==='context.to_model'&&Array.isArray(detail.inputMessages)){detail={...detail,inputMessages:saveInput(detail.inputMessages)};if(!Array.isArray(detail.inputMessages))state.schemaVersion=4;}
   const r = {
     id: uid('handoff'), sequence: l.records.length + 1, at: new Date().toISOString(), profile: PROFILE,
     taskId, scope: structuredClone(scope), kind, from, to, contentHash: digest(payload), parents: [...parents],
@@ -209,6 +198,20 @@ export function prepareModelHandoff(state, { taskId, chatId, kind, messages, pur
   const handle = Object.freeze({ taskId: request.taskId, requestId: request.id, contextId: outgoing.id, contextHash: outgoing.contentHash, scope: Object.freeze({ ...scope }), kind, viewHash: digest(view), modelHash: view.model?.hash ?? null });
   invocations.add(handle);
   return handle;
+}
+
+// A Dream is a workspace-selected note job, not a hidden conversational chair.
+// The same one-use invocation binding is retained without inventing a chat.
+export function prepareDreamHandoff(state,{runId,messages,model,purpose='Prepare the selected Dream notes',operation='prepare'}) {
+  const run=state.dreamTraining?.runs.find(r=>r.id===runId);
+  fail(run && (operation==='prepare'&&!['ready','failed','stopped'].includes(run.status)||operation==='try'&&run?.status==='ready'),'Dream operation is unavailable');
+  const personal=state.personalParticipants?.find(p=>p.id===run.personalId);
+  fail(operation==='prepare'?digest(run.preparer)===digest(model):[run.candidate?.modelId,run.targetModel.id,personal?.connections.at(-1)?.modelId].includes(model.id),'Model is not part of this Dream');
+  const scope={rootId:null,chatId:null},taskId=uid('dreamcall');
+  const request=recordHandoff(state,{kind:'ui.intent',taskId,scope,from:'dream_job',to:'dream_preparation',payload:{runId,purpose,modelId:model.id},status:'REQUEST_RECORDED',detail:{runId,purpose,selectedNotes:run.items.map(i=>i.revisionId)}});
+  const outgoing=recordHandoff(state,{kind:'context.to_model',taskId,scope,from:'dream_job',to:'model_episode',payload:messages,parents:[request.id],detail:{inputMessages:structuredClone(messages),transport:transportReceipt(model,messages),runId,capability:{modelInterface:'text_generation_without_tools'},effectCeiling:['prepare_dream_examples']}});
+  const handle=Object.freeze({taskId,requestId:request.id,contextId:outgoing.id,contextHash:outgoing.contentHash,scope:Object.freeze(scope),kind:'dream',viewHash:digest({runId,model}),modelHash:digest(model)});
+  invocations.add(handle);return handle;
 }
 
 export function assertModelInvocation(handle, messages, model) {

@@ -31,15 +31,10 @@ export function conversationSettings(state, root, chat) {
     <hr><button class="quiet-button" type="button" data-action="hearth-open">Work together at the hearth</button> <button class="quiet-button" type="button" data-action="tour-replay">Replay welcome tour</button>`;
 }
 
-export const DREAM_PREPARATION = `Help me prepare a Dream workflow for my personal model. This request is preparation only: do not train, purchase, upload, create accounts, or change my active model.
-Start with the model, source material I deliberately select, hardware and budget I provide. Preserve original speaker/model attribution, corrections, decisions, source handles and unfinished questions. Separate fictional lessons from observed events and keep private material private.
-Distinguish a model-weight training experiment from a portable conversation handoff or Coat. A handoff preserves conversation context; it does not train weights or rewrite my Coat. Do not turn transcripts into a training set without my explicit selection and review.
-Propose a bounded plan with reviewed examples, held-out checks, preserved ancestor adapters, resource estimates, experimental candidate labels, stopping conditions and a route back. Identify consequential missing decisions. Return the plan for my review before I turn the key.`;
-
 export const TOUR_STEPS = [
   ['Welcome', null, 'Welcome to Branchline. This is your space for conversations with models you choose. Let’s take a quick look around.'],
   ['Personal chair', '[data-action="choose-model"][data-id="personal"], [data-action="library"][data-id="personal"]', 'Your Personal chair is a continuing participant. Choose its model connection in My Models. Earlier conversation stays attributed to the model that actually spoke.'],
-  ['Dreams', '.dreams-section', 'Dreams are being built to help a personal model learn from material you choose. For now, you can copy a preparation prompt and review a plan. Training and schedules are not connected.'],
+  ['Dreams', '.dreams-section', 'Mark conversation or workflow notes, choose a preparation model in Settings, and start a local Dream when ready. Suspend keeps progress for later.'],
   ['Desks', '[data-action="desks"], [data-action="library"][data-id="desks"]', 'A desk groups related conversation branches. Use a desk for a project, an interest, or simply somewhere to talk.'],
   ['Toy Shelf', '.toy-shelf-section', 'Home’s Toy Shelf holds little starting places. New desk starts a conversation space. Manage Shelves chooses what appears here, and the lower grip adjusts the shelf’s height.'],
   ['Branches', '#new-chat, [data-action="library"][data-id="branches"]', 'Branch from a conversation point to explore another path, or start a fresh conversation. Each branch keeps its own history and sources. Other branches do not silently join its context.'],

@@ -1,4 +1,51 @@
-# Branchline v0.10
+# Branchline release notes
+
+## 1.0.0 — 10 November 2026
+
+The first 1.0 release brings the continuing shared workspace and local Dreams into
+one Windows package, including stock Qwen3.5-4B.
+
+- Save whole conversation or workflow notes, choose a preparation model, and run
+  local Dreams for the included Qwen. Suspend/Resume keeps the prepared batch and
+  checkpoint; a new generation can be tried, adopted or replaced by the original.
+- Pony Post has its own saved home between desks, with per-desk On/Off choices,
+  queued requests and returns that wait when a receiving desk is closed.
+- Interrupted saves have a recovery path. Exact model inputs use compact saved
+  pieces while original history and receipt hashes remain retrievable.
+- Message actions sit behind a gear. The conversation and composer stretch with
+  the window, and recent desk records live in Activity instead of below replies.
+- Repairs cover Dream training targets and worker/Stop handling, Plan edits,
+  late hearth messages, downloads, image intake and continuity reads.
+
+The initial local training backend is Ubuntu 24.04 / WSL 2 on an NVIDIA GPU.
+Model-quality improvement is not promised by a completed training run. Features
+listed as Coming later remain future work. See VERIFICATION.md, PREVIEW-LIMITS.md
+and UPGRADE-NOTES.md; version 1.0 uses workspace format 4 and backup format 8.
+
+Feedback and reproducible bug reports are welcome through the repository's Issues.
+
+## 0.99.0 — 10 November 2026 · review candidate
+
+Concentric rings replace the Desk Model squiggle. A saved personal-model picture appears in the same button when available, and unreadable pictures fall back to the rings. Message gears and local Dreams are retained. Visible version labels now agree with the candidate version.
+
+Prepared for separate technical reviews before a 1.0 release and website update. No public publication is included in this candidate step.
+
+## 0.11.0-preview.1 — 10 November 2026 · local working preview
+
+Local cleanup: message actions now open from a gear beside the timestamp. Group prompts save their original text into Dream notes, and Make image opens an editable Easel request while retaining prior Easel work. Repeated action rows and the routine Chair assignments label are removed.
+
+- Mark conversation passages, ranges, branches or desks for Dreams; add editable
+  conversation/workflow notes manually or from a text file. Warm and cool tints
+  distinguish the two purposes.
+- Choose the preparation model in Settings → Dreams, train included Qwen locally,
+  and try, adopt or return from a saved generation. The first backend is WSL 2 /
+  Ubuntu 24.04 with an NVIDIA GPU. Stock models and original notes stay available.
+- Start, Stop, Suspend/Resume, temporary pause/Cancel, in-app schedules, model
+  pictures, observed Dream history and complete artifact backups are connected.
+- Usual Coats now collapses as one section.
+
+Qualified with synthetic material on an RTX 4070; see VERIFICATION.md and
+PREVIEW-LIMITS.md. This preview has not been published as a public release.
 
 ## 0.10.3-preview.1 — 9 November 2026
 

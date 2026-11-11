@@ -1,3 +1,4 @@
+import {inputHash} from './history-inputs.mjs';
 import { digest } from './integrity.mjs';
 
 // Fixed predicate order is part of the versioned profile, never model supplied.
@@ -107,7 +108,7 @@ export function validateReviewSources(record, receiptsByHash) {
   fail(request?.kind === 'ui.intent' && context?.kind === 'context.to_model', 'required review source is missing');
   fail([request, context].every(r => r.taskId === record.taskId && digest(r.scope) === digest(record.scope)), 'review source changed task or scope');
   fail(context.parents.includes(request.id) && record.parents.includes(context.id), 'review lost its source links');
-  fail(digest(context.detail.inputMessages) === context.contentHash && digest(request.detail.task) === request.contentHash, 'source content differs from its receipt');
+  fail(inputHash(context.detail.inputMessages) === context.contentHash && digest(request.detail.task) === request.contentHash, 'source content differs from its receipt');
   fail(digest(request.detail.task.capability) === record.detail.capabilityHash && request.detail.task.allowedEffects.length === 1 && request.detail.task.allowedEffects[0] === basis.effect, 'review changed its capability or effect floor');
   if (record.detail.review.p === 'record-effect/2') {
     const shared = request.detail.task.parallel, admission = receiptsByHash.get(shared?.admissionHash);

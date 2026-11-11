@@ -2,6 +2,9 @@ import { applyArchiveCommand, validateModelArchives, assertModelAvailable } from
 import {assertLocalFileProfile,validateLocalModels} from './local-model-state.mjs';
 import { checkNoteSettings, noteSettings } from '../public/reasoning-notes-settings.js';
 import { saveGoal, currentGoal, goalRevision, INPUT_MODES } from './desk-goals.mjs';
+import {cloneJson,isImmutable} from './immutable-json.mjs';
+const checkedStates=new WeakSet();
+import { validateMail } from './pony-mail-state.mjs';
 import { validateDeskWork } from './desk-work.mjs';
 import { assertChairAvailable } from './table.mjs';
 import { chairView } from '../public/chair-roster.js';
@@ -12,6 +15,7 @@ import {validatePeaches} from './peaches.mjs';
 import {validateEasel} from './easel-state.mjs';
 import {validatePersonalContext} from './personal-context.mjs';
 import { applyDreamCommand, validateDreamHistory } from './dream-history.mjs';
+import { validateDreamTraining } from './dream-training-state.mjs';
 import { digest } from './integrity.mjs';
 import { checkResources, checkCarrySettings, isBundledContext } from '../public/resource-settings.js';
 import { resolveRecorder } from './carry-recorder.mjs';
@@ -63,7 +67,7 @@ function validateModelRoute(model) {
 export const now = () => new Date().toISOString();
 export const id = (prefix) => `${prefix}_${crypto.randomUUID()}`;
 export function clone(value) {
-  return structuredClone(value);
+  return cloneJson(value);
 }
 
 export function initialState() {
@@ -101,12 +105,14 @@ function assertUniqueIds(items, label) {
 }
 
 export function validateState(state) {
+  if(isImmutable(state)&&checkedStates.has(state))return;
+  validateDreamTraining(state);
   validateDeskWork(state);
   if(state.plans&&(state.plans.profile!=='branchline.plans/1'||!Array.isArray(state.plans.items)||!Array.isArray(state.plans.runs)))throw new Error('Invalid Plans records.');
   validateEasel(state);
   validatePeaches(state);
   validatePersonalContext(state);
-  assert(isObject(state) && [1,2,3].includes(state.schemaVersion), 'This workspace needs a supported Branchline version.');
+  assert(isObject(state) && [1,2,3,4].includes(state.schemaVersion), 'This workspace needs a supported Branchline version.');
   assert(state.schemaVersion!==3||state.deskWork?.profile==='branchline.desk-work/1','The shared-desk workspace is missing its work records.');
   assert(state.schemaVersion!==2||state.easel?.profile==='branchline.easel/1','The newer workspace is missing its Easel records.');
   for (const root of state.roots || []) if (root.resources !== undefined) checkResources(root.resources);
@@ -220,7 +226,7 @@ export function validateState(state) {
     assert(EXCHANGE_STATUSES.has(exchange.status), 'invalid exchange status'); assertTimestamp(exchange.createdAt, 'exchange createdAt'); assert(exchange.instructionRevisionId === null || typeof exchange.instructionRevisionId === 'string', 'invalid instruction ref'); assert(exchange.error === null || typeof exchange.error === 'string', 'invalid exchange error'); assert(exchange.replyLength === undefined || REPLY_LENGTHS.has(exchange.replyLength), 'invalid exchange replyLength'); assert(exchange.thinking === undefined || typeof exchange.thinking === 'boolean', 'invalid exchange thinking'); assert(exchange.runtime === undefined || MODEL_RUNTIMES.has(exchange.runtime), 'invalid exchange runtime'); assert(exchange.finishReason === undefined || exchange.finishReason === null || typeof exchange.finishReason === 'string', 'invalid finishReason'); assert(exchange.truncated === undefined || typeof exchange.truncated === 'boolean', 'invalid truncated');
   }
   for (const message of state.messages) {
-    assert(chats.has(message.chatId), 'message chat ref missing'); ensureId(message.id, 'message id'); assert(ROLES.has(message.role), 'invalid message role'); ensureText(message.content, 'message content', 200000); assertTimestamp(message.createdAt, 'message createdAt'); assert(['note', 'exchange', 'parallel'].includes(message.kind), 'invalid message kind');
+    assert(chats.has(message.chatId), 'message chat ref missing'); ensureId(message.id, 'message id'); assert(ROLES.has(message.role), 'invalid message role'); ensureText(message.content, 'message content', 200000); assertTimestamp(message.createdAt, 'message createdAt'); assert(['note', 'exchange', 'parallel', 'pony'].includes(message.kind), 'invalid message kind');
     if (message.kind === 'parallel') {
       const job = state.parallel?.jobs.find(j => j.id === message.parallelEpisodeId);
       assert(job && job.chatId === message.chatId && message.role === 'assistant' && message.exchangeId === null && message.content === hearthDisplay(job)
@@ -261,6 +267,8 @@ export function validateState(state) {
   validateCarry(state);
   validateParallel(state);
   validatePony(state);
+  validateMail(state);
+  if(isImmutable(state))checkedStates.add(state);
   return true;
 }
 
@@ -278,8 +286,8 @@ function selectFallback(state, mode, preferredRootId = null) {
 }
 
 export function applyCommand(state, command) {
+  validateState(state);
   const s = clone(state);
-  validateState(s);
   const type = command?.type;
   const p = command?.payload ?? {};
   if (typeof type !== 'string') throw new Error('command type required');

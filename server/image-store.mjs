@@ -62,7 +62,7 @@ function decode(bytes) {
 }
 
 export class ImageStore {
-  constructor(dataDir) { this.root = path.join(path.resolve(dataDir), 'image-objects'); this.busy = false; }
+  constructor(dataDir) { this.root = path.join(path.resolve(dataDir), 'image-objects'); this.busy = false; this.queue=Promise.resolve(); this.pending=0; }
   async directory(create = true) {
     if (create) await fs.mkdir(this.root, { recursive: true });
     const stat = await fs.lstat(this.root).catch(() => null);
@@ -92,10 +92,9 @@ export class ImageStore {
   ingest(input) { return this.ingestInternal(input,null); }
   ingestFromHost(name,bytes,origin){fail(['window_capture','browser_capture','generated_image','edited_image','pdf_page'].includes(origin),'unsupported host picture source.');return this.ingestInternal({name,base64:bytes.toString('base64'),origin:'pick'},origin);}
   ingestInternal(input,hostOrigin) {
-    fail(!this.busy, 'another picture is preparing. Try again when it finishes.');
     const selected = selectedImageBytes(input);if(hostOrigin)selected.origin=hostOrigin;
-    this.busy = true;
-    const work = (async () => {
+    this.busy = true;this.pending++;
+    const work = this.queue.then(async () => {
       const decoded = await decode(selected.bytes);
       fail(decoded.format === selected.format, 'decoder format disagrees with the file signature.');
       const original = await this.put(selected.bytes, selected.format, { width: decoded.width, height: decoded.height });
@@ -104,8 +103,9 @@ export class ImageStore {
       return { name: selected.name, origin: selected.origin, original, view, thumbnail,
         transform: { profile: 'branchline.image-view/1', decoder: decoded.decoder, orientation: decoded.orientation, autoOrient: true,
           maxSide: 1024, colourspace: 'srgb', metadata: 'stripped', format: 'png', resized: Math.max(decoded.width, decoded.height) > 1024 } };
-    })();
-    return work.finally(() => { this.busy = false; });
+    });
+    const result=work.finally(()=>{this.pending--;this.busy=this.pending>0;});
+    this.queue=result.catch(()=>{});return result;
   }
   async materialize(messages) {
     const data = new Map();

@@ -100,7 +100,7 @@ export class HearthTasks extends ParallelTasks {
         }
         const rootId = state.chats.find(c=>c.id === input.chatId).rootId;
         const baseMessages = parent ? structuredClone(parent.baseMessages) : origin ? structuredClone(origin.messages)
-          : compileMessages(state,input.chatId,'',{ maxContextCharacters:Infinity,selection:candidate.selection,requestKind:'ask' });
+          : compileMessages(state,input.chatId,'',{...this.modelOptions, maxContextCharacters:Infinity,selection:candidate.selection,requestKind:'ask' });
         const sourceIds = parent ? [...parent.sourceIds] : state.messages.filter(m=>m.chatId === input.chatId && !(m.role === 'assistant' && m.exchangeId === sourceExchangeId && sourceExchangeId)).map(m=>m.id);
         const basisHash = parent ? parent.basisHash : parallelBasis(state,input.chatId,sourceExchangeId);
         run = { id:runId,profile:HEARTH_PROFILE,mechanism:'recorded-context',requestId:input.requestId,fingerprint:input.fingerprint,origin:origin?'model':'user',

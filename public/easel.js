@@ -11,6 +11,7 @@ export function createEasel({getChatId,onAttached,openConnection,toast}){
  let view={scale:1,x:0,y:0},gesture=null,selectedText=null,textDirty=false,chain=Promise.resolve(),pending=0,saveFailed=false,drawEpoch=0;
  let preview=null,previewAfter=true,listing={projects:[],jobs:[],backends:[]},timer=null,closed=true,opening=0,space=false;
  const urls=new Map(),images=new Map();let observer;
+ const promptDrafts=new Map();
  const $=selector=>dialog.querySelector(selector);
  const status=(text,error=false)=>{if(!dialog)return;const el=$('[data-role=status]');el.textContent=text;el.classList.toggle('error',error);};
  const handle=fn=>(...args)=>Promise.resolve().then(()=>fn(...args)).catch(error=>status(error.message,true));
@@ -25,7 +26,7 @@ export function createEasel({getChatId,onAttached,openConnection,toast}){
    <div class="easel-main"><div class="easel-canvas-wrap"><div data-role="canvas" class="easel-canvas" aria-label="Image drawing canvas" tabindex="0"></div><div class="easel-canvas-footer"><span data-role="hint">Open a picture or begin with a blank canvas.</span><div><button data-easel="zoom-out" aria-label="Zoom out">−</button><button data-easel="fit">Fit</button><button data-easel="zoom-in" aria-label="Zoom in">+</button></div></div></div>
     <aside class="easel-aside"><label data-role="text-panel" hidden>Text to place or edit<textarea data-role="text" rows="3" maxlength="1500" placeholder="Write a note, then click the picture"></textarea></label>
      <div class="easel-scope"><strong>See: whole picture</strong><span data-role="boundary-label">Edit: whole canvas</span><small>AI sees a 1024 px overview.</small><small>Edges blend inside your boundary.</small><button class="text-button" data-easel="whole">Use whole canvas</button></div>
-     <label>What should change?<textarea data-role="prompt" rows="4" maxlength="4000" placeholder="Or put your instructions right on the picture."></textarea></label>
+     <label>What should change?<textarea data-role="prompt" rows="4" maxlength="4000" placeholder="Or put your instructions right on the picture."></textarea><small class="field-help" data-role="prompt-limit" hidden></small></label>
      <label>Image connection<select data-role="backend"><option value="subscription">ChatGPT subscription</option></select></label><button class="text-button" data-easel="connection">Connect or check ChatGPT</button><p class="field-help" data-role="billing">No image request is sent until you ask.</p>
      <button data-easel="request" class="primary-button">Ask for edit</button><button data-easel="stop" hidden>Stop image</button>
      <section class="easel-proposal" data-role="proposal" hidden><strong>Image proposal</strong><p data-role="proposal-note"></p><div><button data-easel="compare">Show before</button><button data-easel="accept" class="primary-button">Accept edit</button><button data-easel="reject">Reject</button></div></section>
@@ -61,6 +62,7 @@ export function createEasel({getChatId,onAttached,openConnection,toast}){
   $('[data-role=name]').addEventListener('change',handle(async()=>{if(project){project.name=$('[data-role=name]').value.trim()||'Untitled';await save();await refresh();}}));
   $('[data-role=size]').addEventListener('input',event=>{size=Number(event.target.value);});
   $('[data-role=backend]').addEventListener('change',buttons);
+  $('[data-role=prompt]').addEventListener('input',buttons);
   $('[data-role=text]').addEventListener('input',()=>{if(selectedText&&project){const mark=project.doc.marks.find(m=>m.id===selectedText);if(mark){mark.text=$('[data-role=text]').value;textDirty=true;void draw();}}});
   $('[data-role=text]').addEventListener('change',handle(commitText));
   dialog.addEventListener('cancel',event=>{event.preventDefault();void close().catch(error=>status(error.message,true));});
@@ -73,7 +75,8 @@ export function createEasel({getChatId,onAttached,openConnection,toast}){
   if(!dialog)return;for(const b of dialog.querySelectorAll('[data-tool]')){b.classList.toggle('selected',b.dataset.tool===tool);b.setAttribute('aria-pressed',String(b.dataset.tool===tool));}
   for(const b of dialog.querySelectorAll('[data-color]')){b.classList.toggle('selected',b.dataset.color===color);b.style.backgroundColor=b.dataset.color;b.setAttribute('aria-pressed',String(b.dataset.color===color));}
   $('[data-role=text-panel]').hidden=tool!=='text';$('[data-easel=undo]').disabled=!project?.canUndo||pending>0;
-  const running=listing.jobs.some(j=>j.status==='running');$('[data-easel=request]').disabled=!project||running||saveFailed;$('[data-easel=stop]').hidden=!running;
+  const tooLong=$('[data-role=prompt]').value.length>4000,limit=$('[data-role=prompt-limit]');limit.hidden=!tooLong;limit.textContent=tooLong?'This message is '+$('[data-role=prompt]').value.length.toLocaleString()+' characters. Shorten the request to 4,000 characters before sending.':'';
+  const running=listing.jobs.some(j=>j.status==='running');$('[data-easel=request]').disabled=!project||running||saveFailed||tooLong;$('[data-easel=stop]').hidden=!running;
   const backend=listing.backends.find(b=>b.id===$('[data-role=backend]').value);$('[data-role=billing]').textContent=backend?.billing==='subscription_usage'?'Uses your ChatGPT limits and credits. No image request is sent until you ask.':'Uses the selected image connection. No image request is sent until you ask.';$('[data-easel=connection]').hidden=backend?.connection!=='chatgpt';
   $('[data-role=proposal]').hidden=!preview;$('[data-easel=compare]').textContent=previewAfter?'Show before':'Show proposal';
   if(preview){const stale=project?.headId!==preview.baseId;$('[data-easel=accept]').disabled=stale||pending>0;$('[data-role=proposal-note]').textContent=stale?'The canvas changed while this was made. Restore its base or make another request.':preview.report?.changedPixels===0?'No pixels changed. Accepting is optional.':'Only your chosen work area will change.';}
@@ -81,7 +84,7 @@ export function createEasel({getChatId,onAttached,openConnection,toast}){
   $('[data-role=hint]').textContent=tool==='boundary'?'Draw a loop around the work area.':tool==='text'?'Write your text, then click to place it. Click existing text to edit or drag it.':'Sketch in a few colors. Hold Space to pan.';
  }
  async function refresh(){const chosen=$('[data-role=backend]').value;listing=await api.easel();const select=$('[data-role=projects]');select.innerHTML='<option value="">Saved projects</option>'+listing.projects.map(p=>`<option value="${e(p.id)}">${e(p.name)}</option>`).join('');select.value=project?.id??'';$('[data-role=backend]').innerHTML=listing.backends.map(b=>`<option value="${e(b.id)}">${e(b.label)}</option>`).join('');if(listing.backends.some(b=>b.id===chosen))$('[data-role=backend]').value=chosen;buttons();}
- async function setProject(p){project=p;selectedText=null;textDirty=false;preview=null;zoom=1;pan={x:0,y:0};saveFailed=false;$('[data-role=name]').value=p.name;$('[data-role=text]').value='';$('[data-role=dimensions]').textContent=`${p.width} × ${p.height}`;await refresh();preview=listing.jobs.findLast(j=>j.projectId===p.id&&j.status==='ready')??null;buttons();await draw();status('Saved on this device');}
+ async function setProject(p){if(project)promptDrafts.set(project.id,$('[data-role=prompt]').value);project=p;$('[data-role=prompt]').value=promptDrafts.get(p.id)??'';selectedText=null;textDirty=false;preview=null;zoom=1;pan={x:0,y:0};saveFailed=false;$('[data-role=name]').value=p.name;$('[data-role=text]').value='';$('[data-role=dimensions]').textContent=`${p.width} × ${p.height}`;await refresh();preview=listing.jobs.findLast(j=>j.projectId===p.id&&j.status==='ready')??null;buttons();await draw();status('Saved on this device');}
  function save(){
   if(!project)return Promise.resolve();const captured={id:project.id,name:project.name,doc:copy(project.doc),requestId:uid('save')};pending++;status('Saving…');buttons();
   const task=chain.then(async()=>{if(saveFailed)throw new Error('The previous save needs attention. Your drawing remains on screen.');const current=project;const result=await api.easel('/save',{...captured,version:current.version});if(project?.id===captured.id){project.version=result.version;project.headId=result.headId;project.history=result.history;project.assets=result.assets;project.canUndo=result.canUndo;}return result;});
@@ -130,7 +133,7 @@ export function createEasel({getChatId,onAttached,openConnection,toast}){
  }
  async function close(){await flush();closed=true;opening++;clearTimeout(timer);space=false;gesture=null;dialog.close();}
  return {
-  async open(){if(!dialog)bind();closed=false;const epoch=++opening;dialog.showModal();await refresh();if(epoch!==opening)return;if(!project){const p=listing.projects[0];await setProject(p?await api.easel('/project?'+new URLSearchParams({id:p.id})):await api.easel('/create',{name:'Untitled',image:null,requestId:uid('create')}));}else await draw();await poll();},
+  async open({prompt}={}){if(!dialog)bind();await flush();closed=false;const epoch=++opening;dialog.showModal();await refresh();if(epoch!==opening)return;if(prompt!==undefined){await setProject(await api.easel('/create',{name:'From message',image:null,requestId:uid('create')}));$('[data-role=prompt]').value=prompt;promptDrafts.set(project.id,prompt);buttons();$('[data-role=prompt]').focus();status('Edit this request, then ask when ready.');}else if(!project){const p=listing.projects[0];await setProject(p?await api.easel('/project?'+new URLSearchParams({id:p.id})):await api.easel('/create',{name:'Untitled',image:null,requestId:uid('create')}));}else await draw();await poll();},
   flush, get unsaved(){return pending>0||saveFailed||textDirty;}, close,
  };
 }

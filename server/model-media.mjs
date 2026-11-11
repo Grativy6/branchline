@@ -93,6 +93,10 @@ export class ImagePlans {
     return { id, chatId, images: images.map(i => ({ id: i.id, name: i.name, width: i.view.width, height: i.view.height })), routes,
       imageTokenAllowance: images.length * Math.max(...routes.map(r => r.capability?.imageTokensEach??0)), note: 'Only selected PNG viewing copies are sent. Original files stay on this device.' };
   }
+  async postal(state,chatId,ids,{model,selection}) {
+    const images=selectedImages(state,chatId,ids),capability=await this.capability(model,state);
+    return {profile:'branchline.chair-image-input/1',preparationId:'pony_'+crypto.randomUUID(),ids:[...ids],imageHash:digest(images.map(imageReference)),selectionRevision:imageSelectionRevision(state,chatId),chairId:selection.chairId,modelId:model.id,modelHash:digest(model),selectionHash:digest(selection),capability};
+  }
   capture(state, input, tasks) {
     const ids=activeImageIds(state,input.chatId);
     if(!ids.length&&!input.imagePlanId)return [];

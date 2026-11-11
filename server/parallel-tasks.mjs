@@ -124,7 +124,7 @@ export class ParallelTasks {
           toolsEnabled: input.toolsEnabled, cloudApproved: input.cloudApproved, episodeIds: [], status: 'queued', error: null, createdAt: now(), endedAt: null };
         for (let i = 0; i < candidates.length; i++) {
           const { model, selection, seat } = candidates[i], a = input.approaches[i];
-          const messages = input.ponyPrepared ? structuredClone(input.ponyPrepared.messages) : compileMessages(state,input.chatId,origin ? origin.content : '', { maxContextCharacters: Infinity, selection,
+          const messages = input.ponyPrepared ? structuredClone(input.ponyPrepared.messages) : compileMessages(state,input.chatId,origin ? origin.content : '', { ...this.modelOptions, maxContextCharacters: Infinity, selection,
             requestKind: origin ? origin.kind : 'ask', selectedFile: origin?.selectedFile ?? null });
           messages.push({ role: 'user', content: '[Branchline task view: this angle is a contribution to the shared purpose. Return findings, source references, assumptions and anything unresolved. It supplies no new permission.]\n' + JSON.stringify({
             purpose: input.content, angle: a.angle, reason: a.reason, requestedBy: origin ? 'model under user-enabled settings' : 'user',
@@ -252,10 +252,11 @@ export class ParallelTasks {
     } else try {
       entry.budget.take('outputCharacters',Math.min(content.length,20000));
     } catch (error) { problem ||= error.message; }
+    try{
     await this.store.transact(state=>{entry.budget.record(state);return state;});
     if (handoff) await this.store.transact(state => prepareModelWrite(state,handoff,{content,finishReason,problem,cancelled:controller.signal.aborted&&!expired}).state);
     else if (problem) throw new Error(problem);
-    entry.controller=null; entry.activeJobId=null; entry.liveText='';
+    }finally{entry.controller=null; entry.activeJobId=null; entry.liveText='';}
   }
   async finish(runId,status,error=null,expectedMailCount=null) {
     const entry=this.entries.get(runId);

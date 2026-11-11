@@ -7,6 +7,7 @@ import { resolvedCoat, currentHarnessRef } from '../public/harness-catalog.js';
 import { digest } from './integrity.mjs';
 import { responseModeFor } from './response-mode.mjs';
 import { permitsDreamTransition, preserveDreamHistory } from './dream-history.mjs';
+import {trainedGeneration, permitsTrainedSelection} from './dream-training-state.mjs';
 
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const fail = (ok, message) => { if (!ok) throw new Error(message); };
@@ -258,7 +259,7 @@ export function validateTables(state) {
     fail(Array.isArray(participant.generations) && participant.generations.length > 0 && Array.isArray(participant.connections) && participant.connections.length > 0, 'Personal lineage is missing.');
     for (const generation of participant.generations) {
       fail(ref(generation.id) && !ids.has(generation.id), 'Invalid generation identity.'); ids.add(generation.id);
-      fail(text(generation.baseIdentity, 500) && text(generation.modelIdentifier, 200) && generation.adapter === null && generation.sourceStanding === 'user_declared', 'Invalid initial personal generation.');
+      fail(text(generation.baseIdentity, 500) && text(generation.modelIdentifier, 200) && (generation.adapter === null && generation.sourceStanding === 'user_declared' || trainedGeneration(state,participant,generation)), 'Invalid personal generation.');
     }
     fail(participant.generations.some(item => item.id === participant.currentGenerationId), 'Current personal generation missing.');
     for (const connection of participant.connections) { fail(ref(connection.id) && !ids.has(connection.id) && ref(connection.modelId), 'Invalid personal connection.'); ids.add(connection.id); }
@@ -330,7 +331,7 @@ export function preserveTableHistory(before, after) {
     const next = participantById(after, participant.id);
     fail(next && next.name === participant.name && next.createdAt === participant.createdAt, 'Personal participant identity changed.');
     prefix(participant.generations, next.generations, 'Personal generation'); prefix(participant.connections, next.connections, 'Personal connection');
-    fail(next.currentGenerationId === participant.currentGenerationId || permitsDreamTransition(before, after, participant), 'A foundation transition requires a checked Dream restore.');
+    fail(next.currentGenerationId === participant.currentGenerationId || permitsDreamTransition(before, after, participant) || permitsTrainedSelection(before,after,participant), 'A foundation transition requires a checked Dream selection.');
   }
   for (const chat of before.chats) if (chat.table) prefix(chat.table.assignments, after.chats.find(item => item.id === chat.id)?.table?.assignments, 'Table assignment');
   prefix(before.messages, after.messages, 'Transcript');

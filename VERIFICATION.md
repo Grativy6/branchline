@@ -1,4 +1,91 @@
-# Verification for Branchline v0.10
+# Verification for Branchline 1.0
+
+## 1.0 release checks
+
+The integrated backend suite passed **118 tests**. Focused checks cover interrupted
+plain/packed journal endings, recovery interrupted at either publish boundary,
+active and reused writer identities, exact input reconstruction, legacy receipt
+hashes, relocated backups, frozen Dream batches, worker failures, local-slot races,
+Stop priority, Plan edits, late hearth messages, downloads and queued image intake.
+The source includes the reproductions; these checks use synthetic data.
+
+In comparable runs of the same immediate-model workload, overhead at 50 exchanges
+fell from **1,146 ms to 247 ms**, and a setting change from **194 ms to 17 ms**.
+The repaired run completed 200 exchanges with **518 ms** overhead at that point;
+250 exchanges across short conversations reached **896 ms**. These are observed
+fixture timings, not latency guarantees. Exact history remains retrievable.
+
+A real local Dream used nine controlled synthetic episodes and three optimizer
+updates. It suspended after update one, resumed the actual checkpoint with the same
+batch, exported and loaded its candidate, and adopted/returned within the isolated
+workspace. Peak whole-device readings were **56°C** and **11,805 MiB VRAM**.
+Validated export scratch cleanup removed 13 temporary files (17,523,081,639 bytes).
+Preparation was injected to control the examples; training and inference were real.
+
+A matching untrained export control was compared with stock Qwen and the candidate
+using identical messages, temperature zero and a fixed seed. The two 160-token
+prefix comparisons differed between stock/control and control/trained; 248 adapter
+B tensors were nonzero. This small, output-limited check establishes neither
+better conversation quality nor information preservation.
+
+Browser checks cover Dreams controls, Pony Post, message gears, download bytes and
+the recovery notice. A copied working workspace retained its saved structures and
+receipt hashes through migration. Python checks cover consistent read snapshots,
+owner/profile isolation, proposal replay, host/model separation and relocation.
+
+With four selected continuity sources, ordinary fixture replies took **6.7–6.9 s**
+with six real helper launches. The larger helper-process/caching optimization is
+explicitly deferred; changed context was still observed on the next reply.
+
+The native/installer results accompany the release artifacts. The subsequent UI
+review checked four window widths and side-panel changes, then moved desk records
+into Activity. Desk/crew browser checks retained task controls, clipboard selection
+and log access. Chris confirmed the installed desktop workspace, chairs and ChatGPT
+connection after restart and accepted the final Activity placement.
+Earlier dated checks below retain their original scope and counts.
+
+## 0.99.1 Pony Post home — 10 November 2026
+
+The backend suite passed 98/98 tests, including nine postal checks with synthetic
+state and injected responses. They cover distinct desks, no-inference notices,
+queued requests, held returns, duplicate Send, cancellation, changed addresses,
+restart without replaying started work, backup/restore, source sharing, referenced
+Dream notes, failed saves, and picture delivery preserving composer selections.
+The browser check configured both desks, sent through the message gear, observed
+one recipient call and its return, and checked the narrow layout. The existing
+message-actions browser check also passed. These checks made no paid model calls.
+
+The legacy active helper-task UI/runner was retired. Its immutable history readers
+remain. The general independent-review findings for 1.0 are still tracked separately.
+This change also closes a reply-preparation sink on failure and preserves Dream-note
+origins on edit, because postal queue/context integration uses those paths.
+
+
+## 0.11.0-preview.1 Dreams — 10 November 2026
+
+The full backend suite passed 86 tests. The Dream browser flow covered manual
+notes, file import, multi-message highlights, category tints, preparation-model
+selection, whole Usual Coats collapse, picture persistence, the two-second guard,
+Cancel, Suspend/reload/Resume, Stop, adoption/return and a narrow window.
+A further focused check confirms that a failed checkpoint save is reported as
+interrupted with its actual error, rather than falsely claiming suspension.
+
+A real Qwen3.5-4B BF16 LoRA run on an RTX 4070 trained 24 overlapping windows at
+the 1,024-token ceiling, suspended after update 1 and resumed through update 6.
+Peak whole-device VRAM was 11,829 MiB and GPU temperature 70°C. An extra CPU model
+copy caused export memory pressure under a 16 GB WSL ceiling; removing it allowed
+export to resume from the trained adapter. No distro-wide shutdown was needed.
+
+The app-mediated synthetic run used local Qwen for preparation, trained one
+update, exported Q4_K_M, loaded it in Branchline, produced a reply, adopted it and
+returned to stock Qwen. Both models answered the short greeting/arithmetic check
+correctly. The new generation also identified a synthetic green image using the
+retained projector. Export initially exposed inconsistent MTP metadata; the
+converter now excludes the absent MTP head, and native loading gates readiness.
+
+These checks establish the training/export/application path for this profile.
+They do not establish model-quality improvement, universal hardware support or
+training support for other model families. All training data was synthetic.
 
 ## 0.10.3-preview.1 preparation — 9 November 2026
 

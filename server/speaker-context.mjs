@@ -1,3 +1,4 @@
+import {firstInput} from './history-inputs.mjs';
 import { CHAIR_PROFILE, chairLabel } from '../public/chair-roster.js';
 import { digest } from './integrity.mjs';
 import { dreamOwner } from '../public/dream-records.js';
@@ -45,7 +46,7 @@ export function validateChairIdentityRecord(record) {
   if (record.kind !== 'context.to_model' || view?.chairIdentity === undefined) return;
   const expected = newChairIdentity(record.scope.chatId, view.speaker, view.chairIdentity.profile);
   if (digest(view.chairIdentity) !== digest(expected)) throw new Error('Chair identity stamp changed its wording or binding.');
-  const leading = record.detail.inputMessages?.[0];
+  const leading = firstInput(record.detail.inputMessages);
   if (leading?.role !== 'system' || !leading.content.split('\n\n').includes(expected.text)) {
     throw new Error('Chair identity stamp is missing from the leading model instructions.');
   }

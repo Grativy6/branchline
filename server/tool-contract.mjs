@@ -3,6 +3,7 @@ import { digest } from './integrity.mjs';
 import { chairView, chairRoster } from '../public/chair-roster.js';
 import { GOAL_PROFILE, GOAL_TOOL } from './desk-goals.mjs';
 import { NOTE_PROFILE, NOTE_TOOL } from './reasoning-notes.mjs';
+import { MAIL_TOOLS, MAIL_PROFILE, mailSettings } from './pony-mail-state.mjs';
 import { DESK_TOOLS } from './desk-work.mjs';
 import { resourceSettings, checkResources } from '../public/resource-settings.js';
 import { harnessSnapshot } from './harnesses.mjs';
@@ -22,6 +23,7 @@ export const SKETCH_TOOL_PROFILE = 'branchline.conversation-tools/7';
 export const PC_TOOL_PROFILE = 'branchline.conversation-tools/8';
 const sameBinding = (a, b) => a.tool === b.tool && a.provider === b.provider;
 const coordinationTools = parallel => parallel?.pony ? ['pony_task_send'] : [...(parallel ? ['request_parallel_approach'] : []), ...(parallel?.hearth ? ['request_hearth'] : [])];
+const postalTools = contract => contract.ponyMail ? MAIL_TOOLS : [];
 const deskTools = contract => contract.desk ? contract.conversationEnabled ? DESK_TOOLS : contract.goal ? ['read_desk_updates','read_desk_record'] : [] : [];
 const exact = (v, keys) => v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length === keys.length && keys.every(k => Object.hasOwn(v, k));
 
@@ -86,7 +88,8 @@ export function makeToolContract(state, { chatId, model, selectedFile, enabled =
   if(deskTaskId&&(enabled||goal)){const task=state.deskWork?.tasks.find(t=>t.id===deskTaskId);if(!task||task.chatId!==chatId||task.chairId!==chairId||digest(task.model)!==digest(model))throw new Error('The desk tool assignment changed.');const roster=chairRoster(state,state.chats.find(c=>c.id===chatId));contract.desk={taskId:deskTaskId,chairId,chatId,chairs:[roster.desk,...roster.visitors].map(c=>({id:c.id,name:c.name}))};}
   if(goal&&contract.desk){const task=state.deskWork.tasks.find(t=>t.id===deskTaskId);if(task.goalId!==goal.id)throw new Error('Goal assignment changed.');contract.goal={profile:GOAL_PROFILE,id:goal.id,revisionId:goal.revisionId};}
   if(contract.desk && reasoningNotes) contract.reasoningNotes = { profile: NOTE_PROFILE };
-  contract.tools = [...contract.bindings.map(p => p.tool), ...coordinationTools(parallel), ...deskTools(contract), ...(contract.goal?[GOAL_TOOL]:[]), ...(contract.reasoningNotes?[NOTE_TOOL]:[])];
+  if(contract.desk&&enabled&&mailSettings(state,state.chats.find(c=>c.id===chatId)?.rootId)?.enabled)contract.ponyMail={profile:MAIL_PROFILE,rootId:state.chats.find(c=>c.id===chatId).rootId};
+  contract.tools = [...contract.bindings.map(p => p.tool), ...coordinationTools(parallel), ...deskTools(contract), ...postalTools(contract), ...(contract.goal?[GOAL_TOOL]:[]), ...(contract.reasoningNotes?[NOTE_TOOL]:[])];
   return contract;
 }
 
@@ -129,7 +132,12 @@ export function toolDefinitions(contract) {
     write_desk_artifact:['Place work on the shared desk or revise a shared artifact. For new work use empty id and revision. For edits use the exact id/revision from read_desk_updates. Conflicting proposals are retained in your drawer. Shared results retain your chair and source task.',{id:{type:'string',maxLength:120},title:text(200),text:{type:'string',maxLength:32000},revision:{type:'string',maxLength:120}}],
     send_chair_message:['Send an attributed message to another chair at this desk. Set request_reply=true only to ask that chair to perform work; otherwise it is a notice for its next working step. Busy chairs queue work. The existing task group permits at most 16 tasks; this does not grant wider tool access. Chairs: '+JSON.stringify(contract.desk.chairs),{chair_id:{type:'string',enum:contract.desk.chairs.map(c=>c.id)},message:text(8000),request_reply:{type:'boolean'}}],
   });
-  if(contract.goal) definitions[GOAL_TOOL]=['Record your own assignment outcome for this conversation goal. Use continue only with a concrete next_step; it starts after this turn and queued human messages. Waiting requires a chair/artifact/task ID. A chair wait wakes for its published artifact, addressed message or complete/partial finding, never an idle/waiting status; after is the last desk event cursor you have read, or empty to include arrivals since your task began. Complete is your reported result, not independent verification. Partial, blocked and idle do not request another call. Evidence IDs must be records from this conversation. Preserve your assignment when handling a side question; use the next step to return to unfinished work. No new tools or other-chair authority are granted.',{status:{type:'string',enum:['continue','complete','partial','waiting','blocked','idle']},summary:{type:'string',maxLength:2000},next_step:{type:'string',maxLength:4000},wait_for:{type:'string',enum:['none','chair','artifact','task']},wait_id:{type:'string',maxLength:120},after:{type:'string',maxLength:120},evidence:{type:'array',maxItems:12,items:{type:'string',maxLength:120}}}];
+  if(contract.ponyMail)Object.assign(definitions,{
+    list_pony_desks:['List other desks and whether their Pony Post is on. Delivery needs no model call.',{}],
+    send_pony:['Send your message to another enabled desk through Pony Post. Set request_reply=true to queue work in its receiving chair; false sends a notice with no new turn. Continue your own work. To wait explicitly, use report_goal_work with wait_for=pony and the returned parcelId. This does not grant the receiver your tools.',{desk_id:text(120),text:text(100000),request_reply:{type:'boolean'}}],
+    read_pony:['Inspect your desk’s sent or delivered mail and its recorded status. Empty parcel_id lists recent mail. Delivery is not a reply. Start offset at zero; follow nextOffset for longer messages.',{parcel_id:{type:'string',maxLength:120},offset:{type:'integer',minimum:0}}]
+  });
+  if(contract.goal) definitions[GOAL_TOOL]=['Record your own assignment outcome for this conversation goal. Use continue only with a concrete next_step; it starts after this turn and queued human messages. Waiting requires a chair/artifact/task/pony parcel ID. A pony wait wakes once for a delivered return; the courier does not create acknowledgements. A chair wait wakes for its published artifact, addressed message or complete/partial finding, never an idle/waiting status; after is the last desk event cursor you have read, or empty to include arrivals since your task began. Complete is your reported result, not independent verification. Partial, blocked and idle do not request another call. Evidence IDs must be records from this conversation. Preserve your assignment when handling a side question; use the next step to return to unfinished work. No new tools or other-chair authority are granted.',{status:{type:'string',enum:['continue','complete','partial','waiting','blocked','idle']},summary:{type:'string',maxLength:2000},next_step:{type:'string',maxLength:4000},wait_for:{type:'string',enum:['none','chair','artifact','task','pony']},wait_id:{type:'string',maxLength:120},after:{type:'string',maxLength:120},evidence:{type:'array',maxItems:12,items:{type:'string',maxLength:120}}}];
   if(contract.reasoningNotes) definitions[NOTE_TOOL] = ['Optionally record a short consideration note about an interpretation, choice, uncertainty or correction. Keep doing the assignment; never stop work to satisfy a timer. This is an expressed account, not proof an action happened. Branchline stamps your chair and task. Use the offered ping_id or empty string; corrects is a note ID from this task or empty. Empty text declines an offered ping. Saved notes stay in your chair log.', {text:{type:'string',maxLength:4000},ping_id:{type:'string',maxLength:120},corrects:{type:'string',maxLength:120}}];
   return contract.tools.map(name => {
     const [description, properties] = definitions[name];
@@ -141,6 +149,7 @@ export function toolDefinitions(contract) {
 }
 
 export function validToolContract(contract, model) {
+  if(contract?.ponyMail&&(!contract.desk||!contract.conversationEnabled||!exact(contract.ponyMail,['profile','rootId'])||contract.ponyMail.profile!==MAIL_PROFILE||typeof contract.ponyMail.rootId!=='string'))return false;
   if(contract?.goal&&(!contract.desk||!exact(contract.goal,['profile','id','revisionId'])||contract.goal.profile!==GOAL_PROFILE||!['id','revisionId'].every(k=>typeof contract.goal[k]==='string'&&/^[A-Za-z0-9_-]{1,120}$/.test(contract.goal[k]))))return false;
   if(contract?.reasoningNotes && (!contract.desk || !exact(contract.reasoningNotes,['profile']) || contract.reasoningNotes.profile!==NOTE_PROFILE)) return false;
   if(contract?.inheritFileTools!==undefined&&(contract.inheritFileTools!==true||!contract.pc||contract.coat?.pockets!==null))return false;
@@ -183,5 +192,5 @@ export function validToolContract(contract, model) {
     && contract.web === 'exact_URL_human_review' && contract.delegation === false
     && Array.isArray(contract.documents) && contract.documents.length <= 8
     && Number.isSafeInteger(contract.history?.count) && contract.history.count >= 0 && /^[a-f0-9]{64}$/.test(contract.history.hash)
-    && digest(contract.tools) === digest([...(coated ? contract.bindings.map(p => p.tool) : parallel && !contract.conversationEnabled ? [] : TOOL_NAMES.filter(n => (n !== 'read_selected_document' || contract.documents.length) && (n !== 'read_chat_source' || contract.history.count))), ...coordinationTools(contract.parallel), ...deskTools(contract), ...(contract.goal?[GOAL_TOOL]:[]), ...(contract.reasoningNotes?[NOTE_TOOL]:[])]);
+    && digest(contract.tools) === digest([...(coated ? contract.bindings.map(p => p.tool) : parallel && !contract.conversationEnabled ? [] : TOOL_NAMES.filter(n => (n !== 'read_selected_document' || contract.documents.length) && (n !== 'read_chat_source' || contract.history.count))), ...coordinationTools(contract.parallel), ...deskTools(contract), ...postalTools(contract), ...(contract.goal?[GOAL_TOOL]:[]), ...(contract.reasoningNotes?[NOTE_TOOL]:[])]);
 }

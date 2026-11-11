@@ -22,10 +22,10 @@ internal static class Program
         if (index >= 0 && index + 1 < args.Length) data = Path.GetFullPath(args[index + 1]);
         bool smokeHistory = args.Contains("--smoke-history");
         if (smokeHistory && (!smoke || index < 0)) { Environment.ExitCode = 2; return; }
-        // This preview is intentionally separate from the installed Beta workspace.
+        // Retain the established mutex and data-directory names across display-version changes.
         string key = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(data.ToUpperInvariant())));
         using var mutex = new Mutex(true, @"Local\Branchline.Preview." + key, out bool created);
-        if (!created) { if (!smoke) MessageBox.Show("Branchline Preview is already open. Look for its tree icon on the taskbar.", "Branchline Preview"); Environment.ExitCode = 2; return; }
+        if (!created) { if (!smoke) MessageBox.Show("Branchline is already open. Look for its tree icon on the taskbar.", "Branchline"); Environment.ExitCode = 2; return; }
         Application.Run(new PreviewWindow(data, smoke, args.Contains("--setup-apertus"), smokeHistory, args.Contains("--setup-hearthline")));
     }
 }
@@ -41,7 +41,7 @@ internal sealed class PreviewWindow : Form
     private double uiReadyMs;
     private readonly string appRoot = AppContext.BaseDirectory;
     private readonly WebView2 web = new() { Dock = DockStyle.Fill };
-    private readonly Label status = new() { Dock = DockStyle.Fill, Text = "Opening your Branchline preview…", TextAlign = ContentAlignment.MiddleCenter };
+    private readonly Label status = new() { Dock = DockStyle.Fill, Text = "Opening Branchline…", TextAlign = ContentAlignment.MiddleCenter };
     private readonly StringBuilder errors = new();
     private Process? backend;
     private OwnedProcessJob? backendJob;
@@ -235,7 +235,7 @@ internal sealed class PreviewWindow : Form
             };
             web.CoreWebView2.NavigationCompleted += async (_, e) => {
                 if (e.IsSuccess) RecordOpening("page_loaded");
-                if (!e.IsSuccess) { status.Text = "The preview page could not open. Close the window and try again."; return; }
+                if (!e.IsSuccess) { status.Text = "The app page could not open. Close the window and try again."; return; }
                 status.Visible = false;
                 if (smoke) {
                     try {
@@ -256,8 +256,18 @@ internal sealed class PreviewWindow : Form
                             if (actualHash != expected.RootElement.GetProperty("stateSha256").GetString()) throw new IOException("Native history differs from the exact synthetic fixture.");
                             if (expected.RootElement.TryGetProperty("imageObjects", out var expectedPictures)) {
                                 using var exported = JsonDocument.Parse(await client.GetStringAsync(new Uri(origin, "/api/export")));
-                                if (exported.RootElement.GetProperty("profile").GetString() != "branchline.workspace-export/2") throw new IOException("Unknown picture export format.");
+                                string expectedProfile = expected.RootElement.TryGetProperty("exportProfile", out var exportProfile) ? exportProfile.GetString()! : "branchline.workspace-export/2";
+                                if (exported.RootElement.GetProperty("profile").GetString() != expectedProfile) throw new IOException("The workspace export format differs from its fixture.");
                                 if (exported.RootElement.GetProperty("state").GetRawText() != rawState) throw new IOException("Picture export changed the saved state.");
+                                if (expected.RootElement.TryGetProperty("historyObjects", out var expectedHistory)) {
+                                    var history = exported.RootElement.GetProperty("historyObjects");
+                                    if (history.GetArrayLength() != expectedHistory.GetInt32()) throw new IOException("Native saved-input export count changed.");
+                                    foreach (var item in history.EnumerateArray()) {
+                                        byte[] bytes = Convert.FromBase64String(item.GetProperty("base64").GetString()!);
+                                        string hash = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
+                                        if (hash != item.GetProperty("sha256").GetString()) throw new IOException("Native saved-input export bytes changed.");
+                                    }
+                                }
                                 var pictures = exported.RootElement.GetProperty("imageObjects");
                                 if (pictures.GetArrayLength() != expectedPictures.GetInt32()) throw new IOException("Native picture export count changed.");
                                 foreach (var picture in pictures.EnumerateArray()) {
@@ -283,11 +293,11 @@ internal sealed class PreviewWindow : Form
                         }
                         if (result != "true") throw new IOException("The native UI did not authenticate with its private launch session.");
                         for (int i = 0; i < 50; i++) {
-                            result = await web.CoreWebView2.ExecuteScriptAsync("(() => { const image = document.querySelector('.dream-art img'); return !!image && image.complete && image.naturalWidth > 0 && document.querySelector('.dream-start')?.disabled === true && document.querySelector('.dream-timeline')?.textContent.includes('Scheduling coming later'); })()");
+                            result = await web.CoreWebView2.ExecuteScriptAsync("(() => { const image = document.querySelector('.dream-workbench .dream-sprout'); return !!image && image.complete && image.naturalWidth > 0 && document.querySelector('[data-dream-job=manual-conversation]')?.textContent === 'Make noted conversation' && document.querySelector('[data-dream-job=manual-workflow]')?.textContent === 'Make noted workflow' && !!document.querySelector('[data-dream-job=schedule]') && !!document.querySelector('#dream-note-list'); })()");
                             if (result == "true") break;
                             await Task.Delay(100);
                         }
-                        if (result != "true") throw new IOException("The Dream introduction or its SVG did not load in the native page.");
+                        if (result != "true") throw new IOException("The current Dream workbench or its SVG did not load in the native page.");
                         if (smokeHistory) {
                             for (int i = 0; i < 50; i++) {
                                 result = await web.CoreWebView2.ExecuteScriptAsync("document.querySelector('#branch-list').textContent.includes('Synthetic packet branch')");
@@ -407,7 +417,7 @@ internal sealed class PreviewWindow : Form
         if (web.CoreWebView2 is null) return true;
         await web.ExecuteScriptAsync("window.branchlinePrepareClose?.()");
         var waiting = Stopwatch.StartNew();
-        while (waiting.Elapsed < TimeSpan.FromSeconds(30)) {
+        while (waiting.Elapsed < TimeSpan.FromSeconds(150)) {
             using var result = JsonDocument.Parse(await web.ExecuteScriptAsync("window.branchlineCloseState ?? null"));
             if (result.RootElement.ValueKind == JsonValueKind.Null) return true; // No editable page loaded yet.
             string state = result.RootElement.GetProperty("status").GetString() ?? "";

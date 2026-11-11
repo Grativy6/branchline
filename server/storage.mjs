@@ -1,3 +1,6 @@
+import {HistoryInputs,validHistoryFile} from './history-inputs.mjs';
+import {recoveryFiles,validRecoveryFile} from './journal-recovery.mjs';
+import {mailFiles,validMailFile} from './pony-mail-state.mjs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -5,14 +8,22 @@ import { createReadStream, constants } from 'node:fs';
 import { verifyJournal } from './journal-verification.mjs';
 import { ImageStore } from './image-store.mjs';
 import { imageObjects } from './images.mjs';
+import {dreamArtifactFiles,validDreamArtifact} from './dream-artifacts.mjs';
 
 const HEX = /^[a-f0-9]{64}$/;
 const ID = /^[a-f0-9-]{20,80}$/;
 const FIXED = ['events.jsonl', 'workspace.json'];
 function backupFiles(manifest){
-  const memory=manifest.version===5?manifest.memoryFiles:[];
+  const memory=manifest.version>=5?(manifest.memoryFiles??[]):[];
   if(!Array.isArray(memory)||new Set(memory).size!==memory.length||memory.some(n=>!/^personal-memory\/[A-Za-z0-9_-]{1,100}\/(MEMORY\.md|sync\.json)$/.test(n)))throw new Error('Invalid memory backup paths.');
-  return [...FIXED,...(manifest.version>=4?['personal-context-store/.hearthline-store.sqlite3']:[]),...memory];
+  const dreams=manifest.version>=6?(manifest.dreamFiles??[]):[];
+  if(!Array.isArray(dreams)||new Set(dreams).size!==dreams.length||dreams.some(n=>!validDreamArtifact(n)))throw new Error('Invalid Dream backup paths.');
+  const post=manifest.version>=7?(manifest.ponyFiles??[]):[];
+  if(!Array.isArray(post)||new Set(post).size!==post.length||post.some(n=>!validMailFile(n)))throw new Error('Invalid Pony Post backup paths.');
+  const history=manifest.version>=8?(manifest.historyFiles??[]):[],recovery=manifest.version>=8?(manifest.recoveryFiles??[]):[];
+  if(!Array.isArray(history)||new Set(history).size!==history.length||history.some(n=>!validHistoryFile(n))||!Array.isArray(recovery)||new Set(recovery).size!==recovery.length||recovery.some(n=>!validRecoveryFile(n)))throw new Error('Invalid history backup paths.');
+  const continuity=manifest.version>=6?!!manifest.files['personal-context-store/.hearthline-store.sqlite3']:manifest.version>=4;
+  return [...FIXED,...(continuity?['personal-context-store/.hearthline-store.sqlite3']:[]),...memory,...dreams,...post,...history,...recovery];
 }
 
 function digest(bytes) { return crypto.createHash('sha256').update(bytes).digest('hex'); }
@@ -56,7 +67,7 @@ export class StorageManager {
       try {
         const manifest = JSON.parse(await fs.readFile(path.join(this.backupDir, entry.name, 'manifest.json'), 'utf8'));
         if (manifest.workspaceId !== this.store.workspaceId) continue;
-        result.push({ id: entry.name, createdAt: manifest.createdAt, bytes: manifest.journalBytes, recordCount: manifest.recordCount });
+        result.push({ id: entry.name, createdAt: manifest.createdAt, bytes: Object.values(manifest.files??{}).reduce((n,f)=>n+f.bytes,0)+(manifest.images??[]).reduce((n,f)=>n+f.byteLength,0), recordCount: manifest.recordCount });
       } catch { /* incomplete directories are not advertised */ }
     }
     return result.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
@@ -65,6 +76,7 @@ export class StorageManager {
   backup(){return this.store.memoryFiles?this.store.memoryFiles.all(()=>this.backupCaptured()):this.backupCaptured();}
   async backupCaptured() {
     const captured = await this.store.atQueueBoundary(async () => {
+      const dreamFiles=await dreamArtifactFiles(this.store.dataDir,this.store.state,{quiet:true});
       await fs.mkdir(this.backupDir, { recursive: true });
       const id = crypto.randomUUID();
       const target = path.join(this.backupDir, id);
@@ -115,6 +127,10 @@ export class StorageManager {
             }
           }
         }
+        if(dreamFiles.length){manifest.version=6;manifest.dreamFiles=dreamFiles;}
+        const post=mailFiles(this.store.state);if(post.length){manifest.version=7;manifest.ponyFiles=post;}
+        const history=this.store.inputs.files(this.store.state),recovery=await recoveryFiles(this.store.dataDir);
+        if(history.length||recovery.length){manifest.version=8;manifest.historyFiles=history;manifest.recoveryFiles=recovery;}
         return { id, temporary, target, manifest };
       } catch (error) {
         // Retain partial copies for inspection. Failure is not a cleanup grant.
@@ -132,6 +148,12 @@ export class StorageManager {
         if (copy.sha256 !== ref.sha256) throw new Error('Image backup differs from its source.');
       }
       // New messages can commit while this immutable copy is checked in full.
+      for(const name of [...(manifest.dreamFiles??[]),...(manifest.ponyFiles??[]),...(manifest.historyFiles??[]),...(manifest.recoveryFiles??[])]){
+        const source=path.join(this.store.dataDir,name),destination=path.join(temporary,name);await fs.mkdir(path.dirname(destination),{recursive:true});
+        const before=await fingerprint(source),copied=await durableCopy(source,destination),after=await fingerprint(source);
+        if(before.sha256!==copied.sha256||after.sha256!==copied.sha256)throw new Error('Dream progress changed during backup. Suspend it and try again.');
+        manifest.files[name]=copied;
+      }
       const parsed = await this.replayCopy(path.join(temporary, 'events.jsonl'));
       if (parsed.recordCount !== manifest.recordCount || parsed.bytes !== manifest.unpackedJournalBytes) throw new Error('Backup contents did not match their captured boundary.');
       const manifestHandle = await fs.open(path.join(temporary, 'manifest.json'), 'wx');
@@ -171,7 +193,7 @@ export class StorageManager {
     let manifest;
     try { manifest = JSON.parse(await fs.readFile(path.join(root, 'manifest.json'), 'utf8')); }
     catch { throw Object.assign(new Error('Backup was not found or its manifest is unreadable.'), { status: 404 }); }
-    if (![1, 2, 3, 4, 5].includes(manifest.version) || manifest.id !== id || manifest.workspaceId !== this.store.workspaceId || !manifest.files) throw new Error('Backup manifest is invalid.');
+    if (![1, 2, 3, 4, 5, 6, 7, 8].includes(manifest.version) || manifest.id !== id || manifest.workspaceId !== this.store.workspaceId || !manifest.files) throw new Error('Backup manifest is invalid.');
     const files = {};
     for (const name of backupFiles(manifest)) {
       const expected = manifest.files[name];
@@ -181,6 +203,11 @@ export class StorageManager {
       if (actual.bytes !== expected.bytes || actual.sha256 !== expected.sha256) throw new Error('Backup file failed its integrity check.');
     }
     const parsed = await this.replayCopy(files['events.jsonl']);
+    if((parsed.dreamFiles??[]).some(name=>!manifest.dreamFiles?.includes(name)))throw new Error('Backup omits its Dream notes, pictures or generations.');
+    if((parsed.ponyFiles??[]).some(name=>!manifest.ponyFiles?.includes(name)))throw new Error('Backup omits its Pony Post parcels.');
+    for(const name of parsed.ponyFiles??[])if((await fingerprint(path.join(root,name))).sha256!==path.basename(name,'.json'))throw new Error('Pony Post parcel bytes changed.');
+    if((parsed.historyFiles??[]).some(name=>!manifest.historyFiles?.includes(name)))throw new Error('Backup omits its exact saved inputs.');
+    for(const name of parsed.historyFiles??[])if((await fingerprint(path.join(root,name))).sha256!==path.basename(name,'.json'))throw new Error('Saved input backup bytes changed.');
     if(parsed.hasPersonalContext&&manifest.version<4)throw new Error('Backup omits its personal continuity database.');
     const identity = parseIdentity(await fs.readFile(files['workspace.json'], 'utf8'));
     if (identity.workspaceId !== manifest.workspaceId) throw new Error('Backup identity does not match its manifest.');
@@ -196,7 +223,8 @@ export class StorageManager {
     const checked = await this.readVerified(id);
     await fs.mkdir(this.recoveredDir, { recursive: true });
     const recoveredId = `${id}-${crypto.randomUUID()}`;
-    const target = path.join(this.recoveredDir, recoveredId);
+    const dataRoot=path.join(this.recoveredDir,recoveredId);
+    const target = path.join(dataRoot,'workspace');
     await fs.mkdir(target, { recursive: true });
     try {
       for (const name of Object.keys(checked.files)) {
@@ -210,7 +238,9 @@ export class StorageManager {
         await targetImages.put(bytes, ref.mimeType.split('/')[1], { width: ref.width, height: ref.height });
       }
       const restored = { dataDir: target, ...(await this.verifyRestored(target)) };
-      return { restoredPath: target, workspaceId: restored.workspaceId, recordCount: restored.recordCount };
+      const executable=process.env.BRANCHLINE_NATIVE_FILES;
+      const launchCommand=process.platform==='win32'&&executable&&path.isAbsolute(executable)?`"${executable}" --data-dir "${dataRoot}"`:null;
+      return { restoredPath: target, dataRoot, launchCommand, workspaceId: restored.workspaceId, recordCount: restored.recordCount };
     } catch (error) {
       error.message += ` Partial copy retained at ${target}; the active workspace was not replaced.`;
       throw error;
@@ -220,6 +250,9 @@ export class StorageManager {
   async verifyRestored(root) {
     const identity = parseIdentity(await fs.readFile(path.join(root, 'workspace.json'), 'utf8'));
     const parsed = await this.replayCopy(path.join(root, 'events.jsonl'));
+    for(const name of parsed.dreamFiles??[])if(!await fs.stat(path.join(root,name)).then(s=>s.isFile(),()=>false))throw new Error('Recovered Dream files are missing.');
+    for(const name of parsed.ponyFiles??[])if((await fingerprint(path.join(root,name))).sha256!==path.basename(name,'.json'))throw new Error('Recovered Pony Post parcel bytes changed.');
+    for(const name of parsed.historyFiles??[])if((await fingerprint(path.join(root,name))).sha256!==path.basename(name,'.json'))throw new Error('Recovered saved-input bytes changed.');
     const images = new ImageStore(root);
     for (const ref of parsed.images ?? []) await images.read(ref);
     return { workspaceId: identity.workspaceId, recordCount: parsed.recordCount };

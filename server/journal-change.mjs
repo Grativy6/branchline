@@ -1,3 +1,4 @@
+import {cloneJson,isImmutable} from './immutable-json.mjs';
 import { digest } from './integrity.mjs';
 
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -40,18 +41,20 @@ export function journalChange(before, after, sequence, at = new Date().toISOStri
 
 export function applyJournalChange(before, event) {
   if (event.version !== 1 || !Array.isArray(event.changes) || event.beforeHash !== digest(before)) fail('base state does not match.');
-  let state = structuredClone(before);
+  let state = cloneJson(before);
   for (const change of event.changes) {
     if (!change || !['set', 'remove', 'append'].includes(change.op) || !Array.isArray(change.path)
         || change.path.some(key => !(typeof key === 'string' || Number.isSafeInteger(key) && key >= 0) || unsafe(key))) fail('invalid operation.');
     let parent = null, key = null, current = state;
     for (let i = 0; i < change.path.length; i++) {
+      if(isImmutable(current)){const mutable=Array.isArray(current)?[...current]:{...current};if(parent===null)state=mutable;else Object.defineProperty(parent,key,{value:mutable,writable:true,enumerable:true,configurable:true});current=mutable;}
       key = change.path[i]; parent = current;
       if (!Array.isArray(parent) && !object(parent)) fail('path has no container.');
       if (Array.isArray(parent) && (!Number.isSafeInteger(key) || key < 0 || key >= parent.length)) fail('invalid array position.');
       if (!Object.hasOwn(parent, key) && !(i === change.path.length - 1 && change.op === 'set' && object(parent))) fail('path does not exist.');
       current = parent[key];
     }
+    if(change.op==='append'&&isImmutable(current)){current=[...current];if(parent===null)state=current;else Object.defineProperty(parent,key,{value:current,writable:true,enumerable:true,configurable:true});}
     if (change.op === 'append') {
       if (!Array.isArray(current) || current.length !== change.length || !Array.isArray(change.values)) fail('array boundary changed.');
       for (const value of change.values) current.push(structuredClone(value));

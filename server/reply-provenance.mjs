@@ -1,3 +1,4 @@
+import {inputHash} from './history-inputs.mjs';
 import { digest } from './integrity.mjs';
 
 export const REPLY_RECORD_PROFILE = 'branchline.reply-record/1';
@@ -75,7 +76,7 @@ export function validateReplyProvenance(state) {
     const checkedSources = output?.detail?.review?.p === 'record-effect/1';
     fail(request.to === 'shared_task' && context.from === 'shared_task' && context.to === 'model_episode'
       && same(context.parents, [request.id]) && context.detail?.taskReceipt === request.id
-      && (checkedSources || digest(task) === request.contentHash && digest(context.detail.inputMessages) === context.contentHash),
+      && (checkedSources || digest(task) === request.contentHash && inputHash(context.detail.inputMessages) === context.contentHash),
     'reply lost its exact request and context.');
     const view = context.detail.contextView;
     fail(same(task.view, view) && same(task.selection, turn.speaker) && same(view?.speaker, turn.speaker)

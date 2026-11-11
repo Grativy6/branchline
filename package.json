@@ -1,6 +1,6 @@
 {
   "name": "branchline-beta",
-  "version": "0.10.3-preview.1",
+  "version": "1.0.0",
   "license": "Apache-2.0",
   "private": true,
   "type": "module",
@@ -15,7 +15,7 @@
     "zod": "4.6.5"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=24.19.0"
   },
   "scripts": {
     "licenses:prepare": "node scripts/Prepare-License-Assets.mjs",

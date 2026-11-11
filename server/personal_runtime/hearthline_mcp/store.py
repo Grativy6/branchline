@@ -73,32 +73,34 @@ class SharedScopedStore:
     def path(self) -> Path:
         return self._db
 
+    def _snapshot(self):
+        # Verify and return the same SELECT snapshot, even if another helper
+        # appends immediately afterward. A second query could pair newer rows
+        # with an older head and spuriously reject the next revision.
+        with closing(self._connect()) as con:
+            rows = con.execute("SELECT seq,record_hash,prev_hash,payload FROM records WHERE namespace=? ORDER BY seq", (self.namespace,)).fetchall()
+        previous = "GENESIS"
+        for expected, (seq, record_hash, prev_hash, payload) in enumerate(rows, 1):
+            if seq != expected or prev_hash != previous:
+                raise StoreIntegrityError("sequence or previous-hash mismatch")
+            try:
+                obj = json.loads(payload, parse_constant=lambda _: (_ for _ in ()).throw(ValueError("nonfinite JSON")))
+                if canonical_json(obj) != payload or sha256_text(prev_hash + "\n" + payload) != record_hash:
+                    raise StoreIntegrityError("record hash mismatch")
+            except (json.JSONDecodeError, ValueError, TypeError) as exc:
+                raise StoreIntegrityError(str(exc)) from exc
+            previous = record_hash
+        return rows, {"trusted": True, "status": "VALID", "records": len(rows), "head": previous}
+
     def verify(self) -> dict[str, Any]:
         try:
-            with closing(self._connect()) as con:
-                rows = con.execute("SELECT seq,record_hash,prev_hash,payload FROM records WHERE namespace=? ORDER BY seq", (self.namespace,)).fetchall()
-            previous = "GENESIS"
-            for expected, (seq, record_hash, prev_hash, payload) in enumerate(rows, 1):
-                if seq != expected or prev_hash != previous:
-                    raise StoreIntegrityError("sequence or previous-hash mismatch")
-                try:
-                    obj = json.loads(payload, parse_constant=lambda _: (_ for _ in ()).throw(ValueError("nonfinite JSON")))
-                    if canonical_json(obj) != payload or sha256_text(prev_hash + "\n" + payload) != record_hash:
-                        raise StoreIntegrityError("record hash mismatch")
-                except (json.JSONDecodeError, ValueError, TypeError) as exc:
-                    raise StoreIntegrityError(str(exc)) from exc
-                previous = record_hash
-            return {"trusted": True, "status": "VALID", "records": len(rows), "head": previous}
+            return self._snapshot()[1]
         except StoreIntegrityError as exc:
             return {"trusted": False, "status": "UNTRUSTED_STORAGE", "error": str(exc), "namespace": self.namespace}
 
     def read(self) -> dict[str, Any]:
-        check = self.verify()
-        if not check["trusted"]:
-            raise StoreIntegrityError(check["error"])
-        with closing(self._connect()) as con:
-            rows = con.execute("SELECT payload FROM records WHERE namespace=? ORDER BY seq", (self.namespace,)).fetchall()
-        return {"records": [json.loads(row[0]) for row in rows], "head": check["head"], "namespace": self.namespace}
+        rows, check = self._snapshot()
+        return {"records": [json.loads(row[3]) for row in rows], "head": check["head"], "namespace": self.namespace}
 
     def append(self, record: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(record, dict):

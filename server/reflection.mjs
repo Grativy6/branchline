@@ -27,6 +27,7 @@ export class ReflectionManager {
   }
 
   run(input, options) {
+    if(!input||typeof input!=='object'||typeof input.chatId!=='string')return Promise.reject(new Error('Choose a conversation to prepare.'));
     const task = this.perform(input, options);
     this.running.add(task);this.tasks.set(input.chatId,task);
     task.finally(() => {this.running.delete(task);if(this.tasks.get(input.chatId)===task)this.tasks.delete(input.chatId);}).catch(() => {});
@@ -34,7 +35,7 @@ export class ReflectionManager {
   }
 
   async makeRoom(chatId,content,{limit,selection,signal}={}){
-    const fits=()=>{const view=structuredClone(this.store.state);activateReadyCarry(view,chatId);try{compileMessages(view,chatId,content,{selection,maxContextCharacters:limit});return true;}catch(error){if(!error.message.includes('working-context limit'))throw error;return false;}};
+    const fits=()=>{const view=structuredClone(this.store.state);activateReadyCarry(view,chatId);try{compileMessages(view,chatId,content,{...this.modelOptions,selection,maxContextCharacters:limit});return true;}catch(error){if(!error.message.includes('working-context limit'))throw error;return false;}};
     if(fits())return;const chat=this.store.state.chats.find(c=>c.id===chatId),settings=carrySettings(chat);if(chat.contextPolicy!==2||!settings.automatic)return;
     if(this.tasks.has(chatId)){await this.tasks.get(chatId);if(fits())return;}
     const writer=resolveRecorder(this.store.state,chatId,settings.speaker);if(chat.carryWriter!==digest(writer.model))throw new Error('The recorder connection changed. Review Conversation settings; your draft is retained.');

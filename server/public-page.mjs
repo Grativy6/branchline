@@ -14,8 +14,12 @@ export function publicAddress(address) {
   // Conservative: only ordinary global unicast. Reject mapped IPv4, ULA,
   // link-local, multicast, transition mechanisms and special-purpose ranges.
   if (net.isIP(address) === 6) {
-    const lower = address.toLowerCase(); const first = parseInt(lower.split(':')[0], 16);
-    return first >= 0x2000 && first <= 0x3fff && !/^200[12]:|^3fff:/.test(lower);
+    const groups=address.toLowerCase().split(':'),first=parseInt(groups[0],16),second=groups[1]===''?0:parseInt(groups[1],16);
+    // IANA IPv6 special registry: retain the protocol-assignment exclusions,
+    // 6to4 and documentation ranges without blocking ordinary 2001::/16 sites.
+    return first>=0x2000&&first<=0x3fff&&first!==0x2002
+      && !(first===0x2001&&(second<0x200||second===0xdb8))
+      && !(first===0x3fff&&second<0x1000);
   }
   return false;
 }

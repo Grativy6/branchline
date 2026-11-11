@@ -83,3 +83,14 @@ test report. These notices are not a claim of universal legal clearance.
 - **Microsoft C++ V14 14.51.36247** and **WebView2 Evergreen**: unmodified prerequisite installers under their respective Microsoft terms, included for offline setup. Setup displays these terms alongside the separate Branchline licence. They remain shared Windows prerequisites after uninstalling Branchline.
 
 The WebView2 runtime may check for updates and collect diagnostic information. See its retained terms and https://aka.ms/privacy. This differs from local Qwen inference, which uses an authenticated loopback process and needs no network model service. The retained Evergreen terms are a text extraction of Microsoft's developer download terms; replacement glyphs in their supplied HTML are retained. The original source URL is recorded at the top.
+
+## Optional local Dream training
+
+Dream setup downloads Unsloth, Unsloth Zoo, PyTorch, Transformers, PEFT, TRL,
+Triton and Hugging Face Hub into a separate Python environment. Their upstream
+licences and dependency notices remain with those installed packages. The
+trainable Qwen3.5-4B checkpoint uses its retained Apache-2.0 licence; the pinned
+llama.cpp export tools retain their MIT licence. These downloads, the CUDA
+libraries they require, and user-trained adapters are not part of the Branchline
+application payload. The pinned setup versions are in `server/dream_runtime/setup.py`;
+the machine runtime and each run record identify the training base and recipe.

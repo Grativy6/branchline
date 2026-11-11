@@ -1,5 +1,5 @@
 {
-  "version": "0.10.3-preview.1",
+  "version": "1.0.0",
   "packages": [
     {
       "name": "quickjs-emscripten",
@@ -551,8 +551,8 @@
           "title": "Component notices and release status",
           "file": "THIRD-PARTY-NOTICES.txt",
           "source": "THIRD-PARTY-NOTICES.md",
-          "bytes": 6402,
-          "sha256": "651cad9b3e47b1f1314aceb0157caabade913d29243d9390ccc6806f75b5d9f9"
+          "bytes": 7082,
+          "sha256": "b18e271db8913766717fc86b7a01143b07c4b7182c2aa48b7171dedb5c000db5"
         }
       ]
     },

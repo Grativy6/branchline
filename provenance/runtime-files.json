@@ -5468,26 +5468,6 @@
       "sha256": "5a2a2060c3792886ff7f480d8b51424276bae38b4f20459008b36c9097380677"
     },
     {
-      "path": "book-runtime/Lib/site-packages/hearthline_mcp/__init__.py",
-      "bytes": 469,
-      "sha256": "8e72208126033072b485fe1caf934ff01031335da02daeda2c664fc900274eea"
-    },
-    {
-      "path": "book-runtime/Lib/site-packages/hearthline_mcp/personal_context.py",
-      "bytes": 15435,
-      "sha256": "1054d96df2b7fa36b264637792366303dda6dfd449b89c4b5d659652e7d6d93b"
-    },
-    {
-      "path": "book-runtime/Lib/site-packages/hearthline_mcp/personal_server.py",
-      "bytes": 2449,
-      "sha256": "e959c63a4bf5f37dbdacfdf77e5fe5cdc38352a109d15169482235c5cb1f1c18"
-    },
-    {
-      "path": "book-runtime/Lib/site-packages/hearthline_mcp/store.py",
-      "bytes": 7784,
-      "sha256": "fc9830f1c8a179f2ab781ac65063cfbc2460d1daaed9d91858de5beb9b3aea92"
-    },
-    {
       "path": "book-runtime/Lib/site-packages/httpcore-1.0.9.dist-info/METADATA",
       "bytes": 21529,
       "sha256": "fe2d4fda6199128978779e0cf27f3c045c531863fcdd987eacc74f3a18d41c21"
@@ -40043,19 +40023,9 @@
       "sha256": "3e3125b5a537a24c3632c1c5c09640ce7bcb3935901b127ad8ae3c37a27f133f"
     },
     {
-      "path": "peaches-runtime.json",
-      "bytes": 737,
-      "sha256": "1fb1558d834963b0a8f55bcd557b4256bf9292f3e92781ec9c30349bd87c82be"
-    },
-    {
       "path": "personal-context-runtime-packages.json",
       "bytes": 8300,
       "sha256": "fb994e0c713a64833fddf8fdfb925a629275d2db902983f640fc98173413f0dd"
-    },
-    {
-      "path": "personal-context-runtime.json",
-      "bytes": 785,
-      "sha256": "11b9cb07f579ac16bdf2f63b545109c5ce69292f4c104a287369bfdbdb922608"
     },
     {
       "path": "pl/Microsoft.VisualBasic.Forms.resources.dll",

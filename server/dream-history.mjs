@@ -177,7 +177,7 @@ export function validateDreamHistory(s) {
   }
   for(const r of h.records) {
     const who=person(s,r.personalId);
-    fail(text(r.topic,200)&&text(r.summary,16000)&&text(r.observations,16000)&&r.standing==='user_declared'
+    fail(text(r.topic,200)&&text(r.summary,16000)&&text(r.observations,16000)&&(r.standing==='user_declared'||r.standing==='observed_training'&&s.dreamTraining?.runs.some(j=>j.recordId===r.id&&j.personalId===r.personalId))
       &&['applied','kept','failed','unadopted','unrecorded'].includes(r.outcome)&&(r.occurredAt===null||date(r.occurredAt))
       &&Array.isArray(r.sources)&&r.sources.length<=32&&(r.legacyPersonalId===null||s.personalParticipants.some(p=>p.id===r.legacyPersonalId)), 'Invalid Dream record.');
     fail(r.generationId===null ? r.modelId===null&&r.modelSnapshot===null : who.generations.some(g=>g.id===r.generationId&&g.modelIdentifier===r.modelSnapshot?.model)&&r.modelSnapshot.id===r.modelId,'Dream checkpoint binding is missing.');

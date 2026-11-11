@@ -31,7 +31,9 @@ export class Plans {
     let result;await this.store.transact(s=>{
       s.plans??=structuredClone(plans(s));const prior=s.plans.items.find(p=>p.id===input.id);
       if(input.id&&!prior)throw new Error('Plan no longer exists.');
-      result={...structuredClone(input),id:prior?.id??uid(),ownedRootId:prior?.ownedRootId??null,revision:uid(),createdAt:prior?.createdAt??now(),updatedAt:now(),host:os.hostname(),workspaceId:this.store.workspaceId,workspacePath:this.store.dataDir,modelHash:digest(model),scopeHash:scope(s),nextAt:first<=clock?latestDue(input.schedule,clock):first,attention:null,removed:false};
+      const due=first<=clock?latestDue(input.schedule,clock):first;
+      const alreadyRan=prior&&due!==null&&s.plans.runs.some(r=>r.planId===prior.id&&r.occurrenceAt===new Date(due).toISOString());
+      result={...structuredClone(input),id:prior?.id??uid(),ownedRootId:prior?.ownedRootId??null,revision:uid(),createdAt:prior?.createdAt??now(),updatedAt:now(),host:os.hostname(),workspaceId:this.store.workspaceId,workspacePath:this.store.dataDir,modelHash:digest(model),scopeHash:scope(s),nextAt:alreadyRan?nextOccurrence(input.schedule,clock):due,attention:null,removed:false};
       if(prior)Object.assign(prior,result);else s.plans.items.push(result);return s;
     });return result;
   }

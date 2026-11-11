@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#f4f2ea">
-  <title>Branchline v0.10</title>
+  <title>Branchline v1.0</title>
   <link rel="icon" href="/assets/branchline.ico" type="image/x-icon">
   <link rel="stylesheet" href="/styles.css">
   <link rel="stylesheet" href="/desk-work.css">
@@ -33,7 +33,7 @@
       <div class="brand-row">
         <button class="brand" id="brand-home" type="button" aria-label="Branchline home">
           <img class="brand-mark" src="/assets/branchline-tree.png" alt="">
-          <span>Branchline</span><small>v0.10</small>
+          <span>Branchline</span><small>v1.0</small>
         </button>
         <button class="icon-button mobile-only" id="close-sidebar" type="button" aria-label="Close navigation">×</button>
       </div>
@@ -58,9 +58,9 @@
       <div id="conversation" class="conversation" tabindex="0" role="region" aria-label="Conversation"></div>
       <section id="tool-interactions" class="tool-interactions" aria-label="Model questions and page requests" hidden></section>
       <section id="parallel-activity" class="parallel-activity" aria-label="Parallel approaches" hidden></section>
-      <div id="pony-activity" hidden></div>
+
       <form id="composer-form" class="composer-wrap">
-        <div class="composer-controls"><div class="composer-orientation-group"><div id="response-mode-controls" class="response-mode-row" hidden><div class="response-mode-buttons" role="group" aria-label="Base Coat" aria-describedby="response-mode-description"><button id="response-mode-play" type="button" data-response-mode="play" aria-pressed="false" title="Playful conversation, imagination and exploration">Play</button><button id="response-mode-create" type="button" data-response-mode="create" aria-pressed="true" title="Let the exchange find its shape">Create</button><button id="response-mode-work" type="button" data-response-mode="work" aria-pressed="false" title="Carry the task through, with room for warmth">Work</button></div><span id="response-mode-description" class="sr-only"></span></div><span id="context-status" class="context-status"></span></div><div id="table-reply-controls" hidden></div></div>
+        <div class="composer-controls"><div class="composer-orientation-group"><div id="response-mode-controls" class="response-mode-row" hidden><div class="response-mode-buttons" role="group" aria-label="Base Coat" aria-describedby="response-mode-description"><button id="response-mode-play" type="button" data-response-mode="play" aria-pressed="false" title="Playful conversation, imagination and exploration">Play</button><button id="response-mode-create" type="button" data-response-mode="create" aria-pressed="true" title="Let the exchange find its shape">Create</button><button id="response-mode-work" type="button" data-response-mode="work" aria-pressed="false" title="Carry the task through, with room for warmth">Work</button></div><span id="response-mode-description" class="sr-only"></span></div><span id="context-status" class="context-status"></span><button type="button" class="text-button" data-dream-job="mark-menu">Use in Dreams</button></div><div id="table-reply-controls" hidden></div></div>
         <div class="composer"><textarea id="message-input" rows="3" placeholder="Write a message…" aria-label="Message"></textarea><section id="selected-images" class="picture-selection" aria-label="Pictures for the next reply" hidden></section><input id="file-input" type="file" multiple hidden aria-label="Select pictures or text files"><div id="attached-file" class="file-selection" hidden><span id="attached-file-name"></span><button id="remove-file" type="button" class="text-button">Remove</button><p class="field-help">A copy will be saved with this chat. One UTF-8 text file, up to the limit set in Resources.</p></div><div class="composer-toolbar"><div class="model-picker"><label class="sr-only" for="model-select">Model for this branch</label><select id="model-select" aria-label="Model for this branch"><option value="">No model selected</option></select><button class="icon-button" id="configure-model" type="button" disabled aria-label="Attach file" title="Attach pictures or text">+</button></div><div class="composer-actions"><span id="activity-composer"></span><label class="tool-toggle" id="tools-label" title="Clock, calculations, attached text and questions. Public pages ask first."><input id="tools-enabled" type="checkbox" checked>Tools</label><button id="save-note" type="button" class="quiet-button" data-action="save-note" hidden>Save note</button><button class="primary-button" id="send-button" type="submit">Save note</button><button class="quiet-button" id="cancel-button" type="button" hidden>Stop this episode</button></div></div></div><div class="composer-caption"><span id="composer-hint">Notes stay on this device. Choose a model for replies.</span><span id="draft-status" role="status"></span></div></form>
       <section id="settings-page" class="settings-page" hidden aria-labelledby="settings-page-title"><h2 id="settings-page-title" tabindex="-1"></h2><div id="settings-page-content" class="settings-content"></div></section>
     </main>
@@ -68,7 +68,7 @@
   </div>
   <div id="toast" class="toast" role="status" hidden></div>
   <div id="error-banner" class="error-banner" role="alert" hidden><span id="error-text"></span><button class="icon-button" id="dismiss-error" type="button" aria-label="Dismiss error">×</button></div>
-  <details id="work-controls" class="work-controls"><summary><svg class="work-indicator" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5Z"/></svg><span>Activity</span></summary><div class="work-menu"><button type="button" class="quiet-button" data-action="work-outputs">Outputs and pictures</button><button type="button" class="quiet-button" data-action="work-tools">Work tools</button><button type="button" class="quiet-button" id="stop-all-episodes">Stop all running episodes</button><small>Ctrl+Alt+. · this app only</small></div></details>
+  <details id="work-controls" class="work-controls"><summary><svg class="work-indicator" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5Z"/></svg><span>Activity</span></summary><div class="work-menu"><button type="button" class="quiet-button" data-action="work-outputs">Outputs and pictures</button><button type="button" class="quiet-button" data-action="work-tools">Work tools</button><button type="button" class="quiet-button" data-action="pony-open">Pony Post</button><button type="button" class="quiet-button" id="stop-all-episodes">Stop all running episodes</button><small>Ctrl+Alt+. · this app only</small></div></details>
   <dialog id="dialog" class="app-dialog"><div id="dialog-content"></div></dialog>
   <script src="/vendor/konva.min.js"></script>
   <script type="module" src="/app.js"></script>

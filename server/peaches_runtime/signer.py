@@ -175,17 +175,25 @@ class Signer:
         return self.status()
 
     def backup(self):
-        from tkinter import filedialog
+        from tkinter import filedialog, messagebox
         m=self.metadata()
         if not m: raise ValueError('Set up a signing identity first.')
         file=self.folder/m['file']
         if not file.exists(): raise ValueError('The encrypted key is unavailable.')
-        root,tk,ttk=self.window('Save an encrypted recovery key'); root.withdraw()
-        name=filedialog.asksaveasfilename(parent=root,title='Save your encrypted PEACHES recovery key',initialfile='PEACHES-personal-recovery.openssh',defaultextension='.openssh')
-        root.destroy()
-        if name:
-            # Never overwrite any existing recovery material, even after a dialog confirmation.
-            durable_new(Path(name),file.read_bytes()); m['recoverySaved']=True; self.write_metadata(m)
+        root,tk,ttk=self.window('Save a new encrypted recovery copy'); root.withdraw()
+        try:
+            while True:
+                name=filedialog.asksaveasfilename(parent=root,title='Save a new encrypted recovery copy',initialfile='PEACHES-personal-recovery.openssh',defaultextension='.openssh',confirmoverwrite=False)
+                if not name:break
+                destination=Path(name);encrypted=file.read_bytes()
+                try:durable_new(destination,encrypted)
+                except FileExistsError:
+                    if destination.is_file() and destination.stat().st_size==len(encrypted) and destination.read_bytes()==encrypted:
+                        m['recoverySaved']=True;self.write_metadata(m);break
+                    messagebox.showinfo('Keep the earlier recovery copy','Choose a new filename. The existing file has been kept.',parent=root)
+                    continue
+                m['recoverySaved']=True;self.write_metadata(m);break
+        finally:root.destroy()
         return self.status()
 
     def stamp(self,declaration,nonce,claimed_at):

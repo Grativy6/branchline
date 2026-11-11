@@ -1,3 +1,5 @@
+import {createMessageActions} from './message-actions.js';
+import {conversationMessage} from './conversation-records.js';
 import {createLocalModels} from './local-models.js';
 import { createCrewUI } from './crew-controls.js';
 import { reasoningNotesView } from './reasoning-notes.js';
@@ -14,7 +16,7 @@ import { archiveView } from './views.js';
 import { handoffSummary, coatToolReceipt } from './handoffs.js';
 import { api } from './api.js';
 import { ORIENTATIONS, effectiveOrientation, recordedOrientationLabel } from './response-orientations.js';
-import { resourcesForm, conversationSettings, RESOURCE_DEFAULTS, createWelcomeTour, DREAM_PREPARATION } from './desktop-controls.js';
+import { resourcesForm, conversationSettings, RESOURCE_DEFAULTS, createWelcomeTour } from './desktop-controls.js';
 import { carrySettings } from './resource-settings.js';
 import { recorderHint } from './recorder.js';
 import { createDreamReview } from './dream-review.js';
@@ -27,6 +29,8 @@ import { createToolPanel, toolHistory } from './tools.js';
 import { home } from './home.js';
 import { createImageProviderPanel } from './image-provider.js';
 import { recentDreamParticipant, dreamAbout } from './dreams.js';
+import {createDreamControls,dreamsSettings} from './dream-training-ui.js';
+import {dreamTraining,DREAM_ACTIVE} from './dream-training-state.js';
 import { escapeHtml as e, currentInstruction, selected, isPending, branchList, conversation, details, modelsSettings, advancedSettings, workspaceSettings } from './views.js';
 import { reflectionDialogContent, continuityExchangeSummary, setContinuityTab } from './continuity.js';
 import { storagePanel } from './storage.js';
@@ -44,7 +48,7 @@ import {homePanel,homeSourceRow,readHomeForm} from './home-sources.js';
 import { openaiPanel } from './openai.js';
 import { chairRoster } from './chair-roster.js';
 import { chairEditor } from './roster-views.js';
-import { deskBar, modelPicker, deskPicker, branchDialog } from './desks.js';
+import { deskBar, modelPicker, deskPicker, branchDialog, installDeskIconFallback } from './desks.js';
 import { harnessPreview, pocketSummary } from './harness-views.js';
 import { harnessRef } from './harness-catalog.js';
 import { createHarnessEditor } from './harness-editor.js';
@@ -57,10 +61,11 @@ import { personalSettings, personalNicknameForm } from './table.js';
 import { codexPanel, codexConnection } from './codex.js';
 import { activeAccount, contextBar, contextDialog, sourceDialog, preparationHint, budgetHint, contextSize } from './context-carry.js';
 import { agentSettings, agentSettingsForm, updateAgentForm, approachForm, updateApproachForm, approachDetails, createParallelMonitor, liveParallel } from './parallel.js';
-import { ponySummary, ponyDetails, ponyNewForm, ponyAmendForm, ponySendForm, updatePonyForm } from './pony.js';
+import {createPonyPost} from './pony-post.js';
 import { mountPcAccess } from './pc-access.js';
 import { isHearth, hearthForm, updateHearthForm, hearthDetails } from './hearth.js';
 initializeAppearance();
+installDeskIconFallback();
 
 const $ = id => document.getElementById(id);
 const conversationHistory=document.createElement('div');
@@ -81,6 +86,8 @@ const harnessEditor = createHarnessEditor({ getState: () => state, refreshState:
   if (epoch === pollEpoch) { state = next; render(); }
 }, command, openDialog:(title,content,className,surface)=>surface === 'chat' ? openDialog(title,content,className) : openSettings('coats',null,{title,content}), closeDialog, toast });
 let screen = 'home';
+const ponyPost=createPonyPost({getState:()=>state,getChat:()=>selected(state).chat,show:openDialog,refresh:async()=>{state=await api.state();pollEpoch++;render();},reportError:e=>error(e.message??e)});
+const messageActions=createMessageActions({getState:()=>state,getChatId:()=>screen==='home'?null:selected(state).chat?.id,container:$('conversation')});
 const personalContext=createPersonalContext({getState:()=>state,refresh:async()=>{state=await api.state();pollEpoch++;render();},openDialog,toast});
 const plans=createPlans({getState:()=>state,refresh:async()=>{state=await api.state();pollEpoch++;render();},openDialog,toast});
 const localModels=createLocalModels({refresh:async()=>{state=await api.state();pollEpoch++;render();},toast,reportError:message=>error(message)});
@@ -93,6 +100,7 @@ document.addEventListener('submit',safe(async event=>{if(event.target.id?.starts
 document.addEventListener('change',safe(async event=>{await personalContext.change(event);}));
 let modelCheck;
 let dreamParticipantId;
+const dreamsUI=createDreamControls({getState:()=>state,getPersonalId:()=>dreamParticipantId??recentDreamParticipant(state),getChat:()=>selected(state),applyState:next=>{state=next;pollEpoch++;render();},render,toast,reportError:message=>error(message),openSettings:()=>openSettings('dreams'),openHome:()=>showHome()});
 let codexStatus, codexAuthUrl, codexPoll, codexView = 0;
 let codexRefresh = null, codexStatusEpoch = 0, codexEmptyPolls = 0;
 async function updateCodexStatus({ refresh = false } = {}) {
@@ -176,6 +184,7 @@ let storageInfo;
 let storageBusy = false;
 let storageBusyLabel = 'Working…';
 let storageMessage = '';
+let storageLaunchCommand = '';
 let storageLoadToken = 0;
 let storageFocusTarget;
 let continuityBusy = false;
@@ -315,17 +324,7 @@ async function openHearth(id=null) {
   updateHearthForm($('hearth-start-form'));
 }
 
-async function openPony() {
-  const {chat}=selected(state);if(!chat)return;
-  const next=await api.state();pollEpoch++;state=next;render();
-  openDialog('Pony Post',ponyDetails(state,chat.id),'settings-dialog');
-}
-async function openPonySend(ponyTaskId=null) {
-  const {chat}=selected(state);if(!chat||modelsBusy(state)||submitting.size)return;
-  const options=await api.parallelOptions(chat.id);
-  openDialog('Send pony task',ponySendForm(state,chat.id,options,ponyTaskId),'settings-dialog');
-  updatePonyForm($('pony-send-form'));
-}
+async function openPony(){return ponyPost.open();}
 
 function error(message) {
   const revision = ++errorRevision;
@@ -452,7 +451,7 @@ $('dialog').addEventListener('close', () => {
   }
 });
 
-const settingsCategories=[['conversation','Conversation'],['resources','Resources'],['models','Models'],['memory','Memory'],['plans','Plans'],['coats','Coats & pockets'],['toy-shelf','Toy Shelf'],['agents','Agents'],['appearance','Appearance'],['message-info','Message info'],['workspace','Workspace'],['advanced','Advanced'],['licences','About & licences']];
+const settingsCategories=[['conversation','Conversation'],['resources','Resources'],['models','Models'],['dreams','Dreams'],['memory','Memory'],['plans','Plans'],['coats','Coats & pockets'],['toy-shelf','Toy Shelf'],['agents','Agents'],['appearance','Appearance'],['message-info','Message info'],['workspace','Workspace'],['advanced','Advanced'],['licences','About & licences']];
 let settingsMenu = null, settingsReturnScroll = null;
 const settingsInert = new Map();
 function syncSettingsSurface(){
@@ -514,13 +513,14 @@ function openSettings(tab = settingsTab, editing = null, coatView = null) {
   if (tab === 'mcp') tab = 'advanced';
   settingsTab = tab;
   $('settings-page-title').textContent=settingsCategories.find(([id])=>id===tab)?.[1]??'Settings';
-  $('settings-page-content').innerHTML=`${tab === 'conversation' ? conversationSettings(state, selected(state).root, selected(state).chat) : tab === 'resources' ? resourcesForm(selected(state).root,chosenModel(selected(state).root,selected(state).chat)) : tab === 'coats' ? coatWarningSetting() + (coatView ? `<h3>${e(coatView.title)}</h3>${coatView.content}` : harnessEditor.markup()) : tab === 'toy-shelf' ? shelfSettings(state.ui.toyShelf) : tab === 'models' ? modelsSettings(state, editing, discoveredModels, codexStatus, codexAuthUrl) : tab === 'agents' ? agentSettingsForm(state) : tab === 'plans' ? '<h3>Plans</h3><p>Schedule a task for a local or subscription model, with its own Coat and limits.</p><button type="button" class="primary-button" data-action="plans-open">Manage Plans</button>' : tab === 'memory' ? '<h3>Memory</h3><p>Keep selected history across conversations. Save a response, edit MEMORY.md, or choose whether your model can suggest or keep notes.</p><button type="button" class="primary-button" data-action="personal-context">Manage memories</button>' : tab === 'appearance' ? appearanceSettings() : tab === 'message-info' ? messageInfoSettings(state.ui.messageInfo) : tab === 'workspace' ? workspaceSettings(state, storageInfo) : tab === 'licences' ? licencesSettings() : advancedSettings(state, mcpCapabilities)}`;
+  $('settings-page-content').innerHTML=`${tab === 'conversation' ? conversationSettings(state, selected(state).root, selected(state).chat) : tab === 'resources' ? resourcesForm(selected(state).root,chosenModel(selected(state).root,selected(state).chat)) : tab === 'coats' ? coatWarningSetting() + (coatView ? `<h3>${e(coatView.title)}</h3>${coatView.content}` : harnessEditor.markup()) : tab === 'toy-shelf' ? shelfSettings(state.ui.toyShelf) : tab === 'models' ? modelsSettings(state, editing, discoveredModels, codexStatus, codexAuthUrl) : tab === 'dreams' ? dreamsSettings(state,dreamsUI.engine) : tab === 'agents' ? agentSettingsForm(state) : tab === 'plans' ? '<h3>Plans</h3><p>Schedule a task for a local or subscription model, with its own Coat and limits.</p><button type="button" class="primary-button" data-action="plans-open">Manage Plans</button>' : tab === 'memory' ? '<h3>Memory</h3><p>Keep selected history across conversations. Save a response, edit MEMORY.md, or choose whether your model can suggest or keep notes.</p><button type="button" class="primary-button" data-action="personal-context">Manage memories</button>' : tab === 'appearance' ? appearanceSettings() : tab === 'message-info' ? messageInfoSettings(state.ui.messageInfo) : tab === 'workspace' ? workspaceSettings(state, storageInfo) : tab === 'licences' ? licencesSettings() : advancedSettings(state, mcpCapabilities)}`;
   $('settings-page').hidden=false;$('settings-page-content').scrollTop=0;
   syncSettingsSurface();
   if(window.innerWidth<760){$('app-shell').classList.remove('nav-open');syncNavigationAccessibility();}
   $('settings-page-title').focus({preventScroll:true});
   if (tab === 'licences') loadLicences($('licences-panel'));
   if (tab === 'models') { void refreshCodexConnection(); void localModels.mount(); }
+  if (tab === 'dreams') void dreamsUI.refreshEngine().catch(err=>error(err.message));
   if (tab === 'agents') {
     const panel=document.createElement('section');panel.id='pc-access-panel';panel.innerHTML='<p>Loading PC access…</p>';
     $('settings-page-content').prepend(panel);mountPcAccess(panel,state,message=>error(message));
@@ -540,26 +540,26 @@ async function loadStorage({ preserveMessage = false } = {}) {
     if (!preserveMessage) storageMessage = '';
     if (!$('settings-page').hidden && settingsTab === 'workspace') {
       const panel = $('storage-panel');
-      if (panel) panel.outerHTML = storagePanel(storageInfo, { busy: storageBusy, busyLabel: storageBusyLabel, message: storageMessage });
+      if (panel) panel.outerHTML = storagePanel(storageInfo, { busy: storageBusy, busyLabel: storageBusyLabel, message: storageMessage, launchCommand:storageLaunchCommand });
     }
   } catch (err) {
     if (token !== storageLoadToken) return;
     storageMessage = err.message;
     const panel = $('storage-panel');
-    if (panel) panel.outerHTML = storagePanel(null, { busy: storageBusy, busyLabel: storageBusyLabel, message: storageMessage });
+    if (panel) panel.outerHTML = storagePanel(null, { busy: storageBusy, busyLabel: storageBusyLabel, message: storageMessage, launchCommand:storageLaunchCommand });
   }
 }
 
 function refreshStoragePanel() {
   const panel = $('storage-panel');
   if (panel) {
-    panel.outerHTML = storagePanel(storageInfo, { busy: storageBusy, busyLabel: storageBusyLabel, message: storageMessage });
+    panel.outerHTML = storagePanel(storageInfo, { busy: storageBusy, busyLabel: storageBusyLabel, message: storageMessage, launchCommand:storageLaunchCommand });
     if (storageFocusTarget) requestAnimationFrame(() => document.querySelector(`[data-action="${storageFocusTarget.action}"]${storageFocusTarget.id ? `[data-id="${CSS.escape(storageFocusTarget.id)}"]` : ''}`)?.focus());
   }
 }
 
 function hasWorkActivity() {
-  return state && (modelsBusy(state) || submitting.size > 0 || continuityBusy || carryBusy || state.deskWork?.tasks.some(t=>['queued','waiting','preparing','running','stopping'].includes(t.status)));
+  return state && (dreamsUI.busy || dreamTraining(state).runs.some(r=>DREAM_ACTIVE.has(r.status)) || modelsBusy(state) || submitting.size > 0 || continuityBusy || carryBusy || state.deskWork?.tasks.some(t=>['queued','waiting','preparing','running','stopping'].includes(t.status)));
 }
 function placeActivity() {
   if ($('dialog').open) return;
@@ -594,6 +594,7 @@ function render({ scroll = false, refreshDetails = false } = {}) {
   if (!closingPage && !codexStatus && !codexRefresh) void refreshCodexConnection();
   sketchBook.refresh();
   dreamReview.refresh();
+  queueMicrotask(()=>{dreamsUI.refresh();messageActions.refresh();void ponyPost.hydrate();});
   refreshWorkActivity();
   const { root, chat } = selected(state);
   const fs = state.ui.mode === 'fs';
@@ -619,8 +620,7 @@ function render({ scroll = false, refreshDetails = false } = {}) {
   $('skip-link').textContent = atHome ? 'Skip to Home' : chat ? 'Skip to message' : 'Skip to workspace';
   if(settingsMenu)syncSettingsSurface();
   parallelMonitor.show(chat?.id, !atHome);
-  $('pony-activity').innerHTML=!atHome&&chat?ponySummary(state,chat.id):'';
-  $('pony-activity').hidden=!$('pony-activity').innerHTML;
+
   toolPanel.show(chat?.id, !atHome);
   $('configure-model').setAttribute('aria-label', 'Attach file');
   startupProgress.render();
@@ -628,7 +628,7 @@ function render({ scroll = false, refreshDetails = false } = {}) {
   if (atHome) {
     if (dreamParticipantId === undefined) dreamParticipantId = recentDreamParticipant(state);
     const markup = home(state, { modelCheck, dreamParticipantId });
-    if (homeMarkup !== markup && !toyShelf.dragging) { $('home-screen').innerHTML = markup; homeMarkup = markup; }
+    if (homeMarkup !== markup && !toyShelf.dragging) { const noteScroll=$('dream-note-list')?.scrollTop??0,modelOpen=document.querySelector('.dream-model-details')?.open??false;const focusedNote=document.activeElement?.dataset?.dreamInclude; $('home-screen').innerHTML = markup; homeMarkup = markup;if($('dream-note-list'))$('dream-note-list').scrollTop=noteScroll;const details=document.querySelector('.dream-model-details');if(details)details.open=modelOpen;if(focusedNote)document.querySelector(`[data-dream-include="${CSS.escape(focusedNote)}"]`)?.focus({preventScroll:true}); }
     toyShelf.attach();
     return;
   }
@@ -650,7 +650,7 @@ function render({ scroll = false, refreshDetails = false } = {}) {
   const atBottom = $('conversation').scrollHeight - $('conversation').scrollTop - $('conversation').clientHeight < 100;
   const markup = conversation(state, root, chat);
   if (conversationMarkup !== markup) { conversationHistory.innerHTML = markup; conversationMarkup = markup; }
-  if (scroll || atBottom) requestAnimationFrame(() => { $('conversation').scrollTop = $('conversation').scrollHeight; });
+  if (scroll || atBottom && !messageActions.isOpen) requestAnimationFrame(() => { $('conversation').scrollTop = $('conversation').scrollHeight; });
   $('composer-form').hidden = !chat;
   const busy = chat && (isPending(state, chat.id) || submitting.has(chat.id));
   const rootBusy = root && state.chats.some(c => c.rootId === root.id && (isPending(state, c.id) || submitting.has(c.id)));
@@ -958,6 +958,7 @@ document.addEventListener('click', safe(async event => {
   if (!target || !state) return;
   const { action, id } = target.dataset;
   if (action === 'sketch-access') { await harnessEditor.persist(); closeDialog(); return sketchBook.openAccess(); }
+  if (action === 'message-image') { const message=conversationMessage(state,id);if(!message)throw new Error('That saved message is unavailable.');await beforeNavigation();closeDialog();return easel.open({prompt:message.content}); }
   if (action === 'save-sketch') return sketchBook.saveReply(id);
   if(action==='transparency-reset'){const slider=$('background-transparency');slider.value='0';slider.dispatchEvent(new Event('input',{bubbles:true}));slider.dispatchEvent(new Event('change',{bubbles:true}));return;}
   if (action === 'save-memory') return personalContext.saveMemory(id);
@@ -966,8 +967,6 @@ document.addEventListener('click', safe(async event => {
   if (action === 'tour-replay') { closeDialog(); welcomeTour.start(); return; }
 
   if (action === 'resources-reset') { const root=selected(state).root; if(root) await command('root.resources',{id:root.id,resources:resourceSettings(null,chosenModel(root,selected(state).chat))}); openSettings('resources'); return; }
-  if (action === 'dream-prepare') { openDialog('Prepare a Dream', '<p>Copy this into a conversation with a model you choose. This button does not send material or start training.</p><textarea id="dream-preparation" rows="13" readonly>'+e(DREAM_PREPARATION)+'</textarea><button class="primary-button" type="button" data-action="dream-copy">Copy preparation prompt</button>'); return; }
-  if (action === 'dream-copy') { await navigator.clipboard.writeText(DREAM_PREPARATION); toast('Preparation prompt copied'); return; }
   if (action === 'carry-approve' || action === 'carry-cancel-ready') { const chat=selected(state).chat; await command(action === 'carry-approve' ? 'carry.approve' : 'carry.cancelReady', {chatId:chat.id,baseId:activeAccount(state,chat.id)?.id??null,...(action==='carry-approve'?{recordId:id}:{})}); contextStatusKey=''; await openContext(); return; }
   if (target.disabled) return;
   if(action==='personal-context'){await harnessEditor.persist();return personalContext.open(selected(state).chat?.id);}
@@ -1002,16 +1001,7 @@ document.addEventListener('click', safe(async event => {
   if (action === 'shelf-height-reset') { await toyShelf.resetHeight(); render(); toast('Shelf height reset'); return; }
   if (action === 'parallel-open') return openHearth();
   if(action==='pony-open')return openPony();
-  if(action==='pony-new'){
-    const {chat}=selected(state);if(!chat)return;
-    return openDialog('New task',ponyNewForm(chat.id,$('message-input').value),'settings-dialog');
-  }
-  if(action==='pony-send')return openPonySend();
-  if(action==='pony-followup')return openPonySend(id);
-  if(action==='pony-amend')return openDialog('Change round-trip allowance',ponyAmendForm(state,selected(state).chat.id),'settings-dialog');
-  if(['pony-stop','pony-complete','pony-resume'].includes(action)){
-    await command('pony.task.'+action.slice(5),{taskId:id});await openPony();return;
-  }
+  if(action==='pony-compose')return ponyPost.compose(id);
   if(action==='peer-source-more')return showPeerSource(target.closest('form'),Number(target.dataset.offset));
   if(action==='blackboard-source'){
     const panel=target.closest('.blackboard-panel'),result=await api.peerSource({runId:target.dataset.runId,peer:'peer-a',sourceId:target.dataset.source,offset:Number(target.dataset.offset||0)});
@@ -1207,11 +1197,12 @@ document.addEventListener('click', safe(async event => {
   }
   if (action === 'storage-restore') {
     if (storageBusy) return;
-    storageBusy = true; storageBusyLabel = 'Restoring copy…'; storageLoadToken++; storageFocusTarget = { action: 'storage-restore', id }; storageMessage = ''; refreshStoragePanel();
+    storageBusy = true; storageBusyLabel = 'Restoring copy…'; storageLoadToken++; storageFocusTarget = { action: 'storage-restore', id }; storageMessage = '';storageLaunchCommand=''; refreshStoragePanel();
     try {
       await beforeNavigation();
       const result = await api.storageRestoreCopy(id);
-      storageMessage = `A separate copy was restored to ${result.restoredPath}. Your current workspace was left unchanged.`;
+      storageLaunchCommand=result.launchCommand??'';
+      storageMessage = `A separate copy was restored to ${result.dataRoot??result.restoredPath}. `+(result.launchCommand?'To inspect it, close Branchline and use the copied launch command in Windows Run.':`Open the installed app with --data-dir "${result.dataRoot}".`)+' Your original shortcut still opens your current workspace.';
       toast('Restore copy ready');
     } catch (err) { storageMessage = err.message; }
     finally { storageBusy = false; storageBusyLabel = 'Working…'; refreshStoragePanel(); }
@@ -1264,7 +1255,7 @@ document.addEventListener('click', safe(async event => {
   if (action === 'table-input') {
     const input = state.handoffs?.records.find(r => r.id === id && r.kind === 'context.to_model');
     if (!input) throw new Error('That recorded input is unavailable.');
-    return openDialog('Input recorded for Personal', `<p class="field-help">This is the exact request content recorded for this model call. It does not prove understanding or a weight update.</p><pre class="mind-json">${e(JSON.stringify(input.detail.inputMessages, null, 2))}</pre>${handoffSummary(state, input.taskId, e)}`, 'continuity-dialog');
+    return openDialog('Input recorded for Personal', `<p class="field-help">This is the exact request content recorded for this model call. It does not prove understanding or a weight update.</p><pre class="mind-json">${e(JSON.stringify((await api.historyInput(input.id)).messages, null, 2))}</pre>${handoffSummary(state, input.taskId, e)}`, 'continuity-dialog');
   }
   if (action === 'mind-exclude') {
     const wake = state.mind?.wakes.find(w => w.id === id);
@@ -1355,8 +1346,7 @@ document.addEventListener('click', safe(async event => {
 }));
 
 document.addEventListener('change', safe(async event => {
-  if(event.target.id==='pony-task-choice'&&event.target.value){await command('pony.task.attach',{chatId:selected(state).chat.id,taskId:event.target.value,requestId:'pony_attach_'+crypto.randomUUID()});await openPony();return;}
-  const ponyForm=event.target.closest('#pony-send-form,#pony-amend-form');if(ponyForm){updatePonyForm(ponyForm);return;}
+
   if (event.target.id === 'blackboard-choice') return openBlackboard(event.target.value);
   if (event.target.name === 'speaker') {
     const hint = event.target.closest('#carry-prepare-form, #conversation-settings-form')?.querySelector('.recorder-role');
@@ -1384,6 +1374,7 @@ document.addEventListener('change', event => {
     const chosen = event.target.value;
     if (chosen && !(state.personalParticipants || []).some(p => p.id === chosen)) return;
     dreamParticipantId = chosen || null;
+    if(chosen) void dreamsUI.setTarget(chosen).catch(err=>error(err.message));
     render();
     $('dream-personal-select')?.focus({ preventScroll: true });
     return;
@@ -1446,24 +1437,8 @@ document.addEventListener('submit', safe(async event => {
   if (form.id === 'agent-settings-form') {
     await command('parallel.settings',{ baseRevisionId:form.dataset.revision || null,
       enabled:form.elements.enabled.value === 'yes', automaticRequests:form.elements.automaticRequests.checked,
-      confirmAutomatic:form.dataset.confirmAutomatic === 'true', blackboard:form.elements.blackboard.checked,
-      pony:{enabled:form.elements.ponyEnabled.checked,mode:form.elements.ponyUnlimited.checked?'unlimited':'limited',limit:form.elements.ponyUnlimited.checked?null:Number(form.elements.ponyLimit.value)} });
+      confirmAutomatic:form.dataset.confirmAutomatic === 'true', blackboard:form.elements.blackboard.checked });
     openSettings('agents'); toast('Agent settings saved'); return;
-  }
-  if(form.id==='pony-new-form'){
-    await command('pony.task.new',{chatId:form.dataset.chatId,purpose:form.elements.purpose.value.trim(),requestId:form.dataset.requestId});await openPony();return;
-  }
-  if(form.id==='pony-amend-form'){
-    const change=form.elements.change.value;
-    await command('pony.task.amend',{taskId:form.dataset.taskId,requestId:form.dataset.requestId,baseRevision:Number(form.dataset.revision),change,value:change==='unlimited'?null:Number(form.elements.value.value),note:form.elements.note.value});await openPony();return;
-  }
-  if(form.id==='pony-send-form'){
-    const button=form.querySelector('button[type="submit"]');button.disabled=true;
-    try{
-      await api.ponySend({requestId:form.dataset.requestId,chatId:form.dataset.chatId,assignment:form.elements.assignment.value.trim(),reason:'Requested in the task controls.',modelId:form.elements.modelId.value,
-        allowSubtasks:form.elements.allowSubtasks.checked,ponyTaskId:form.dataset.ponyTaskId||null,toolsEnabled:form.elements.toolsEnabled.checked,cloudApproved:form.elements.cloudApproved.checked,basisHash:form.dataset.basis});
-      state=await api.state();pollEpoch++;closeDialog();render();toast('Round trip reserved; the return is included');
-    }finally{if(button.isConnected)button.disabled=false;}return;
   }
   if (form.id === 'hearth-start-form') {
     if(modelsBusy(state)||submitting.size)return;
@@ -1708,9 +1683,9 @@ window.branchlinePrepareClose = (discardSelections = false) => {
       await sketchBook.persist();
       await dreamReview.persist();
     }
-    window.branchlineCloseState = !discardSelections && (filePicker.pending.size || agentProfiles.hasDraft)
-      ? { status: 'needs-confirmation', message: 'Your conversation and Coat drafts are saved. Unsent file selections or an unfinished agent-profile import are still open. Close and discard those selections?' }
-      : { status: 'ready' };
+    if(!discardSelections&&(filePicker.pending.size||agentProfiles.hasDraft||dreamsUI.unsaved||dreamsUI.running)){
+      window.branchlineCloseState={status:'needs-confirmation',message:(dreamsUI.running?'Suspend the current Dream before closing? ':'Your conversation and Coat drafts are saved. ')+((filePicker.pending.size||agentProfiles.hasDraft||dreamsUI.unsaved)?'Unsent file selections or an unfinished note/import will be discarded. Close?':'')};
+    }else{if(dreamsUI.running)await dreamsUI.prepareClose();window.branchlineCloseState={status:'ready'};}
   })().catch(err => { window.branchlineCloseState = { status: 'failed', message: err.message }; });
 };
 document.addEventListener('keydown', safe(async event => {
@@ -1730,7 +1705,7 @@ try {
   state = await api.state(); initializeAppearance(state.ui.appearance); await toolPanel.refresh(); render();
   void startupProgress.start();
   if (!state.ui.welcomeTour) welcomeTour.start();
-  void api.startupStatus().then(status => { if (status.warnings?.length) error(status.warnings.join('\n')); }).catch(() => {});
+  void api.startupStatus().then(status => { if (status.warnings?.length) error(status.warnings.join('\n')); if(status.recovery)openDialog('Saved work recovered',`<p>Branchline reopened ${e(status.recovery.recordCount)} complete saved records after an interrupted ending.</p><p>The original journal remains in:</p><p class="detail-value">${e(status.recovery.directory)}</p><p>Review the most recent work before repeating an action. You can close this notice and continue.</p>`); }).catch(() => {});
 }
 catch (err) { error(`Branchline could not open its local workspace. ${err.message}`); $('home-screen').hidden = true; $('composer-form').hidden = true; $('conversation').hidden = false; $('conversation').innerHTML = '<div class="empty-chat"><h1>Workspace unavailable</h1><p>Check the local server and reload to try again. Existing data has not been replaced.</p></div>'; }
 

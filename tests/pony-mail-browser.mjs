@@ -1,0 +1,47 @@
+import {chromium} from 'playwright-core';
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import {fixture,until} from './desk-helpers.mjs';
+
+const f=await fixture({hold:false}),errors=[];
+await f.command('message.note',{chatId:f.chatId,content:'A parcel from the first desk. Please return a short greeting.'});
+const original=f.app.store.state.messages.at(-1);
+await f.command('root.create',{name:'Receiving desk',mode:'personal'});
+const other=f.app.store.state.chats.find(c=>c.id!==f.chatId);
+await f.command('table.roster.start',{chatId:other.id});
+const r=f.app.store.state.chats.find(c=>c.id===other.id).seating;
+await f.command('table.roster.chair',{chatId:other.id,baseRevisionId:r.revisionId,chairId:r.desk.id,name:'Receiver',modelId:f.app.store.state.models[1].id,personalId:null,coat:null});
+await new Promise(resolve=>f.app.listen(0,'127.0.0.1',resolve));
+const browser=await chromium.launch({headless:true,...(process.platform==='win32'?{channel:'msedge'}:{})}),page=await browser.newPage({viewport:{width:1280,height:950}});
+page.on('pageerror',error=>errors.push(error.message));
+try{
+  await page.goto(`http://127.0.0.1:${f.app.address().port}/#session=${f.app.sessionToken}`);
+  await page.locator('#tour-skip').check();await page.locator('#tour-next').click();
+  await page.locator(`[data-action="select-chat"][data-id="${f.chatId}"]`).click();
+  await page.locator('#work-controls > summary').click();await page.locator('#work-controls [data-action="pony-open"]').click();
+  const dialog=page.locator('#dialog[open]');
+  await dialog.locator('[name="enabled"]').check();await dialog.getByRole('button',{name:'Save address'}).click();
+  await until(()=>f.app.store.state.ponyMail?.settings.length===1,'first address');
+  await dialog.locator('[data-post-drawer]').selectOption(other.rootId);
+  await dialog.locator('[name="enabled"]').check();await dialog.getByRole('button',{name:'Save address'}).click();
+  await until(()=>f.app.store.state.ponyMail?.settings.length===2,'second address');
+  await page.keyboard.press('Escape');
+  await page.locator(`[data-message-options="${original.id}"]`).click();
+  await page.locator('#message-options-menu').getByRole('menuitem',{name:'Send with Pony Post'}).click();
+  assert.equal(await dialog.locator('textarea[name="text"]').inputValue(),original.content);
+  await dialog.locator('[name="kind"]').selectOption('request');await dialog.getByRole('button',{name:'Send parcel'}).click();
+  await until(()=>f.app.store.state.ponyMail?.parcels.length===2,'return parcel',10000);
+  await until(()=>f.app.store.state.ponyMail.events.filter(e=>e.kind==='delivered').length===2,'two delivered parcels');
+  assert.equal(f.requests.length,1);
+  await page.keyboard.press('Escape');await page.locator(`[data-action="select-chat"][data-id="${other.id}"]`).click();
+  await page.locator('[data-pony-body]').getByText(/A parcel from the first desk/).waitFor();
+  assert(!(await page.locator('.message-meta strong').allTextContents()).every(t=>t==='You'));
+  assert.equal(await page.locator('.message [data-action="pony-compose"]').count(),0);
+  await page.waitForFunction(()=>!document.body.innerText.includes('Capacity unknown'));
+  await fs.mkdir('.test-output',{recursive:true});await page.screenshot({path:'.test-output/pony-post-delivery.png'});
+  await page.locator('#work-controls > summary').click();await page.locator('#work-controls [data-action="pony-open"]').click();
+  await page.locator('#postal-address').waitFor();await page.screenshot({path:'.test-output/pony-post-home.png'});
+  await page.setViewportSize({width:600,height:850});await page.screenshot({path:'.test-output/pony-post-narrow.png'});
+  assert.deepEqual(errors,[]);
+  console.log(JSON.stringify({status:'PASS',differentDesks:true,configuredInUI:true,gearSend:true,oneModelCall:f.requests.length,returned:true,cleanChat:true,errors,fixture:f.dir}));
+}finally{await browser.close();await f.close();}

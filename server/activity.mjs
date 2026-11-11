@@ -1,4 +1,5 @@
 import { liveDeskTask } from './desk-work.mjs';
+import {dreamTraining,DREAM_ACTIVE} from '../public/dream-training-state.js';
 
 export function activityRows(state, deskTasks, { preparations = new Map(), imageCheck = null, dreamRecovery = null } = {}) {
   const rows=[],tasks=state.deskWork?.tasks??[],managed=new Set(tasks.map(t=>t.exchangeId).filter(Boolean)),taskIds=new Set(tasks.map(t=>t.id));
@@ -18,5 +19,6 @@ export function activityRows(state, deskTasks, { preparations = new Map(), image
   for(const r of state.plans?.runs??[])if(['queued','running','needs_attention','interrupted'].includes(r.status)&&!rows.some(row=>row.chatId===r.chatId&&row.active))push('plan',r.id,r.chatId,{title:'Plan: '+(r.plan?.name??'Scheduled work'),status:r.status,phase:r.status,createdAt:r.startedAt,active:['queued','running'].includes(r.status)});
   if(imageCheck)push('image-check','current',null,{title:'Checking image connection',status:'running',phase:'Preparing connection',active:true});
   if(dreamRecovery)push('dream-recovery','current',null,{title:'Preparing Dream recovery',status:'preparing',phase:'Preparing saved state',active:true});
+  for(const r of dreamTraining(state).runs.slice(-30))push('dream',r.id,null,{title:'Dream · '+(state.personalParticipants?.find(p=>p.id===r.personalId)?.nickname||state.personalParticipants?.find(p=>p.id===r.personalId)?.name||'Personal model'),model:r.targetModel.name,status:r.status,phase:r.message,createdAt:r.at,endedAt:r.finishedAt,active:DREAM_ACTIVE.has(r.status),resources:r.resources});
   return [...rows.filter(r=>r.active),...rows.filter(r=>!r.active).sort((a,b)=>(b.endedAt??b.createdAt??'').localeCompare(a.endedAt??a.createdAt??'')).slice(0,20)];
 }

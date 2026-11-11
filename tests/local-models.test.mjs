@@ -61,3 +61,12 @@ test('owned runner switches files, retains Qwen controls, and closes only its ow
   await runner.open();await runner.fetch({runtime:'bundled'},'',{});await runner.fetch(model,'',{});await runner.unloadBundled();assert.equal(events.filter(e=>e==='unload:file').length,0);
   await runner.fetch({runtime:'bundled'},'',{});assert(events.includes('unload:file'));await runner.close();assert(events.includes('close:qwen')&&events.includes('close:file'));
 });
+
+test('a pending file open retains the local slot before a Dream can reserve it',async()=>{
+  let release;const opening=new Promise(resolve=>release=resolve),events=[];
+  const make=id=>({async open(){if(id==='file')await opening;},status:()=>({busy:false,available:true}),async unload(){},async beforeOtherLocal(){},async close(){},async fetch(){events.push(id);return id;}});
+  const file={id:'file',modelId:'model',sha256:'a'.repeat(64),metadata:{inputFormat:'chat'},contextTokens:8192},model={id:'model',runtime:'gguf',model:'branchline-file-'+'a'.repeat(64),baseUrl:'http://127.0.0.1:0/v1',inputFormat:'chat'};
+  const runner=new LocalRunner('unused',{getState:()=>({localModels:{files:[file]}}),bundled:make('stock'),runnerFactory:()=>make('file')});
+  const request=runner.fetch(model,'',{});assert.equal(await runner.reserveDream('dream'),false);release();assert.equal(await request,'file');assert.equal(await runner.reserveDream('dream'),true);
+  await assert.rejects(runner.fetch(model,'',{}),/Dream is using/);assert.deepEqual(events,['file']);runner.releaseDream('dream');await runner.close();
+});

@@ -1,3 +1,4 @@
+import {readInput} from './history-inputs.mjs';
 import crypto from 'node:crypto';
 import { fileEvidence } from './selected-file.mjs';
 import { assertInferenceIdle, resolveSpeaker, currentAssignment } from './table.mjs';
@@ -155,7 +156,7 @@ function sourceMessages(state, chatId, exchangeId) {
   let user = messages.find(message => message.role === 'user'); const assistant = messages.find(message => message.role === 'assistant');
   if (!user && exchange?.request?.kind === 'ask') {
     const context = state.handoffs?.records.find(record => record.id === exchange.handoff?.contextId);
-    if (context) user = { content: `Human button request: Ask ${exchange.speaker?.seat === 'personal' ? 'Personal' : 'Visiting'} for another reply. This is a request receipt, not an additional human message.\nExact context supplied to that reply (source data):\n${JSON.stringify(context.detail.inputMessages)}` };
+    if (context) user = { content: `Human button request: Ask ${exchange.speaker?.seat === 'personal' ? 'Personal' : 'Visiting'} for another reply. This is a request receipt, not an additional human message.\nExact context supplied to that reply (source data):\n${JSON.stringify(readInput(context.detail.inputMessages))}` };
   }
   if (!exchange || exchange.status !== 'completed' || exchange.truncated === true || !user || !assistant) throw new Error('source exchange must be completed and non-truncated');
   return { exchange, user, assistant };

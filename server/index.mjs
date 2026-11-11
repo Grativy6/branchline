@@ -1,3 +1,4 @@
+import {assertPcDisclosure} from './pc-permissions.mjs';
 import { ResourceMeters, UsageAccumulator } from './resource-meters.mjs';
 import { taskInput } from '../public/desk-input.js';
 import { noteSettings } from '../public/reasoning-notes-settings.js';
@@ -5,6 +6,7 @@ import { goalSnapshot } from './desk-goals.mjs';
 import { noteSource } from './reasoning-notes.mjs';
 import { DeskTasks } from './desk-tasks.mjs';
 import { activityRows } from './activity.mjs';
+import {Dreams} from './dream-training.mjs';
 import { drawerFor, inspectChairLog, deskUpdates, readDeskRecord, deskEvent } from './desk-work.mjs';
 import { chairRoster } from '../public/chair-roster.js';
 import {PictureProvider} from './picture-provider.mjs';
@@ -69,7 +71,8 @@ import { PcFiles } from './pc-files.mjs';
 import {Nav} from './nav.mjs';
 import { pcApron } from './pc-permissions.mjs';
 import { ConversationTools, ToolInteractions } from './conversation-tools.mjs';
-import { PonyPostTasks } from './pony-tasks.mjs';
+import { ContinuingHearthTasks } from './continuing-hearth.mjs';
+import { PonyMail } from './pony-mail.mjs';
 import { liveRun, openRun, PARALLEL_PROFILE } from './parallel-state.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -140,13 +143,15 @@ export async function createApp({
   const storage = new StorageManager(store, backupDir);
   const localModels = new LocalModelLibrary(store,{runner:localRunner,...(modelOptions.localModelFolders?{knownFolders:modelOptions.localModelFolders}:{})});
   const imageStore = new ImageStore(dataDir);
-  const imagePlans = new ImagePlans({ capability: async(model,state)=>{try{return await (modelOptions.imageCapability??(m=>m.runtime==='bundled'?localRunner.imageCapability(m):imageCapability(m)))(model);}catch(error){const w=workSettings(state);if(model.inputFormat!=='plain-dialogue-v1'&&w?.workspaceId===store.workspaceId&&w.workspacePath===store.dataDir&&w.pictures?.enabled&&w.pictures.contextSharing&&workAllowed(state,model))return {profile:'branchline.vision-helper/1',route:'selected_vision_tool',observer:'gpt-6.1-sol',imageTokensEach:0,remote:true,destination:'OpenAI API',directPixelsToChair:false,settingsId:w.id};throw error;}} });
+  const imagePlans = new ImagePlans({ capability: async(model,state)=>{try{return await (modelOptions.imageCapability??(m=>['bundled','gguf'].includes(m.runtime)?localRunner.imageCapability(m):imageCapability(m)))(model);}catch(error){const w=workSettings(state);if(model.inputFormat!=='plain-dialogue-v1'&&w?.workspaceId===store.workspaceId&&w.workspacePath===store.dataDir&&w.pictures?.enabled&&w.pictures.contextSharing&&workAllowed(state,model))return {profile:'branchline.vision-helper/1',route:'selected_vision_tool',observer:'gpt-6.1-sol',imageTokensEach:0,remote:true,destination:'OpenAI API',directPixelsToChair:false,settingsId:w.id};throw error;}} });
   // A launcher can reuse the chosen account without sharing chats or grants.
   const codexAccountDir=modelOptions.codexAccountDir??process.env.BRANCHLINE_CODEX_ACCOUNT_DIR??path.resolve(dataDir,'..','codex-connection');
   if(typeof codexAccountDir!=='string'||!path.isAbsolute(codexAccountDir)||codexAccountDir.startsWith('\\\\'))throw new Error('Choose a local account connection directory.');
   const codex = modelOptions.codex ?? new CodexProvider({ accountDir: codexAccountDir });
   const openai=modelOptions.openai??new OpenAIProvider({onUsage:async usage=>{await fs.appendFile(path.join(dataDir,'api-usage.jsonl'),JSON.stringify({at:new Date().toISOString(),...usage})+'\n');}});
-  modelOptions = { ...modelOptions, codex, openai, imageStore, localRunner };
+  const ponyMail=new PonyMail(store,{changed:()=>contextStatusCache.clear()});
+  modelOptions = { ...modelOptions, codex, openai, imageStore, localRunner, ponyRead:(s,id)=>ponyMail.readText(s,id), ponyAssert:(s,chatId,model)=>ponyMail.assertDisclosure(s,chatId,model) };
+  store.ponyMail=ponyMail;
   const reflections = new ReflectionManager(store, modelOptions);
   const contextStatusCache = new Map();
   const actions = new AdoptionBroker(store);
@@ -163,7 +168,7 @@ export async function createApp({
   const documents=new DocumentReader(store,imageStore,modelOptions.documentOptions);
   const peaches = new PeachesBook(store,personalContexts,modelOptions.peachesOptions);
   if(store.state.chats.some(c=>!c.coatPolicy)) await store.transact(state=>{migrateCoats(state);return state;});
-  const parallel = new PonyPostTasks(store, toolInteractions, modelOptions);
+  const parallel = new ContinuingHearthTasks(store, toolInteractions, modelOptions);
   const replyPlanner = createReplyPlanner(modelOptions);
   const records = store.state.handoffs?.records || [];
   const unfinishedOperations = records.filter(r => r.kind === 'operation.request' && !records.some(next => ['operation.result', 'operation.interrupted'].includes(next.kind) && next.parents.includes(r.id)));
@@ -222,7 +227,7 @@ export async function createApp({
             return json(response, 409, { error:'The local model is still preparing. Your draft and attachments are kept; you can use another ready connection.' });
           }
         }
-        if(!preliminary.prior){assertHomeDisclosure(store.state,body.chatId,preliminary.model,store.workspaceId,store.dataDir);assertWorkDisclosure(store.state,body.chatId,preliminary.model,store.workspaceId,store.dataDir);await home.prepare(body.chatId,preliminary.model,prepController.signal);}
+        if(!preliminary.prior){ponyMail.assertDisclosure(store.state,body.chatId,preliminary.model);assertHomeDisclosure(store.state,body.chatId,preliminary.model,store.workspaceId,store.dataDir);assertWorkDisclosure(store.state,body.chatId,preliminary.model,store.workspaceId,store.dataDir);await home.prepare(body.chatId,preliminary.model,prepController.signal);}
         if(!preliminary.prior) await personalContexts.prepare(body.chatId,[preliminary.selection?.seat??'visiting',...(otherSeat?[otherSeat]:[])],()=>{
           if(closing||prepController.signal.aborted||epoch!==(stopEpoch.get(body.chatId)??0))throw new Error('Continuity preparation stopped.');
         },admission?.selection.chairId);
@@ -237,7 +242,7 @@ export async function createApp({
         const taskRecord=admission&&store.state.deskWork.tasks.find(t=>t.id===admission.taskId);
         const content = taskRecord ? taskInput(store.state,taskRecord) : body.content ?? '';
         const batch=taskRecord&&store.state.deskWork.batches.find(b=>b.id===taskRecord.batchId);
-        const assignedContent=preliminary.model?.runtime==='gguf'?[batch?.sharedContext,content].filter(Boolean).join('\n\n'):batch?`[Shared coordination: these assignments belong to their named chairs.]\n${JSON.stringify({shared:batch.sharedContext,assignments:batch.assignments.map(a=>({chair:a.chair,taskId:a.taskId,assignment:taskInput(store.state,store.state.deskWork.tasks.find(t=>t.id===a.taskId))}))})}\n\n[Your current assignment as ${taskRecord.label}]\n${content}`:content;
+        const assignedContent=taskRecord?.ponyParcelId?ponyMail.readText(store.state,taskRecord.ponyParcelId)+'\n\n[Your current request]\n'+content:preliminary.model?.runtime==='gguf'?[batch?.sharedContext,content].filter(Boolean).join('\n\n'):batch?`[Shared coordination: these assignments belong to their named chairs.]\n${JSON.stringify({shared:batch.sharedContext,assignments:batch.assignments.map(a=>({chair:a.chair,taskId:a.taskId,assignment:taskInput(store.state,store.state.deskWork.tasks.find(t=>t.id===a.taskId))}))})}\n\n[Your current assignment as ${taskRecord.label}]\n${content}`:content;
         if(!preliminary.prior&&!body.followUpOf&&(!admission||!store.state.exchanges.some(e=>e.chatId===body.chatId&&e.status==='pending')))await reflections.makeRoom(body.chatId,content,{limit:contextLimit,selection:preliminary.selection,signal:prepController.signal});
         const exchangeId = 'exchange_' + crypto.randomUUID();
         let model;
@@ -259,10 +264,11 @@ export async function createApp({
             if(!admission||!state.exchanges.some(e=>e.chatId===body.chatId&&e.status==='pending'))activateReadyCarry(state, body.chatId);
             for (const seat of (otherSeat ? [checked.selection.seat, otherSeat] : [checked.selection?.seat])) {
               const destination = resolveSpeaker(state, body.chatId, seat,admission?.selection.chairId);
+              ponyMail.assertDisclosure(state,body.chatId,destination.model);
               assertAgentDisclosure(state, body.chatId, destination.model, destination.selection, 'reply');
               assertContextDisclosure(state, body.chatId, destination.model);
               assertSketchDisclosure(state, body.chatId, destination.model, store.workspaceId);
-              compileMessages(state, body.chatId, assignedContent, { ...modelOptions, maxContextCharacters: contextLimit, goalId:taskRecord?taskRecord.goalId??null:undefined, selection: destination.selection });
+              compileMessages(state, body.chatId, assignedContent, { ...modelOptions, maxContextCharacters: contextLimit, ponyCurrentId:taskRecord?.ponyParcelId??null,goalId:taskRecord?taskRecord.goalId??null:undefined, selection: destination.selection });
             }
           }
           if(!admission)replyPlanner.check(state, body, checked);
@@ -280,7 +286,7 @@ export async function createApp({
           const turnRequest = { ...(admission?{deskTaskId:admission.taskId}:{}), id: body.requestId ?? 'request_' + crypto.randomUUID(), kind: checked.kind, fingerprint: checked.fingerprint,
             ...(body.replyMode !== undefined ? { replyMode: checked.replyMode } : {}), ...(followUp ? { followUp } : {}),
             ...(body.followUpOf ? { followUpOf: body.followUpOf } : {}) };
-          messages = compileMessages(state, chat.id, assignedContent, { ...modelOptions, maxContextCharacters: contextLimit, goalId:taskRecord?taskRecord.goalId??null:undefined, selectedFile, selectedImages: checkedImages?.route.capability.route==='selected_vision_tool'?[]:pictures, selection: speaker, requestKind: admission&&(taskRecord?.originTaskId||taskRecord?.automatic)?'send':checked.kind, followUp: !!body.followUpOf, selectedSketch:pendingSketch });
+          messages = compileMessages(state, chat.id, assignedContent, { ...modelOptions, maxContextCharacters: contextLimit, ponyCurrentId:taskRecord?.ponyParcelId??null,goalId:taskRecord?taskRecord.goalId??null:undefined, selectedFile, selectedImages: checkedImages?.route.capability.route==='selected_vision_tool'?[]:pictures, selection: speaker, requestKind: admission&&(taskRecord?.ponyParcelId||taskRecord?.originTaskId||taskRecord?.automatic)?'send':checked.kind, followUp: !!body.followUpOf, selectedSketch:pendingSketch });
           toolContract = makeToolContract(state, { chatId:chat.id, model, selectedFile, enabled:body.toolsEnabled === true, seat: speaker?.seat ?? 'visiting', workspaceId:store.workspaceId,
             pcAvailable:pcFiles.available(),homeAvailable,workAvailable:true,workspacePath:store.dataDir,deskTaskId:admission?.taskId,chairId:speaker?.chairId,goal:goalSnapshot(state,taskRecord),reasoningNotes:Boolean(admission&&noteSettings(chat).enabled&&noteSource(model)==='agent_note'),
             parallel: admission || pictures.length ? null : parallel.requestProfile(state, chat.id, model, checked.replyMode) });
@@ -429,8 +435,10 @@ export async function createApp({
     execute:runExchange,
     captureImages:(state,input,tasks)=>imagePlans.capture(state,input,tasks),
     contextChanged:()=>contextStatusCache.clear(),
-    validate:(state,chatId,model,selection)=>{assertHomeDisclosure(state,chatId,model,store.workspaceId,store.dataDir);assertWorkDisclosure(state,chatId,model,store.workspaceId,store.dataDir);assertAgentDisclosure(state,chatId,model,selection,'reply');assertContextDisclosure(state,chatId,model);assertSketchDisclosure(state,chatId,model,store.workspaceId);},
+    validate:(state,chatId,model,selection)=>{ponyMail.assertDisclosure(state,chatId,model);assertHomeDisclosure(state,chatId,model,store.workspaceId,store.dataDir);assertWorkDisclosure(state,chatId,model,store.workspaceId,store.dataDir);assertAgentDisclosure(state,chatId,model,selection,'reply');assertContextDisclosure(state,chatId,model);assertSketchDisclosure(state,chatId,model,store.workspaceId);},
     busy:(task,key)=>{
+      const postalWait=ponyMail.busy(task);if(postalWait)return postalWait;
+      if(localRunner.dreamLease&&!['codex','openai'].includes(task.model.runtime))return 'Waiting for local GPU · a Dream is using it';
       if(store.dreamRecoveryPending)return 'Waiting for saved-state recovery';
       if(store.state.exchanges.some(e=>e.status==='pending'&&e.chatId===task.chatId&&(!e.speaker?.chairId||e.speaker.chairId===task.chairId)))return 'Waiting for this chair to finish its current task';
       if(key&&store.state.exchanges.some(e=>e.status==='pending'&&(key==='included-local'?['bundled','gguf'].includes(e.runtime):key==='chatgpt-connection'?e.runtime==='codex':e.modelBaseUrl===task.model.baseUrl)))return key==='chatgpt-connection'?'Waiting for ChatGPT connection':'Waiting for local runtime slot';
@@ -438,9 +446,27 @@ export async function createApp({
       return null;
     }
   });
+  ponyMail.attach(deskTasks,imagePlans);deskTasks.ponyMail=ponyMail;
+  deskTasks.postalValidate=(s,postal,tasks)=>{
+    const parcel=s.ponyMail?.parcels.find(p=>p.id===postal.parcelId);
+    if(!parcel||s.ponyMail.events.some(e=>e.parcelId===parcel.id&&e.kind==='cancelled')||ponyMail.reason(s,parcel))throw new Error('Pony Post address is unavailable.');
+    for(const task of tasks){ponyMail.assertParcel(s,parcel,task.model);if(postal.media)task.input.media=structuredClone(postal.media);}
+  };
   await deskTasks.recover();
+  ponyMail.kick();
   const resourceMeters=new ResourceMeters({store,codex,localRunner,deskTasks,...(modelOptions.hardwareMeter?{hardware:modelOptions.hardwareMeter}:{})});
-  const activity=()=>activityRows(store.state,deskTasks,{preparations,imageCheck,dreamRecovery});
+  const dreams=new Dreams(store,{localRunner,modelOptions,validateSource:(source,model)=>{
+    for(const chatId of source.chatIds??[]){
+      ponyMail.assertDisclosure(store.state,chatId,model);
+      assertPcDisclosure(store.state,chatId,model,store.workspaceId,store.dataDir);
+      assertHomeDisclosure(store.state,chatId,model,store.workspaceId,store.dataDir);
+      assertWorkDisclosure(store.state,chatId,model,store.workspaceId,store.dataDir);
+      assertContextDisclosure(store.state,chatId,model);
+      assertSketchDisclosure(store.state,chatId,model,store.workspaceId);
+    }
+  },...modelOptions.dreamOptions});
+  await dreams.recover();
+  const activity=()=>[...activityRows(store.state,deskTasks,{preparations,imageCheck,dreamRecovery}),...dreams.comparisonRows(),...ponyMail.activity()];
   const drawerLogSnapshots=new Map();
   const publicRoot = path.resolve(publicDir);
   const server = http.createServer(async (request, response) => {
@@ -452,7 +478,18 @@ export async function createApp({
       if (!isLocalRequest(request, server.address()?.port)) return json(response, 403, { error: 'Only same-origin local requests are accepted.' });
       const url = new URL(request.url, 'http://' + request.headers.host);
       const method = request.method;
+      const portrait=url.pathname.match(/^\/dream-portraits\/([a-f0-9]{64})\.webp$/);
+      if(method==='GET'&&portrait){const bytes=await dreams.portraitFile(portrait[1]);response.writeHead(200,{...publicHeaders,'content-type':'image/webp','content-length':bytes.length});return response.end(bytes);}
       if (url.pathname.startsWith('/api/')) uiSession.authorize(request);
+      if(method==='GET'&&url.pathname==='/api/dreams/training')return json(response,200,await dreams.view());
+      if(method==='GET'&&url.pathname==='/api/dreams/training/note')return json(response,200,await dreams.note(url.searchParams.get('id')));
+      if(method==='GET'&&url.pathname==='/api/dreams/training/prepared')return json(response,200,await dreams.prepared(url.searchParams.get('id')));
+      if(method==='POST'&&url.pathname.startsWith('/api/dreams/training/')){
+        const input=await readBody(request,20*1024*1024),action=url.pathname.slice('/api/dreams/training/'.length);
+        const operation={setup:()=>dreams.setup(),target:()=>dreams.target(input),try:()=>dreams.tryCandidate(input),settings:()=>dreams.settings(input),note:()=>dreams.saveNote(input),choice:()=>dreams.choice(input),remove:()=>dreams.remove(input),portrait:()=>dreams.portrait(input),start:()=>dreams.start(input),control:()=>dreams.control(input),adopt:()=>dreams.adopt(input),schedule:()=>dreams.schedule(input)}[action];
+        if(!operation)throw new Error('Unknown Dream action.');
+        const result=await operation();return json(response,200,{result:result??null,state:structuredClone(store.state)});
+      }
       if(method==='GET'&&url.pathname==='/api/activity')return json(response,200,{rows:activity(),sequence:store.sequence,scope:'This Branchline app · all desks'});
       if(method==='POST'&&url.pathname==='/api/desk/tasks'){
         const input=await readBody(request,2*1024*1024);
@@ -492,7 +529,8 @@ export async function createApp({
       if(method==='GET'&&url.pathname==='/api/resources/meters')return json(response,200,await resourceMeters.view(url.searchParams.get('chatId')));
       if(method==='POST'&&url.pathname==='/api/activity/stop'){
         const body=await readBody(request,1000),row=activity().find(r=>r.id===body.id&&r.active);if(!row)throw new Error('This task is no longer running.');
-        if(row.type==='chair')await deskTasks.cancel(row.sourceId);
+        if(row.type==='pony')await ponyMail.cancel(row.sourceId);
+        else if(row.type==='chair')await deskTasks.cancel(row.sourceId);
         else if(row.type==='exchange'){active.get(row.chatId)?.abort();preparations.get(row.chatId)?.abort();}
         else if(row.type==='preparing')preparations.get(row.chatId)?.abort();
         else if(row.type==='parallel')await parallel.cancel(row.sourceId);
@@ -502,6 +540,8 @@ export async function createApp({
         else if(row.type==='plan'){active.get(row.chatId)?.abort();preparations.get(row.chatId)?.abort();}
         else if(row.type==='image-check')imageCheck?.controller.abort();
         else if(row.type==='dream-recovery')dreamRecovery?.abort();
+        else if(row.type==='dream')await dreams.control({id:row.sourceId,action:'stop'});
+        else if(row.type==='dream-try')dreams.stopComparison(row.sourceId);
         return json(response,200,{stopping:true,rows:activity()});
       }
       if (method === 'POST' && url.pathname === '/api/image-provider/check') {
@@ -625,7 +665,8 @@ export async function createApp({
           ...(variant === 'original' ? { 'content-disposition': 'attachment; filename="original-' + image.original.sha256.slice(0, 12) + '.' + ({'image/png':'png','image/jpeg':'jpg','image/webp':'webp'}[image.original.mimeType]) + '"' } : {}) });
         return response.end(bytes);
       }
-      if (method === 'GET' && url.pathname === '/api/startup-status') return json(response, 200, { warnings: server.startupWarnings });
+      if(method==='GET'&&url.pathname==='/api/history/input'){const record=store.state.handoffs?.records.find(r=>r.id===url.searchParams.get('id')&&r.kind==='context.to_model');if(!record)throw new Error('Saved input not found.');return json(response,200,{messages:Array.isArray(record.detail.inputMessages)?record.detail.inputMessages:store.inputs.read(record.detail.inputMessages)});}
+      if (method === 'GET' && url.pathname === '/api/startup-status') return json(response, 200, { warnings: server.startupWarnings, recovery:store.journalRecovery??null });
       if (method === 'GET' && url.pathname === '/api/state') {
         const etag = `"${store.owner.token}:${store.sequence}"`;
         if (request.headers['if-none-match'] === etag) {
@@ -634,8 +675,12 @@ export async function createApp({
         return json(response, 200, store.state, { etag });
       }
       if (method === 'GET' && url.pathname === '/api/parallel/options') return json(response, 200, parallel.options(url.searchParams.get('chatId')));
-      if (method === 'GET' && url.pathname === '/api/pony/status') return json(response,200,parallel.ponyStatus(url.searchParams.get('chatId')));
-      if (method === 'POST' && url.pathname === '/api/pony/send') return json(response,202,await parallel.startPony(await readBody(request,20000)));
+      if(method==='GET'&&url.pathname==='/api/pony/home')return json(response,200,ponyMail.view());
+      if(method==='GET'&&url.pathname==='/api/pony/parcel'){const id=url.searchParams.get('id');return json(response,200,{text:ponyMail.bodyText(store.state,id),payload:ponyMail.payload(store.state,id)});}
+      if(method==='POST'&&url.pathname==='/api/pony/settings')return json(response,200,await ponyMail.configure(await readBody(request)));
+      if(method==='POST'&&url.pathname==='/api/pony/mail')return json(response,202,await ponyMail.send(await readBody(request,300000)));
+      if(method==='POST'&&url.pathname==='/api/pony/action'){const b=await readBody(request);if(!['cancel','correct','retry'].includes(b.action))throw new Error('Choose a Pony Post action.');return json(response,200,await ponyMail[b.action](b.id));}
+      if(url.pathname==='/api/pony/send')return json(response,410,{error:'The earlier helper-task route is retired. Open Pony Post to send between desks.'});
       if (method === 'GET' && url.pathname === '/api/parallel/status') return json(response, 200, parallel.status(url.searchParams.get('chatId')));
       if (method === 'POST' && url.pathname === '/api/parallel/start') return json(response, 202, await parallel.start(await readBody(request, 100000)));
       if(method==='POST'&&url.pathname==='/api/hearth/continuing/start')return json(response,202,await parallel.startContinuing(await readBody(request,100000)));
@@ -736,7 +781,7 @@ export async function createApp({
         const admissionId = job && store.state.parallel.runs.find(r=>r.id === job.runId)?.admissionId;
         const records = (store.state.handoffs?.records || []).filter(r => r.taskId === taskId || r.id === admissionId);
         if (!records.length) return json(response, 404, { error: 'No recorded handoff for that task.' });
-        return json(response, 200, packHandoffs(records, { known: body.knownNodes ?? [], taskId }));
+        return json(response, 200, packHandoffs(records, { known: body.knownNodes ?? [], taskId, inputReader:store.inputs }));
       }
       if (method === 'GET' && url.pathname === '/api/storage') return json(response, 200, await storage.info());
       if (method === 'POST' && url.pathname === '/api/learning/packet') {
@@ -774,8 +819,9 @@ export async function createApp({
         return json(response, 200, await observedOperation('read local model catalogue', { baseUrl }, { interface: 'loopback_HTTP_GET_models', destination: baseUrl, redirects: false, remoteServiceIsolation: 'NOT_ASSESSED' }, () => discoverModels(baseUrl)));
       }
       if (method === 'GET' && url.pathname === '/api/export') {
-        const snapshot = store.state, objects = imageObjects(snapshot);
-        if (objects.length) {
+        const snapshot = store.state, objects = imageObjects(snapshot), dreamNotes=(snapshot.dreamTraining?.notes??[]).filter(n=>!n.removed), dreamPictures=[...new Set((snapshot.dreamTraining?.portraits??[]).map(p=>p.sha256).filter(Boolean))];
+        const historyFiles=store.inputs.files(snapshot);
+        if (objects.length || dreamNotes.length || dreamPictures.length || snapshot.ponyMail?.parcels.length || historyFiles.length) {
           for (const ref of objects) await imageStore.read(ref);
           response.writeHead(200, { ...publicHeaders, 'content-type': 'application/json; charset=utf-8', 'content-disposition': 'attachment; filename="branchline-workspace-with-images.json"' });
           const write = async text => {
@@ -786,11 +832,17 @@ export async function createApp({
               response.once('drain', drain); response.once('close', close);
             });
           };
-          await write('{"profile":"branchline.workspace-export/2","state":' + JSON.stringify(snapshot) + ',"imageObjects":[');
+          await write('{"profile":"branchline.workspace-export/'+(historyFiles.length?'5':snapshot.ponyMail?.parcels.length?'4':dreamNotes.length||dreamPictures.length?'3':'2')+'","state":' + JSON.stringify(snapshot) + ',"historyObjects":[');
+          for(let i=0;i<historyFiles.length;i++){const rel=historyFiles[i],bytes=await fs.readFile(path.join(store.dataDir,rel));store.inputs.object(path.basename(rel,'.json'));await write((i?',':'')+JSON.stringify({sha256:path.basename(rel,'.json'),base64:bytes.toString('base64')}));}
+          await write('],"ponyObjects":[');
+          const postalObjects=[...new Map((snapshot.ponyMail?.parcels??[]).map(p=>[p.payloadHash,p])).values()];
+          for(let i=0;i<postalObjects.length;i++){const p=postalObjects[i];ponyMail.payload(snapshot,p.id);const bytes=await fs.readFile(path.join(store.dataDir,'pony-mail','objects',p.payloadHash+'.json'));await write((i?',':'')+JSON.stringify({sha256:p.payloadHash,base64:bytes.toString('base64')}));}
+          await write('],"imageObjects":[');
           for (let i = 0; i < objects.length; i++) {
             const ref = objects[i], bytes = await imageStore.read(ref);
             await write((i ? ',' : '') + JSON.stringify({ ...ref, base64: bytes.toString('base64') }));
           }
+          if(dreamNotes.length||dreamPictures.length){await write('],"dreamMaterials":[');for(let i=0;i<dreamNotes.length;i++){const material=await dreams.note(dreamNotes[i].id);await write((i?',':'')+JSON.stringify(material));}await write('],"dreamPictures":[');for(let i=0;i<dreamPictures.length;i++){const bytes=await dreams.portraitFile(dreamPictures[i]);await write((i?',':'')+JSON.stringify({sha256:dreamPictures[i],mimeType:'image/webp',base64:bytes.toString('base64')}));}return response.end('],"trainedModelFilesIncluded":false,"modelRecovery":"Use a complete workspace backup to retain local Dream generations and checkpoints."}');}
           return response.end(']}');
         }
         return json(response, 200, store.state, { 'content-disposition': 'attachment; filename="branchline-workspace.json"' });
@@ -833,11 +885,12 @@ export async function createApp({
         await home.reconcileFolderSharing();
         // A permission change ends affected requests. The next reply recompiles
         // the apron and source-sharing review instead of renewing an old grant.
-        for(const [chatId,controller] of active) if(store.state.pcAccess?.exposures.some(e=>e.rootId===store.state.chats.find(c=>c.id===chatId)?.rootId))controller.abort();
+        for(const [key,controller] of [...active,...preparations]){const task=store.state.deskWork?.tasks.find(t=>t.id===key),chatId=task?.chatId??key;if(store.state.pcAccess?.exposures.some(e=>e.rootId===store.state.chats.find(c=>c.id===chatId)?.rootId))controller.abort();}
         return json(response,200,result);
       }
       if (method === 'POST' && url.pathname === '/api/command') {
         const body = await readBody(request);
+        if(body?.type?.startsWith('pony.'))throw new Error('Earlier Pony task controls are retired. Open Pony Post for desk-to-desk mail.');
         if (body?.type === 'sketch.grant') {
           if (!body.payload || Object.keys(body.payload).sort().join() !== 'access,destination,modelId') throw new Error('Choose a model connection and Sketch Book access.');
           body.payload.workspaceId = store.workspaceId;
@@ -964,10 +1017,10 @@ export async function createApp({
         if(!body || !['all','episode'].includes(body.scope) || Object.keys(body).some(k=>!['scope','chatId'].includes(k)) || (body.scope==='episode'&&!store.state.chats.some(c=>c.id===body.chatId)))throw new Error('Choose all running episodes or this conversation episode.');
         // Close admission synchronously before awaiting any saved write.
         parallel.stopAdmission(body.scope === 'all' ? null : body.chatId);
-        await deskTasks.stopAll(body.scope === 'all' ? null : body.chatId);
+        await ponyMail.stopAll(body.scope === 'all' ? null : body.chatId);await deskTasks.stopAll(body.scope === 'all' ? null : body.chatId);
         const ids=body.scope==='all'?store.state.chats.map(c=>c.id):[body.chatId];
         for(const id of ids){preparations.get(id)?.abort();workTools.cancel(id);stopEpoch.set(id,(stopEpoch.get(id)??0)+1);active.get(id)?.abort();replyPlanner.cancel(id);reflections.cancel(id);}
-        if(body.scope==='all'){for(const run of easel.running.values())run.controller.abort();imageCheck?.controller.abort();dreamRecovery?.abort();for(const r of store.state.parallel?.runs??[])if(openRun(r))retainStop(parallel.cancel(r.id));}
+        if(body.scope==='all'){for(const id of dreams.comparisons.keys())dreams.stopComparison(id);for(const id of dreams.active.keys())retainStop(dreams.control({id,action:'stop'}));for(const run of easel.running.values())run.controller.abort();imageCheck?.controller.abort();dreamRecovery?.abort();for(const r of store.state.parallel?.runs??[])if(openRun(r))retainStop(parallel.cancel(r.id));}
         else retainStop(parallel.cancelChat(body.chatId));
         retainStop(store.transact(s=>{for(const id of ids){const chat=s.chats.find(c=>c.id===id);chat.workStopped=true;cancelReadyCarry(s,id);}return s;}));
         return json(response,200,{state:store.state,scope:body.scope,message:'Stop requested for admitted local work. Partial results remain; the saved Stop record may still be finishing. Remote provider computation may still be finishing; cancellation is not independently confirmed.'});
@@ -976,7 +1029,7 @@ export async function createApp({
         const { chatId } = await readBody(request);
         if (typeof chatId !== 'string' || !store.state.chats.some(c => c.id === chatId)) throw new Error('Choose a branch to stop.');
         parallel.stopAdmission(chatId);
-        await deskTasks.stopAll(chatId);
+        await ponyMail.stopAll(chatId);await deskTasks.stopAll(chatId);
         stopEpoch.set(chatId, (stopEpoch.get(chatId) ?? 0) + 1);
         const preparing=preparations.get(chatId);preparing?.abort();workTools.cancel(chatId);
         const controller = active.get(chatId);
@@ -1025,7 +1078,7 @@ export async function createApp({
   const originalClose = server.close.bind(server);
   const plans=new Plans(store,{
     isBusy:()=>closing||store.dreamRecoveryPending,
-    stop:async chatId=>{await deskTasks.stopAll(chatId);preparations.get(chatId)?.abort();active.get(chatId)?.abort();},
+    stop:async chatId=>{await ponyMail.stopAll(chatId);await deskTasks.stopAll(chatId);preparations.get(chatId)?.abort();active.get(chatId)?.abort();},
     dispatch:async(chatId,content)=>{
       const chat=store.state.chats.find(c=>c.id===chatId),roster=chairRoster(store.state,chat);
       const result=await deskTasks.admit({chatId,content,kind:'send',speaker:'personal',chairId:roster.desk.id,toolsEnabled:true,requestId:'plan_'+crypto.randomUUID(),baseRevisionId:roster.revisionId,lastMessageId:null},null,{literal:true,scheduled:true});
@@ -1037,7 +1090,7 @@ export async function createApp({
   server.close = callback => {
     if (!closePromise) {
       closing = true;
-      const plansShutdown=plans.close();
+      const plansShutdown=plans.close(),dreamsShutdown=dreams.close(),ponyShutdown=ponyMail.close();
       const deskShutdown=deskTasks.close();
       uiSession.revoke();
       actions.close();
@@ -1059,7 +1112,7 @@ export async function createApp({
         originalClose(err => {
           clearTimeout(connectionsDeadline);
           if (err && err.code !== 'ERR_SERVER_NOT_RUNNING') return reject(err);
-          Promise.all([deskShutdown,plansShutdown,reflectionShutdown, parallelShutdown, runnerShutdown, peachesShutdown, imageShutdown,homeShutdown,workShutdown,easelShutdown,...stopping]).then(() => store.close()).then(resolve, reject);
+          Promise.all([ponyShutdown,deskShutdown,plansShutdown,dreamsShutdown,reflectionShutdown, parallelShutdown, runnerShutdown, peachesShutdown, imageShutdown,homeShutdown,workShutdown,easelShutdown,...stopping]).then(() => store.close()).then(resolve, reject);
         });
       });
     }
@@ -1069,9 +1122,10 @@ export async function createApp({
   server.dispose = () => new Promise((resolve, reject) => server.close(err => err ? reject(err) : resolve()));
   server.store = store;
   server.plans = plans;
+  server.dreams = dreams;
   server.peaches = peaches;
   server.easel = easel;
-  server.startupWarnings = bundledWarning ? [bundledWarning] : [];
+  server.startupWarnings = bundledWarning?[bundledWarning]:[];
   server.localRunner = localRunner;
   server.localModels = localModels;
   Object.defineProperty(server, 'sessionToken', { get: () => uiSession.token });
@@ -1079,6 +1133,7 @@ export async function createApp({
   server.reflections = reflections;
   server.active = active;
   server.deskTasks = deskTasks;
+  server.ponyMail = ponyMail;
   server.parallel = parallel;
   return server;
 }
@@ -1090,6 +1145,6 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     const server = await createApp({ dataDir: process.env.BRANCHLINE_DATA_DIR || path.resolve(here, '../.local') });
     server.on('error', async err => { console.error('Branchline: ' + err.message); await server.dispose(); process.exitCode = 1; });
     for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, async () => { await server.dispose(); });
-    server.listen(port, '127.0.0.1', () => console.log('Branchline beta is ready at http://127.0.0.1:' + port + '/#session=' + server.sessionToken));
+    server.listen(port, '127.0.0.1', () => console.log('Branchline is ready at http://127.0.0.1:' + port + '/#session=' + server.sessionToken));
   } catch (err) { console.error('Branchline: ' + err.message); process.exitCode = 1; }
 }

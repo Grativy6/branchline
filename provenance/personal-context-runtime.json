@@ -1,0 +1,24 @@
+{
+  "format": "branchline.personal-context-runtime/1",
+  "python": "book-runtime/python.exe",
+  "pythonSha256": "b141a0115de4be263a5cb0bdeb580ab67d074aaf1aadf10622fdf88ac2a1d8cb",
+  "packageRoot": "server/personal_runtime",
+  "files": [
+    {
+      "name": "__init__.py",
+      "sha256": "8e72208126033072b485fe1caf934ff01031335da02daeda2c664fc900274eea"
+    },
+    {
+      "name": "store.py",
+      "sha256": "dcc4f25e9048ca7962e347e9b0ed4dfdfd66e07552a4ed835ca3e0b66c548699"
+    },
+    {
+      "name": "personal_context.py",
+      "sha256": "1054d96df2b7fa36b264637792366303dda6dfd449b89c4b5d659652e7d6d93b"
+    },
+    {
+      "name": "personal_server.py",
+      "sha256": "e959c63a4bf5f37dbdacfdf77e5fe5cdc38352a109d15169482235c5cb1f1c18"
+    }
+  ]
+}

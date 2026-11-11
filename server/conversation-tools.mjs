@@ -2,6 +2,7 @@ import { peerSources,readPeerSource,readBoardSource } from './peer-context.mjs';
 import crypto from 'node:crypto';
 import { GOAL_TOOL } from './desk-goals.mjs';
 import { NOTE_TOOL } from './reasoning-notes.mjs';
+import { MAIL_TOOLS } from './pony-mail-state.mjs';
 import { DESK_TOOLS, PRIVATE_DESK_TOOLS } from './desk-work.mjs';
 import { digest, recordHandoff, assertToolInvocation } from './handoff.mjs';
 import { TOOL_LIMITS, toolDefinitions } from './tool-contract.mjs';
@@ -106,7 +107,7 @@ export class ConversationTools {
     return result;
   }
   readSource(id,offset){
-    if(!id.startsWith('H')&&!id.startsWith('B'))return readChatSource(this.store.state,this.handoff.scope.chatId,id,offset,this.contract.history.count);
+    if(!id.startsWith('H')&&!id.startsWith('B'))return readChatSource(this.store.state,this.handoff.scope.chatId,id,offset,this.contract.history.count,this.store.ponyMail?(s,id)=>this.store.ponyMail.readText(s,id):null);
     const h=this.contract.peerHistory,run=this.store.state.parallel?.runs.find(r=>r.id===h?.runId),peer=run?.peers.find(p=>p.id===h.peerId);
     if(!peer||run.chatId!==this.handoff.scope.chatId||digest(peerSources(this.store.state,run,peer,h.eventCount))!==h.hash)throw new Error('That source is outside this admitted peer history.');
     if(id.startsWith('B'))return readBoardSource(this.store.state,run,h.board,id,offset);
@@ -162,7 +163,7 @@ export class ConversationTools {
       this.assertCurrent();
       if (name === 'read_sketch_book' || name === 'write_sketch') return await this.sketchCall(name,args,callId,request);
       let value,toolImage;
-      if(DESK_TOOLS.includes(name)||name===GOAL_TOOL){
+      if(DESK_TOOLS.includes(name)||MAIL_TOOLS.includes(name)||name===GOAL_TOOL){
         if(!this.deskTasks||!this.contract.desk)throw new Error('Chair work tools are unavailable.');
         const task=this.store.state.deskWork?.tasks.find(t=>t.id===this.contract.desk.taskId);
         if(!task||task.requestId!==this.store.state.exchanges.find(e=>e.id===this.handoff.taskId)?.request?.id)throw new Error('The drawer tool belongs to another task.');

@@ -2,7 +2,8 @@ import { chairRoster } from './chair-roster.js';
 import { rosterPanel, chairEditor } from './roster-views.js';
 import { findHarness } from './harness-catalog.js';
 import { activeModels, archiveLabel } from './model-archives.js';
-import { visiblePersonalModels } from './dream-records.js';
+import { visiblePersonalModels, dreamOwner } from './dream-records.js';
+import { dreamPortrait } from './dream-training-state.js';
 import { harnessLabel } from './harness-views.js';
 import { tableInfo } from './table.js';
 import { personalLabel } from './personal-label.js';
@@ -11,12 +12,19 @@ import {codexConnection} from './codex.js';
 
 const e = (value = '') => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const footer = label => `<div class="dialog-footer"><button type="button" class="quiet-button" data-action="close-dialog">Cancel</button><button type="submit" class="primary-button">${label}</button></div>`;
+function deskIcon(state, personalId) {
+  const photo=personalId&&dreamPortrait(state,dreamOwner(state,personalId));
+  return `<svg class="desk-onion" viewBox="0 0 24 24" aria-hidden="true" ${photo?.sha256?'hidden':''}><g fill="none" stroke="currentColor" stroke-width="1.1"><circle cx="12" cy="12" r="10.5"/><circle cx="12" cy="12" r="7.2"/><circle cx="12" cy="12" r="3.9"/><circle cx="12" cy="12" r=".8"/></g></svg>${photo?.sha256?`<img class="desk-personal-icon" src="/dream-portraits/${e(photo.sha256)}.webp" alt="">`:''}`;
+}
+export function installDeskIconFallback() {
+  document.addEventListener('error',event=>{if(event.target.matches?.('.desk-personal-icon')){event.target.hidden=true;event.target.previousElementSibling.removeAttribute('hidden');}},true);
+}
 export function deskBar(state, root, chat, busy, codexStatus = null) {
   if (!root || !chat) return '<button type="button" class="quiet-button" data-action="desks">Choose a desk</button>';
   const r = chairRoster(state, chat), model = state.models.find(m => m.id === r.desk.modelId);
   const coat = findHarness(resolvedCoat(state, {...chat, seating:r}, 'personal').ref, state)?.name ?? 'Coat unavailable';
   const connection=model?.runtime==='codex'?codexConnection(codexStatus,model):null;
-  return `<div class="chair personal-chair ${r.speaker==='personal'?'is-selected':''}"><button type="button" class="chair-symbol chair-menu" data-action="choose-model" data-id="personal" aria-label="Edit Desk Model" ${busy?'disabled':''}>⌁</button><button type="button" class="chair-picker chair-copy" data-action="highlight-chair" data-id="${e(r.desk.id)}" aria-label="Select ${e(r.desk.name)}" aria-pressed="${r.speaker==='personal'}" title="${e(model?model.name+' · '+model.model:'Choose a model')}"><small>DESK MODEL${connection?`<span class="chair-connection" role="status" title="${e(connection.label)}">${e(connection.ready?'Connected':connection.label)}</span>`:''}</small><span class="chair-name-line"><strong>${e(r.desk.name)}</strong><span class="chair-coat" aria-label="Coat: ${e(coat)}" title="Coat: ${e(coat)}">${e(coat)}</span></span></button></div><div class="desk-controls"><button type="button" class="current-branch" data-action="rename-branch" title="Rename this branch">${e(chat.title)}</button><button type="button" class="desk-selector" data-action="desks" title="Choose a desk"><span>Desk</span><strong>${e(root.name)}</strong><span aria-hidden="true">⌄</span></button></div>${rosterPanel(state,chat,busy)}`;
+  return `<div class="chair personal-chair ${r.speaker==='personal'?'is-selected':''}"><button type="button" class="chair-symbol chair-menu" data-action="choose-model" data-id="personal" aria-label="Edit Desk Model" ${busy?'disabled':''}>${deskIcon(state,r.desk.personalId)}</button><button type="button" class="chair-picker chair-copy" data-action="highlight-chair" data-id="${e(r.desk.id)}" aria-label="Select ${e(r.desk.name)}" aria-pressed="${r.speaker==='personal'}" title="${e(model?model.name+' · '+model.model:'Choose a model')}"><small>DESK MODEL${connection?`<span class="chair-connection" role="status" title="${e(connection.label)}">${e(connection.ready?'Connected':connection.label)}</span>`:''}</small><span class="chair-name-line"><strong>${e(r.desk.name)}</strong><span class="chair-coat" aria-label="Coat: ${e(coat)}" title="Coat: ${e(coat)}">${e(coat)}</span></span></button></div><div class="desk-controls"><button type="button" class="current-branch" data-action="rename-branch" title="Rename this branch">${e(chat.title)}</button><button type="button" class="desk-selector" data-action="desks" title="Choose a desk"><span>Desk</span><strong>${e(root.name)}</strong><span aria-hidden="true">⌄</span></button></div>${rosterPanel(state,chat,busy)}`;
 }
 export function modelPicker(state, root, chat, seat) {
   const r = chairRoster(state, chat);

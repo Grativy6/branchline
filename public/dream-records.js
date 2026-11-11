@@ -12,5 +12,7 @@ export const currentDream = (state, id) => {
 };
 export const DREAM_OUTCOMES = Object.freeze({ applied: 'Reported applied', kept: 'Kept previous state', failed: "Didn't finish", unadopted: 'Not adopted', unrecorded: 'Outcome not recorded' });
 export function dreamOutcome(state, record) {
+  if(state.dreamTraining?.adoptions.some(t=>t.dreamId===record.id))return 'Selected in Branchline';
+  if(record.standing==='observed_training'&&record.outcome==='unadopted')return 'New generation ready';
   return dreamHistory(state).transitions.some(t => t.dreamId === record.id) ? 'Selected in Branchline' : DREAM_OUTCOMES[record.outcome];
 }

@@ -1,5 +1,5 @@
 param(
-  [string]$OutputName = 'Branchline-v0.10.3-preview.1-Windows-x64',
+  [string]$OutputName = 'Branchline-v1.0.0-Windows-x64',
   [Parameter(Mandatory)][string]$RuntimeFolder,
   [switch]$WithModel
 )
@@ -13,6 +13,8 @@ $taskArgs=@((Join-Path $PSScriptRoot 'Prepare-Public-Package.mjs'),$taskOutput,(
 if($WithModel){$taskArgs+='--with-model'}
 & $taskNode (Join-Path $PSScriptRoot 'Prepare-License-Assets.mjs') --check --runtime
 if($LASTEXITCODE -ne 0){throw 'Review licence inputs.'}
+& $taskNode (Join-Path $PSScriptRoot 'Prepare-Runtime-Manifests.mjs') --check
+if($LASTEXITCODE -ne 0){throw 'Review personal runtime sources.'}
 & $taskNode @taskArgs --preflight
 if($LASTEXITCODE -ne 0){throw 'Review package inputs.'}
 & dotnet publish (Join-Path $taskRoot 'desktop\Branchline.Preview.csproj') --configuration Release --output $taskOutput --configfile (Join-Path $taskRoot 'desktop\NuGet.Config') -p:NuGetAudit=false -p:RestoreLockedMode=true -p:DebugType=None -p:DebugSymbols=false -p:IncludeSourceRevisionInInformationalVersion=false "-p:PathMap=$taskRoot=/src/Branchline"

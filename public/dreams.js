@@ -1,61 +1,21 @@
-import { personalLabel } from './personal-label.js';
-import { visiblePersonalModels, dreamOwner, personalDreams, dreamOutcome } from './dream-records.js';
-import { computeGuidance } from './compute-guidance.js';
-
-/* Reviewing history and choosing the Home model never starts training. */
-const e = (value = '') => String(value).replace(/[&<>"']/g, c => ({
-  '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-}[c]));
-
-export function recentDreamParticipant(state = {}) {
-  const personalIds = new Set((state.personalParticipants || []).map(p => p.id));
-  // Exchanges are already in append order. Inspect their small author records,
-  // not message bodies, the journal, or a model's interpretation of its identity.
-  const turns = state.exchanges || [];
-  for (let i = turns.length - 1; i >= 0; i--) {
-    const speaker = turns[i].speaker;
-    if (speaker?.seat === 'personal' && personalIds.has(speaker.participantId)) return dreamOwner(state,speaker.participantId);
-  }
-  return null;
+import {personalLabel} from './personal-label.js';
+import {visiblePersonalModels,dreamOwner,personalDreams,dreamOutcome} from './dream-records.js';
+import {dreamTraining,dreamNotes,currentDreamRun,latestDreamRun,dreamPortrait,dreamPhase,DREAM_ACTIVE,DREAM_FOCI} from './dream-training-state.js';
+const e=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const when=v=>v?new Date(v).toLocaleString():'Not scheduled';
+const b=(action,label,attrs='',kind='quiet-button')=>`<button type="button" class="${kind}" data-dream-job="${action}" ${attrs}>${label}</button>`;
+export function recentDreamParticipant(state={}){
+  const people=visiblePersonalModels(state),selected=dreamTraining(state).settings.targetPersonalId;
+  if(people.some(p=>p.id===selected))return selected;
+  for(const t of [...(state.exchanges??[])].reverse())if(t.speaker?.seat==='personal'&&people.some(p=>p.id===dreamOwner(state,t.speaker.participantId)))return dreamOwner(state,t.speaker.participantId);
+  return people[0]?.id??null;
 }
-
-export function dreamsCard(state = {}, participantId) {
-  const participants = visiblePersonalModels(state);
-  const participant = participants.find(p => p.id === dreamOwner(state,participantId));
-  const last = personalDreams(state,participant?.id).at(-1);
-  const lastLabel = last ? `${last.occurredAt ? new Date(last.occurredAt).toLocaleDateString() : 'Date not recorded'} · ${dreamOutcome(state,last)}` : 'Not recorded in this app';
-  const model = (state.models || []).find(m => m.id === participant?.connections?.at(-1)?.modelId);
-  const generation = participant?.generations?.find(g => g.id === participant.currentGenerationId);
-  const options = participants.map(p => `<option value="${e(p.id)}" ${p.id === participant?.id ? 'selected' : ''}>${e(personalLabel(p))}</option>`).join('');
-  const modelDetail = participant
-    ? `<p class="dream-model-name">${e(model?.name || 'Connection unavailable')}</p>
-       <p class="dream-model-meta">${generation ? 'Current model connection' : 'Generation not recorded'}</p>
-       ${generation ? `<details class="dream-model-details"><summary>Model details</summary><dl><dt>Base</dt><dd>${e(generation.baseIdentity)}</dd><dt>Generation</dt><dd>${e(generation.id)}</dd></dl></details>` : ''}`
-    : `<p class="dream-model-meta">${participants.length ? 'Choose a personal model for a future manual Dream.' : 'Add a personal model to give Dream a starting point.'}</p>`;
-  return `<section class="dreams-section" aria-labelledby="home-dreams-heading">
-    <div class="home-section-heading dreams-heading"><h2 id="home-dreams-heading" class="home-section-title">Dreams</h2><span class="dream-development">Under development</span></div>
-    <div class="dream-card">
-      <div class="dream-art"><img src="/assets/dream-sprout.svg" alt="" width="148" height="148"><button type="button" class="dream-start" disabled aria-describedby="dream-availability">Start Dreaming</button></div>
-      <div class="dream-timing"><dl class="dream-timeline"><div><dt>Last Dream recorded</dt><dd>${e(lastLabel)}</dd></div><div><dt>Next scheduled Dream</dt><dd>Scheduling coming later</dd></div></dl><button type="button" class="dream-review-button" data-action="dream-review" data-id="${e(participant?.id||'')}" ${participant?'':'disabled'}>Review Dreams</button></div>
-      <div class="dream-personal"><label for="dream-personal-select">Personal model</label>
-        <select id="dream-personal-select" aria-describedby="dream-selection-hint" ${participants.length ? '' : 'disabled'}><option value="" ${participant ? '' : 'selected'}>Choose a personal model</option>${options}</select>
-        ${modelDetail}<p id="dream-selection-hint" class="dream-model-meta">For a manual cycle. Schedules will keep their own model.</p>
-        ${participants.length ? '' : '<button type="button" class="text-button" data-action="library" data-id="personal">My Models</button>'}
-      </div>
-    </div>
-    <div class="dream-footer"><p id="dream-availability">A little room to grow. Training and scheduling are being built. Training may need substantial memory and time.</p><button type="button" class="quiet-button" data-action="dream-prepare">Prepare a Dream</button><button type="button" class="quiet-button" data-action="dream-about">About Dream <span aria-hidden="true">↗</span></button></div>
-  </section>`;
+export function dreamsCard(state={},participantId){
+  const people=visiblePersonalModels(state),p=people.find(p=>p.id===dreamOwner(state,participantId))??people[0];
+  const model=p&&state.models.find(m=>m.id===p.connections.at(-1)?.modelId),g=p?.generations.find(g=>g.id===p.currentGenerationId),d=dreamTraining(state),run=p&&currentDreamRun(state,p.id),last=p&&latestDreamRun(state,p.id),legacy=p&&personalDreams(state,p.id).at(-1),notes=p?dreamNotes(state,p.id):[],photo=p&&dreamPortrait(state,p.id),schedule=d.schedules.find(q=>q.personalId===p?.id&&q.enabled),book=state.peaches?.associations?.findLast(a=>a.personalId===p?.id);
+  const attrs=`data-personal-id="${e(p?.id??'')}"`,phase=dreamPhase(run??last),active=run&&DREAM_ACTIVE.has(run.status),suspended=run&&['suspended','interrupted'].includes(run.status);
+  const primary=active?b('manage','Cancel/suspend Dream',`${attrs} data-id="${e(run.id)}" ${Date.now()-Date.parse(run.at)<2000?'disabled':''}`,'primary-button'):suspended?b('resume','Resume Dream',`${attrs} data-id="${e(run.id)}"`,'primary-button'):b('start','Start Dreaming',`${attrs} ${!p||!notes.some(n=>n.included)?'disabled':''}`,'primary-button');
+  const list=notes.map(n=>`<article class="dream-note dream-note-${n.focus}" role="listitem"><label class="dream-note-include"><input type="checkbox" data-dream-include="${e(n.noteId)}" ${n.included?'checked':''} aria-label="Include ${e(n.name)}"><strong>${e(n.name)}</strong></label><p class="dream-note-category">${e(DREAM_FOCI[n.focus])}${n.used?' · used in a Dream':''}</p><p class="dream-note-origin">${e(n.origin)} · ${n.characters.toLocaleString()} characters</p><div class="dream-note-links">${b('view-note','Read',`data-id="${e(n.id)}"`,'text-button')}${b('edit-note','Edit',`data-id="${e(n.id)}"`,'text-button')}${b('remove-note','Remove',`data-id="${e(n.noteId)}"`,'text-button')}</div></article>`).join('');
+  return `<section class="dreams-section" aria-labelledby="home-dreams-heading"><div class="home-section-heading dreams-heading"><h2 id="home-dreams-heading">Dreams</h2>${b('settings','Dream settings')}</div><div class="dream-card dream-workbench"><div class="dream-launch"><img class="dream-sprout" src="/assets/dream-sprout.svg" alt="" width="140" height="140">${primary}<label class="form-field" for="dream-personal-select">Personal model<select id="dream-personal-select" ${people.length?'':'disabled'}>${people.map(x=>`<option value="${e(x.id)}" ${x.id===p?.id?'selected':''}>${e(personalLabel(x))}</option>`).join('')||'<option>No personal model</option>'}</select></label>${p?'':'<button type="button" class="text-button" data-action="library" data-id="personal">My Models</button>'}${run?`<p class="dream-phase" role="status">${e(phase)}</p>`:''}${suspended?b('stop','Stop Dream',`data-id="${e(run.id)}"`):''}</div><div class="dream-agenda"><h3>${e(p?personalLabel(p):'Choose a personal model')}</h3><div class="dream-note-actions">${b('manual-conversation','Make noted conversation',p?'':'disabled')}${b('manual-workflow','Make noted workflow',p?'':'disabled')}</div><div class="dream-note-list" id="dream-note-list" role="list" aria-label="Saved Dream notes">${list||'<p class="field-help">Mark material in a conversation, or add a note here.</p>'}</div></div><div class="dream-records"><div class="dream-record-row"><div><strong>Next scheduled Dream</strong><p>${when(schedule?.nextAt)}</p>${schedule?.attention?`<p class="field-help">${e(schedule.attention)}</p>`:''}</div>${b('schedule','Schedule Dreams',`${attrs} ${p?'':'disabled'}`)}</div><div class="dream-record-row"><div><strong>Last Dream recorded</strong><p>${last?when(last.finishedAt??last.at):legacy?when(legacy.occurredAt??legacy.at):'Not recorded yet'}</p>${last?`<p class="field-help">${e(dreamPhase(last))}</p>`:legacy?`<p class="field-help">${e(dreamOutcome(state,legacy))}</p>`:''}</div><button type="button" class="quiet-button" data-action="dream-review" data-id="${e(p?.id??'')}" ${p?'':'disabled'}>Review Dreams</button></div>${last?b('review-run',last.status==='ready'?'Try the new generation':'View current Dream',`data-id="${e(last.id)}"`):''}<details class="dream-model-details"><summary>Model details</summary><dl><dt>Base</dt><dd>${e(g?.baseIdentity??model?.model??'Not selected')}</dd><dt>Generation</dt><dd>${e(g?.id??'Not recorded')}</dd><dt>Book of PEACHES ID</dt><dd>${e(book?.thread?.id??'Not linked')}</dd></dl></details><div class="dream-picture">${photo?.sha256?`<img src="/dream-portraits/${e(photo.sha256)}.webp" alt="Picture for ${e(personalLabel(p))}" width="128" height="128">`:'<div class="dream-picture-placeholder" aria-hidden="true">▧</div>'}${b('picture',photo?.sha256?'Change picture':'Add picture',p?'':'disabled','text-button')}${photo?.sha256?b('remove-picture','Remove picture',attrs,'text-button'):''}<input id="dream-picture-file" type="file" accept="image/*" hidden></div></div></div></section>`;
 }
-
-export function dreamAbout() {
-  return `<div class="dream-about">
-    <div class="dream-about-intro"><img src="/assets/dream-sprout.svg" width="100" height="100" alt=""><div><span class="dream-development">Under development</span><p>Room to grow between conversations.</p></div></div>
-    <p>Dream is being built to help your personal model learn from experiences you choose. Your conversations stay readable as the model grows.</p>
-    <ol class="dream-steps"><li><strong>Choose what can contribute.</strong> Select useful exchanges, corrections and distinctions.</li><li><strong>Prepare a new generation.</strong> Review the material, where training will run and its limits before a job starts.</li><li><strong>Compare and choose.</strong> Keep your current model or adopt the candidate between exchanges, with an earlier generation available to return to.</li></ol>
-    <h3>Two ways to Dream</h3><p><strong>Manual cycles</strong> will start with your most recently used personal model. You can easily choose another.</p>
-    <p><strong>Scheduled cycles</strong> will keep the model and timing you saved until you explicitly change the schedule. Switching models or starting a manual Dream will not rewrite that choice.</p>
-    <p class="dream-about-status">Review Dreams keeps your recorded history, sources and notes. You can organize earlier model entries after reviewing their association. Training and scheduling are not running in this preview.</p>
-    ${computeGuidance('dreams')}
-    <div class="dialog-footer"><button type="button" class="primary-button" data-action="close-dialog">Got it</button></div>
-  </div>`;
-}
+export function dreamAbout(){return '<p>Choose conversations and workflows you want your personal model to learn from. Keep their context, corrections and character together. Start Dreaming when ready; a local training job produces a new generation to try.</p><p>Settings → Dreams chooses the preparation model. The personal model selected here is the model being trained. Stop keeps the prior generation and notes; Suspend saves progress for Resume Dream.</p><div class="dialog-footer"><button type="button" class="primary-button" data-action="close-dialog">Got it</button></div>';}

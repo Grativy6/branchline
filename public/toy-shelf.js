@@ -5,6 +5,7 @@ export const SHELF_APPS = [
   { id: 'sketch-book', label: 'Sketch Book', action: 'sketch-book-open', className: 'toy-sketch-book', image: 'sketch-book.svg', help: 'Catch an idea or return to a saved sketch.' },
   { id: 'blackboard', label: 'Blackboard', action: 'blackboard-open', className: 'toy-blackboard', image: 'blackboard.svg', help: 'Look at shared work, findings and earlier attempts.' },
   { id: 'easel', label: 'Easel', action: 'easel-open', className: 'toy-easel', image: 'easel.svg', help: 'Write, sketch and choose where an image edit belongs.' },
+  { id:'pony-post',label:'Pony Post',action:'pony-open',className:'toy-pony',help:'Mail between desks, with a place to wait.' },
   { id: 'plans', label: 'Plans', action: 'plans-open', className: 'toy-plans', image: 'plans.svg', help: 'Leave a task for later.' },
   { id: 'peaches', label: 'Book of PEACHES', action: 'peaches-open', className: 'toy-peaches', image: 'book-of-peaches.svg', help: 'Keep, inspect and carry your personal continuity.' }
 ];
@@ -14,7 +15,7 @@ export function validToyShelf(value) {
   return value === null || !!value && !Array.isArray(value) && typeof value === 'object'
     && Object.keys(value).sort().join() === 'height,hidden,order'
     && (value.height === null || Number.isSafeInteger(value.height) && value.height >= SHELF_HEIGHT.min && value.height <= SHELF_HEIGHT.max)
-    && Array.isArray(value.order) && [ids, ['desk','sketch-book','blackboard','easel','peaches'], ['desk','sketch-book','blackboard','peaches'], ['desk','peaches'], ['desk'], legacyIds].some(allowed => value.order.length === allowed.length && new Set(value.order).size === allowed.length && value.order.every(id => allowed.includes(id)))
+    && Array.isArray(value.order) && [ids, ['desk','sketch-book','blackboard','easel','plans','peaches'], ['desk','sketch-book','blackboard','easel','peaches'], ['desk','sketch-book','blackboard','peaches'], ['desk','peaches'], ['desk'], legacyIds].some(allowed => value.order.length === allowed.length && new Set(value.order).size === allowed.length && value.order.every(id => allowed.includes(id)))
     && Array.isArray(value.hidden) && new Set(value.hidden).size === value.hidden.length && value.hidden.every(id => value.order.includes(id));
 }
 export function shelfPreferences(value) {

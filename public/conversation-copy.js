@@ -7,7 +7,7 @@ export function installConversationCopy(container) {
     const fragment = document.createElement('div');
     for (let i = 0; i < selection.rangeCount; i++) fragment.append(selection.getRangeAt(i).cloneContents());
     // Hidden controls and closed details are not part of the visible selection.
-    fragment.querySelectorAll('[hidden],.sr-only,script,style').forEach(node => node.remove());
+    fragment.querySelectorAll('[hidden],.sr-only,[data-message-options],script,style').forEach(node => node.remove());
     fragment.querySelectorAll('details:not([open])').forEach(details => {
       for (const child of [...details.children]) if (child.tagName !== 'SUMMARY') child.remove();
     });

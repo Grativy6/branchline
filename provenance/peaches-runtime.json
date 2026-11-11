@@ -1,0 +1,18 @@
+{
+  "format": "branchline.peaches-runtime/1",
+  "python": "book-runtime/python.exe",
+  "pythonSha256": "b141a0115de4be263a5cb0bdeb580ab67d074aaf1aadf10622fdf88ac2a1d8cb",
+  "sources": {
+    "worker.py": "7e75267e240bf1e66a6359a7f800d5faf9650276b0f344258f799013e36ebe91",
+    "package.py": "a496f712f7f2e4e740b198664dd8b8359ce9ea0ef0c207685c397289ae6f0a6d",
+    "signer.py": "2433065b2262b25784c4c288e3eda302df6cfbfa0ce7779b00780454069ecb1c",
+    "vendor/floor.py": "c072e8f86cda1be1583edecf637f4062e7d7fa75f243006656647fa83adb8258"
+  },
+  "upstream": "6b12e184ad90e8cc210e90511e39ea3838fe7459",
+  "dependencies": {
+    "cryptography": "50.0.1",
+    "bcrypt": "5.0.0",
+    "cffi": "2.1.1",
+    "pycparser": "3.11"
+  }
+}

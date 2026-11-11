@@ -39,12 +39,12 @@ try {
   await until(() => f.app.deskTasks.entries.size === 1, 'main task remains active');
   finish(f.requests[1], 'The example checks out.');
   await until(() => f.app.store.state.deskWork.tasks.every(t => t.status === 'completed'), 'answer completed');
-  await page.locator('[data-action="reply-details"]').last().click();
+  await page.locator('.message.assistant [data-message-options]').last().click(); await page.locator('#message-options-menu [data-action="reply-details"]').click();
   await page.locator('#dialog .reasoning-notes > summary').click();
   await page.getByText('I am checking whether the two observations agree.', { exact: true }).waitFor();
   assert.equal(await page.locator('#dialog .reasoning-note').count(), 1);
   await page.screenshot({ path: '.test-output/reasoning-notes-details.png' });
-  await page.reload(); await page.locator(`[data-action="select-chat"][data-id="${f.chatId}"]`).click(); await page.locator('[data-action="reply-details"]').last().click();
+  await page.reload(); await page.locator(`[data-action="select-chat"][data-id="${f.chatId}"]`).click(); await page.locator('.message.assistant [data-message-options]').last().click(); await page.locator('#message-options-menu [data-action="reply-details"]').click();
   assert.equal(await page.locator('#dialog .reasoning-note').count(), 1);
   assert.deepEqual(errors, []);
   await fs.writeFile('.test-output/reasoning-notes-browser.json', JSON.stringify({ status: 'PASS', controls: [10, 30, 60], defaults: 'off/30', reload: true, liveView: true, offDuringWork: true, detailsWhileOff: true, errors, fixture: f.dir }, null, 2));

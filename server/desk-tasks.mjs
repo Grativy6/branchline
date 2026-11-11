@@ -1,3 +1,4 @@
+import { MAIL_TOOLS } from './pony-mail-state.mjs';
 import crypto from 'node:crypto';
 import { noteSettings } from '../public/reasoning-notes-settings.js';
 import { ReasoningNotes } from './reasoning-notes.mjs';
@@ -15,7 +16,7 @@ const uid = p => p + '_' + crypto.randomUUID();
 const fail = (ok, message) => { if (!ok) throw new Error(message); };
 const resource = model => ['bundled','gguf'].includes(model.runtime) ? 'included-local' : model.runtime === 'lmstudio' ? `local:${model.baseUrl}` : null;
 const waitingLabel = key => key === 'included-local' || key?.startsWith('local:') ? 'Waiting for local runtime slot' : 'Waiting for ChatGPT connection';
-const humanInput = (state,task) => !task.originTaskId&&!task.automatic&&!task.scheduled&&!(state.chats.find(c=>c.id===task.chatId)?.planLimits&&task.requestId?.startsWith('plan_'));
+const humanInput = (state,task) => !task.ponyParcelId&&!task.originTaskId&&!task.automatic&&!task.scheduled&&!(state.chats.find(c=>c.id===task.chatId)?.planLimits&&task.requestId?.startsWith('plan_'));
 const toolPhase=name=>({read_drawer:'Reading own drawer',write_drawer:'Writing in own drawer',inspect_chair_log:'Inspecting a work log',read_desk_updates:'Reading desk updates',read_desk_record:'Reading a shared record',write_desk_artifact:'Sharing work on the desk',send_chair_message:'Messaging another chair'}[name]??String(name??'tool').replaceAll('_',' '));
 function retainUnsentInput(state,task){
   const prior=inputDelivery(state,task.id),uncertain=['requested','uncertain'].includes(prior?.state);
@@ -59,6 +60,7 @@ export class DeskTasks {
       for(const goal of s.deskWork.goals??[])if(goalState(s,goal.id)==='running')setGoalState(s,goal,'paused','Branchline reopened; resume from the saved return points.','recovery');
       for(const t of s.deskWork.tasks.filter(liveDeskTask)){
         if(!t.startedAt&&['queued','waiting'].includes(t.status)){
+          if(t.ponyParcelId){t.status='waiting';t.phase='Waiting for Pony Post';continue;}
           if(t.automatic||t.trigger?.kind==='goal_start'){t.status='waiting';t.phase='Goal paused';continue;}
           if(humanInput(s,t)){retainUnsentInput(s,t);continue;}
         }
@@ -151,7 +153,7 @@ export class DeskTasks {
         await this.store.transact(next=>{setGoalState(next,goal,'completed','All participating chairs reported their assignments complete. Inspect the linked evidence.','chair_reports');return next;});
     }
   }
-  async admit(input, origin = null, { literal = false, chairIds = null, goalId = null, automatic = false, trigger = null, scheduled = false } = {}) {
+  async admit(input, origin = null, { literal = false, chairIds = null, goalId = null, automatic = false, trigger = null, scheduled = false, postal = null } = {}) {
     fail(!this.closed,'Branchline is closing.');
     fail(input && typeof input.chatId==='string' && typeof input.content==='string' && input.content.length<=200000 && typeof input.requestId==='string' && /^[A-Za-z0-9_-]{1,120}$/.test(input.requestId),'Choose a desk, message and request identity.');
     const epoch=this.epoch,chatEpoch=this.chatEpochs.get(input.chatId)??0;
@@ -168,7 +170,7 @@ export class DeskTasks {
     fail(!parsed.errors.length,parsed.errors.join(' ')); fail(parsed.sections.length>0,'Write a task first.');
     const batchId=uid('deskbatch'), chainId=origin?.chainId??batchId;
     const goal=goalId?snapshot.deskWork?.goals?.find(g=>g.id===goalId&&g.chatId===chat.id):origin?.goalId?snapshot.deskWork?.goals?.find(g=>g.id===origin.goalId):currentGoal(snapshot,chat.id);
-    const goalForTurn=!scheduled&&goal&&!['stopped','completed'].includes(goalState(snapshot,goal.id))?goal:null;
+    const goalForTurn=!postal&&!scheduled&&goal&&!['stopped','completed'].includes(goalState(snapshot,goal.id))?goal:null;
     if(origin&&!goalForTurn)fail((snapshot.deskWork?.tasks.filter(t=>t.chainId===chainId).length??0)<16,'This group reached its 16-task handoff allowance. Return the current results to the desk.');
     const tasks=parsed.sections.map((section,index)=>{
       const chair=chairs.find(c=>c.id===section.chairId);fail(chair,'Choose a chair at this desk.');
@@ -176,9 +178,10 @@ export class DeskTasks {
       this.validate(snapshot,chat.id,resolved.model,resolved.selection,input);
       return {id:uid('desktask'),batchId,chainId,chatId:chat.id,rootId:root.id,chairId:chair.id,label:chair.name,index,
         model:structuredClone(resolved.model),selection:structuredClone(resolved.selection),content:section.content||parsed.sharedContext||input.content.trim(),
-        kind:origin||automatic?'ask':input.kind??'send',createdAt:now(),status:'queued',phase:'Queued',exchangeId:null,error:null,
+        kind:postal||origin||automatic?'ask':input.kind??'send',createdAt:now(),status:'queued',phase:'Queued',exchangeId:null,error:null,
         requestId:`${input.requestId}_${index}`,originTaskId:origin?.id??null,
         ...(scheduled?{scheduled:true}:{}),
+        ...(postal?{ponyParcelId:postal.parcelId,ponyAttempt:postal.attempt}:{}),
         ...(goalForTurn?{goalId:goalForTurn.id,goalRevisionId:goalRevision(goalForTurn).id,automatic:automatic||Boolean(origin),trigger:trigger??{kind:origin?'peer_request':'human_message'},eventCursor:snapshot.deskWork?.events.at(-1)?.id??''}:{}),
         input:{busyMode:snapshot.ui.busyInputMode??'queue-first',noteSettings:noteSettings(chat),toolsEnabled:input.toolsEnabled===true,baseRevisionId:input.baseRevisionId,lastMessageId:input.lastMessageId,replyMode:parsed.broadcast?'all':parsed.routed?'single':input.replyMode??'single',
           ...(input.responseMode!==undefined?{responseMode:input.responseMode}:{}),...(input.harnessRevisionId!==undefined?{harnessRevisionId:input.harnessRevisionId}:{}),
@@ -193,15 +196,16 @@ export class DeskTasks {
       if(goalForTurn&&automatic)fail(goalState(s,goalForTurn.id)==='running'&&!goalLimitReason(s,goalForTurn),'The goal paused before this continuation.');
       if(goalForTurn&&goalState(s,goalForTurn.id)==='draft')setGoalState(s,goalForTurn,'running','Started by a human Send.');
       for(const t of tasks){const live=resolveSpeaker(s,t.chatId,t.selection.seat,t.chairId);fail(digest(live.selection)===digest(t.selection),'The addressed chair changed.');this.validate(s,t.chatId,live.model,live.selection,input);}
+      if(postal)this.postalValidate?.(s,postal,tasks);
       const pictures=!origin&&!literal?this.captureImages(s,input,tasks):[];
-      w.batches.push({id:batchId,chatId:chat.id,requestId:input.requestId,fingerprint,createdAt:now(),original:input.content,sharedContext:parsed.sharedContext,routed:parsed.routed,...(pictures.length?{selectedImages:pictures}:{}),
+      w.batches.push({id:batchId,chatId:chat.id,requestId:input.requestId,fingerprint,createdAt:now(),original:postal?'':input.content,sharedContext:parsed.sharedContext,routed:parsed.routed,...(pictures.length?{selectedImages:pictures}:{}),
         assignments:tasks.map(t=>({taskId:t.id,chairId:t.chairId,chair:t.label,content:t.content})),originTaskId:origin?.id??null});
       for(const t of tasks){w.tasks.push(t);drawerFor(s,t.chatId,t.chairId,true);deskEvent(s,t,'task.assigned',{summary:t.content.slice(0,500),batchId});if(goalForTurn)assignGoal(s,goalForTurn,t);}
       if(s.drafts[chat.id]===input.content)delete s.drafts[chat.id];
       return s;
     });
     if(duplicate)return {batchId:duplicate.id,taskIds:this.store.state.deskWork.tasks.filter(t=>t.batchId===duplicate.id).map(t=>t.id),replayed:true};
-    if(!origin&&!automatic&&!scheduled){const deliveries=await Promise.allSettled(tasks.filter(t=>t.input.busyMode==='steer-directly'&&[...this.entries.values()].some(e=>e.task.chatId===t.chatId&&e.task.chairId===t.chairId)).map(t=>this.promoteInput(t.id,{automaticSend:true})));for(const result of deliveries)if(result.status==='rejected')this.lastError=result.reason.message;}
+    if(!postal&&!origin&&!automatic&&!scheduled){const deliveries=await Promise.allSettled(tasks.filter(t=>t.input.busyMode==='steer-directly'&&[...this.entries.values()].some(e=>e.task.chatId===t.chatId&&e.task.chairId===t.chairId)).map(t=>this.promoteInput(t.id,{automaticSend:true})));for(const result of deliveries)if(result.status==='rejected')this.lastError=result.reason.message;}
     this.contextChanged();this.kick();return {batchId,taskIds:tasks.map(t=>t.id),failedTaskIds:tasks.filter(t=>t.status==='failed').map(t=>t.id),replayed:false};
   }
   async editInput(id,content){
@@ -315,7 +319,7 @@ export class DeskTasks {
       await this.update(task.id,{status,phase:status==='completed'?(entry.toolIssue?'Reply finished · review tool results':'Reply finished'):status==='cancelled'?'Stopped':'Needs attention',endedAt:now(),lastText:entry.text.slice(0,200000),error:exchange?.error??sink.error??(status==='failed'?'No completed reply was recorded.':null)});
       if(task.goalId)await this.store.transact(s=>{deskEvent(s,task,'task.finished',{goalId:task.goalId,status,exchangeId:saved.exchangeId});return s;});
     }catch(error){await entry.events.catch(()=>{});await this.update(task.id,{status:entry.stopped?'cancelled':'failed',phase:entry.stopped?'Stopped':'Needs attention',error:error.message,endedAt:now(),lastText:entry.text.slice(0,200000)});}
-    finally{await entry.steerChain;await entry.notes?.close(entry.stopped||sink.error?'interrupted':'complete');this.contextChanged();}
+    finally{sink.destroy();await entry.steerChain;await entry.notes?.close(entry.stopped||sink.error?'interrupted':'complete');this.contextChanged();}
   }
   async cancel(id,{pauseChair=true}={}){
     const task=this.store.state.deskWork?.tasks.find(t=>t.id===id);fail(task,'Task not found.');if(!liveDeskTask(task))return;
@@ -331,6 +335,7 @@ export class DeskTasks {
     });
     for(const t of this.store.state.deskWork?.tasks??[])if(liveDeskTask(t)&&(!chatId||t.chatId===chatId)){
       if(this.closed&&!t.startedAt&&['queued','waiting'].includes(t.status)){
+        if(t.ponyParcelId){await this.update(t.id,{status:'waiting',phase:'Waiting for Pony Post'});continue;}
         if(t.automatic||t.trigger?.kind==='goal_start'){await this.update(t.id,{status:'waiting',phase:'Goal paused'});continue;}
         if(humanInput(this.store.state,t)){await this.store.transact(s=>{const current=s.deskWork.tasks.find(task=>task.id===t.id);if(liveDeskTask(current)&&!current.startedAt)retainUnsentInput(s,current);return s;});continue;}
       }
@@ -347,6 +352,7 @@ export class DeskTasks {
   }
   async call(taskId,name,args,callId=null){
     const task=this.store.state.deskWork?.tasks.find(t=>t.id===taskId);fail(task&&this.entries.has(taskId)&&liveDeskTask(task),'This chair task is no longer active.');
+    if(MAIL_TOOLS.includes(name)){fail(this.ponyMail,'Pony Post is unavailable.');return this.ponyMail.call(task,name,args,callId);}
     if(name===GOAL_TOOL){let result;await this.store.transact(s=>{result=reportGoalWork(s,task,args,callId);return s;});return result;}
     if(name==='read_drawer')return readDrawer(this.store.state,task,args);
     if(name==='read_desk_updates')return deskUpdates(this.store.state,task.chatId,args.since??'');

@@ -11,3 +11,7 @@ selected policy and recipients before invoking these fixed operations.
 
 The four module hashes in the prepared runtime manifest identify the code
 actually loaded. The launcher imports this pinned directory explicitly.
+
+1.0 repair: reads verify and return one SQLite snapshot, keeping the records and
+revision head consistent during concurrent updates. The packaged manifest now
+points to these maintained files; the duplicate runtime copy is retired.

@@ -66,7 +66,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .mode-tab[aria-pressed="true"] { background: var(--surface-strong); box-shadow: 0 1px 3px rgba(37, 48, 45, .09); color: var(--ink); font-weight: 600; }
 .mode-dot { display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: 50%; background: var(--accent); }
 .details-toggle { margin-left: auto; }
-.conversation, .composer-wrap { width: min(800px, calc(100% - 56px)); margin-right: auto; margin-left: auto; }
+.conversation, .composer-wrap { width: calc(100% - 56px); margin-right: auto; margin-left: auto; }
 #conversation-heading { min-width: 0; }
 .conversation { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 10px 0 8px; }
 .composer-wrap { flex: 0 0 auto; padding: 8px 0 18px; }
@@ -106,7 +106,13 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .message.user { margin-left: auto; padding: 11px 13px; border: 1px solid var(--line); border-radius: 8px; background: var(--accent-wash); }
 .message-meta { display: flex; align-items: baseline; gap: 9px; margin-bottom: 4px; color: var(--muted); font-size: 11px; }
 .message-meta strong { color: var(--ink); }
-.message-meta .text-button { margin-left: auto; }
+.message-options-button { flex:none; align-self:center; width:24px; height:22px; padding:0; margin:-3px 0; border:0; border-radius:5px; background:transparent; color:var(--muted); cursor:pointer; user-select:none; }
+.message-options-button::before { content:"⚙︎"; font:17px/1 "Segoe UI Symbol",sans-serif; }
+.message-options-button:hover,.message-options-button[aria-expanded="true"] { color:var(--ink); background:var(--accent-wash); }
+.message-options-button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.message-options-menu { position:fixed; inset:auto; margin:0; padding:6px; width:max-content; max-width:calc(100vw - 16px); max-height:calc(100vh - 16px); overflow:auto; border:1px solid var(--line); border-radius:9px; background:var(--surface-strong); color:var(--ink); box-shadow:0 8px 26px #0002; z-index:1000; }
+.message-options-menu button { display:block; width:100%; padding:8px 12px; border:0; border-radius:5px; background:transparent; color:inherit; font:inherit; font-size:13px; text-align:left; white-space:normal; overflow-wrap:anywhere; cursor:pointer; }
+.message-options-menu button:hover,.message-options-menu button:focus-visible { background:var(--accent-wash); outline:2px solid transparent; }
 .message-body { overflow-wrap: anywhere; white-space: pre-wrap; }
 .markdown-body { min-width: 0; white-space: normal; line-height: 1.7; }
 .markdown-body p, .markdown-body ul, .markdown-body ol, .markdown-body blockquote, .markdown-body pre, .markdown-body table { margin: 0 0 1em; }
@@ -342,3 +348,11 @@ dialog::backdrop { background: var(--backdrop); }
 .resource-chair td{vertical-align:top}.resource-chair button{font-weight:600;text-align:left}.resource-chair-details>td{padding:0 .5rem 1rem}.resource-exchange-scroll{max-height:18rem;overflow:auto;border-left:2px solid var(--line);padding-left:.4rem}.resource-exchange-scroll table{font-size:.85em}
 
 .local-model-library{display:block}.local-model-library > .local-model-grid{display:grid;align-items:start;grid-template-columns:minmax(160px,.8fr) minmax(0,1.2fr);gap:20px}.local-model-list{border:1px solid var(--line);border-radius:12px;max-height:22rem;overflow:auto;padding:6px}.local-model-list button{display:block;width:100%;text-align:left;border:0;border-bottom:1px solid var(--line);background:transparent;padding:12px}.local-model-list button[aria-selected=true]{background:var(--accent-soft,#e3eee8)}.local-model-list small,.local-model-results small{display:block;color:var(--muted)}.local-model-preview{min-width:0}.local-model-preview h4{margin-top:0}.local-model-preview .detail-value{overflow-wrap:anywhere}.local-model-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}.local-model-library > .local-model-search{display:block;border-top:1px solid var(--line);margin-top:16px;padding-top:12px}.local-model-results{max-height:24rem;overflow:auto}.local-model-results>button{display:block;width:100%;text-align:left;margin:6px 0}.local-model-results .detail-value{overflow-wrap:anywhere;font-size:.8em}@media(max-width:600px){.local-model-library > .local-model-grid{grid-template-columns:1fr}.local-model-list{max-height:12rem}}
+
+/* Pony Post keeps its controls in its home, outside the conversation. */
+.pony-address{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.pony-home .pony-parcel{display:grid;gap:5px;border-top:1px solid var(--border,#ddd);padding:12px 0}
+.pony-home .pony-parcel button{text-align:left}
+.pony-parcel small{color:var(--muted,#61746a)}
+.pony-body{white-space:pre-wrap;overflow-wrap:anywhere;margin:20px 0}
+@media(max-width:600px){.pony-address{grid-template-columns:1fr}}

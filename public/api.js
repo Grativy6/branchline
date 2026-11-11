@@ -15,6 +15,9 @@ async function request(path, options = {}) {
 
 const contextStatuses = new Map();
 export const api = {
+  historyInput:id=>request('/api/history/input?id='+encodeURIComponent(id)),
+  pony:(route,input=null)=>request('/api/pony/'+route,input===null?{}:{method:'POST',body:JSON.stringify(input)}),
+  dreams: (route='',input=null) => request('/api/dreams/training'+route,input===null?{}:{method:'POST',body:JSON.stringify(input)}),
   activity: () => request('/api/activity'),
   goals: chatId => request('/api/desk/goals?'+new URLSearchParams({chatId})),
   goalAction: input => request('/api/desk/goals',{method:'POST',body:JSON.stringify(input)}),
@@ -51,8 +54,6 @@ export const api = {
   previewHarnessImport: file => request('/api/harnesses/import', { method: 'POST', body: JSON.stringify(file) }),
   parallelOptions: chatId => request('/api/parallel/options?' + new URLSearchParams({ chatId })),
   parallelStatus: chatId => request('/api/parallel/status?' + new URLSearchParams({ chatId })),
-  ponyStatus: chatId => request('/api/pony/status?' + new URLSearchParams({chatId})),
-  ponySend: input => request('/api/pony/send',{method:'POST',body:JSON.stringify(input)}),
   parallelStart: input => request('/api/parallel/start', { method:'POST', body:JSON.stringify(input) }),
   parallelCancel: runId => request('/api/parallel/cancel', { method:'POST', body:JSON.stringify({ runId }) }),
   peerSource: input => request('/api/hearth/source?'+new URLSearchParams(input)),

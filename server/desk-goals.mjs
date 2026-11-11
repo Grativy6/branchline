@@ -65,7 +65,7 @@ export function reportGoalWork(state, task, args, callId) {
   fail(goal, 'This task has no conversation goal.');
   fail(['continue', 'complete', 'partial', 'waiting', 'blocked', 'idle'].includes(args.status)
     && text(args.summary, 2000) && text(args.next_step, 4000) && text(args.wait_id, 120) && text(args.after, 120)
-    && ['none', 'chair', 'artifact', 'task'].includes(args.wait_for)
+    && ['none', 'chair', 'artifact', 'task', 'pony'].includes(args.wait_for)
     && Array.isArray(args.evidence) && args.evidence.length <= 12 && args.evidence.every(id => text(id, 120)), 'Use a concise goal status, next step or named dependency.');
   fail(args.status !== 'continue' || args.next_step.trim(), 'A continuation needs a concrete next step.');
   fail(args.status !== 'waiting' || args.wait_for !== 'none' && args.wait_id, 'Name the chair, artifact or task you are waiting for.');
@@ -73,6 +73,7 @@ export function reportGoalWork(state, task, args, callId) {
   for(const record of state.workAccess?.artifacts??[])if(record.chatId===task.chatId)known.add(record.id);
   for(const record of state.handoffs?.records??[])if(record.scope.chatId===task.chatId)known.add(record.id);
   fail(args.evidence.every(id => known.has(id)), 'Evidence must identify a record at this conversation.');
+  if(args.wait_for==='pony')fail(state.ponyMail?.parcels.some(p=>p.id===args.wait_id&&p.source.rootId===task.rootId),'Choose a parcel sent by this desk.');
   if (args.wait_for === 'chair') { const roster = chairRoster(state, state.chats.find(c => c.id === task.chatId)); fail([roster.desk, ...roster.visitors].some(c => c.id === args.wait_id), 'Choose a known chair ID.'); }
   if (args.after) fail((state.deskWork?.events ?? []).some(e => e.id === args.after && e.chatId === task.chatId), 'Choose a cursor from this conversation.');
   const event = goalEvent(state, goal, 'goal.report', { ...args, callId, goalRevisionId: state.exchanges.find(e => e.id === task.exchangeId)?.goal?.revisionId ?? task.goalRevisionId ?? goalRevision(goal).id,
@@ -108,6 +109,7 @@ export function dependencyEvent(state, task, report) {
   const consumed = new Set(goalEvents(state, task.goalId).filter(e => e.kind === 'goal.dispatched' && e.detail.chairId === task.chairId).map(e => e.detail.eventId).filter(Boolean));
   const events = all.slice(cursor + 1).filter(e => e.chatId === task.chatId && e.visibility !== 'drawer' && !consumed.has(e.id));
   const { wait_for: kind, wait_id: id } = report.detail;
+  if(kind==='pony')return events.find(e=>e.kind==='pony.returned'&&e.detail.parcelId===id)??null;
   if (kind === 'artifact') return events.find(e => e.kind === 'artifact.published' && e.detail.artifactId === id) ?? null;
   if (kind === 'task') return events.find(e => e.kind === 'task.finished' && e.taskId === id) ?? null;
   if (kind === 'chair') return events.find(e => e.chairId === id && (e.kind === 'artifact.published'

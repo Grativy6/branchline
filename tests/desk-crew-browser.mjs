@@ -29,10 +29,17 @@ try{
  await page.context().grantPermissions(['clipboard-read','clipboard-write']);
  await page.locator('#message-input').fill('UNSELECTED_DRAFT_MARKER');
  await f.app.store.transact(s=>{deskEvent(s,s.deskWork.tasks[0],'log.inspected',{message:'CLOSED_LOG_MARKER'});return s;});
- await page.locator('.desk-events summary').waitFor();
+ await page.locator('#work-controls > summary').click();
+ await page.locator('#desk-activity-list .desk-events summary').waitFor();
+ assert.equal(await page.locator('#conversation .desk-events, #conversation #desk-shared-work').count(),0);
+ await page.locator('#desk-activity-list .desk-events summary').click();
+ await page.locator('#desk-activity-list .desk-events').getByText('CLOSED_LOG_MARKER',{exact:false}).waitFor();
+ await f.app.store.transact(s=>{deskEvent(s,s.deskWork.tasks[0],'log.inspected',{message:'ACTIVITY_UPDATE_MARKER'});return s;});
+ await page.locator('#desk-activity-list .desk-events[open]').getByText('ACTIVITY_UPDATE_MARKER',{exact:false}).waitFor();
+ await page.locator('#work-controls > summary').click();
  const selectedText=await page.evaluate(()=>{
    const start=document.querySelector('#conversation .assistant .message-body p').firstChild;
-   const end=document.querySelector('.desk-events summary').firstChild;
+   const end=[...document.querySelectorAll('#conversation .assistant .message-body p')].at(-1).lastChild;
    const range=document.createRange();range.setStart(start,2);range.setEnd(end,end.textContent.length);
    const selection=getSelection();selection.removeAllRanges();selection.addRange(range);
    window.copyEndpoints={start,end};return selection.toString();
@@ -46,8 +53,8 @@ try{
    const items=await navigator.clipboard.read(),item=items.find(i=>i.types.includes('text/html'));
    return {text:await navigator.clipboard.readText(),html:item?await(await item.getType('text/html')).text():''};
  });
- assert.equal(copied.text,selectedText);assert(copied.html.includes('Desk activity'));
- for(const extra of ['UNSELECTED_DRAFT_MARKER','CLOSED_LOG_MARKER','composer-form','model-select','response-mode-description','Save note'])assert(!copied.html.includes(extra),extra+' leaked into clipboard');
+ assert.equal(copied.text,selectedText);assert(copied.html.includes('Test reply'));
+ for(const extra of ['UNSELECTED_DRAFT_MARKER','CLOSED_LOG_MARKER','ACTIVITY_UPDATE_MARKER','Desk activity','composer-form','model-select','response-mode-description','Save note'])assert(!copied.html.includes(extra),extra+' leaked into clipboard');
  await page.evaluate(()=>getSelection().removeAllRanges());await page.locator('#message-input').fill('');
  await page.getByRole('button',{name:'Select Hearthline',exact:true}).click();await page.getByRole('button',{name:'Alternate',exact:true}).click();await page.locator('[data-action="reply-pattern"][data-id="alternate"][aria-pressed="true"]').waitFor();await page.locator('#message-input').fill('Take a turn.');await page.locator('#send-button').click();await until(()=>f.requests.length===7,'alternating turn');finish(f.requests[6]);await until(()=>f.app.store.state.deskWork.tasks.every(t=>t.status==='completed'),'alternating reply');await page.locator('.visitor-row[aria-selected="true"]').filter({hasText:'Qwen'}).waitFor();
  for(const width of [1365,800,390]){await page.setViewportSize({width,height:950});if(width<760&&await page.locator('#app-shell').evaluate(e=>e.classList.contains('nav-open')))await page.getByRole('button',{name:'Close navigation',exact:true}).click();assert.equal(await highlightCount(),1);assert(await page.getByRole('button',{name:'Edit Desk Model',exact:true}).isVisible());assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await page.screenshot({path:`.test-output/desk-crew-${width}.png`});}

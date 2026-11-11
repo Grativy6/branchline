@@ -1,5 +1,11 @@
+import {recoverUnheldLegacyLock} from './legacy-writer-lock.mjs';
 import {preserveLocalModels} from './local-model-state.mjs';
+import {preserveDreamTraining} from './dream-training-state.mjs';
 import fs from 'node:fs/promises';
+import {HistoryInputs} from './history-inputs.mjs';
+import {freezeAndShare,shareReceiptCopies} from './immutable-json.mjs';
+import {DatabaseSync} from 'node:sqlite';
+import {recoverJournalTail} from './journal-recovery.mjs';
 import { preserveDeskWork } from './desk-work.mjs';
 import {preserveWorkAccess} from './work-access.mjs';
 import {preserveHome} from './home-state.mjs';
@@ -23,6 +29,7 @@ import { preserveSketchBook } from './sketches.mjs';
 import { preservePc } from './pc-permissions.mjs';
 import {preserveNav} from './nav-state.mjs';
 import { preserveParallelHistory } from './parallel-state.mjs';
+import { preserveMail } from './pony-mail-state.mjs';
 import { preservePony } from './pony-state.mjs';
 import { replayJournal } from './journal.mjs';
 import { journalChange } from './journal-change.mjs';
@@ -34,6 +41,7 @@ import { findStartupCheckpoint, makeStartupCheckpoint, publishStartupCheckpoint,
 export class Store {
   constructor(dataDir, { checkpoints = true, checkpointWriter = publishStartupCheckpoint, checkpointPolicy = {}, compressionThreshold = PACK_THRESHOLD } = {}) {
     this.dataDir = path.resolve(dataDir);
+    this.inputs=new HistoryInputs(this.dataDir);
     this.file = path.join(this.dataDir, 'events.jsonl');
     this.lockFile = path.join(this.dataDir, '.writer.lock');
     this.state = initialState();
@@ -69,11 +77,25 @@ export class Store {
   }
 
   async acquireLock() {
+    // SQLite supplies a process-lifetime OS lock on every supported platform.
+    // It carries no conversation data; its lock disappears when its owner dies.
+    const guardFile=path.join(this.dataDir,'.writer-guard.sqlite3');
+    const priorGuard=await fs.lstat(guardFile).catch(e=>e.code==='ENOENT'?null:Promise.reject(e));
+    if(priorGuard&&(!priorGuard.isFile()||priorGuard.isSymbolicLink()||priorGuard.nlink>1))throw new Error('The workspace writer guard is not an ordinary owned file.');
+    this.writerGuard=new DatabaseSync(guardFile);
+    try{this.writerGuard.exec('PRAGMA busy_timeout=0; PRAGMA locking_mode=EXCLUSIVE; BEGIN EXCLUSIVE; CREATE TABLE IF NOT EXISTS guard (id INTEGER PRIMARY KEY);');}
+    catch(error){this.writerGuard.close();this.writerGuard=null;throw new Error('This workspace already has an active writer. Close its other Branchline window or backend first.');}
+    const guard=await fs.stat(guardFile);
+    this.owner={...this.owner,profile:'branchline.writer/2',guard:{dev:guard.dev,ino:guard.ino}};
+    try{
+
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        this.lockHandle = await fs.open(this.lockFile, 'wx');
-        await this.lockHandle.writeFile(JSON.stringify(this.owner));
-        await this.lockHandle.sync();
+        const pending=this.lockFile+'.pending-'+this.owner.token;
+        const prepared=await fs.open(pending,'wx',0o600);
+        try{await prepared.writeFile(JSON.stringify(this.owner));await prepared.sync();}finally{await prepared.close();}
+        try{await fs.link(pending,this.lockFile);this.lockHandle=await fs.open(this.lockFile,'r');}
+        finally{await fs.unlink(pending);}
         return;
       } catch (err) {
         if (err.code !== 'EEXIST') throw err;
@@ -86,21 +108,25 @@ export class Store {
         let alive = true;
         try { process.kill(prior.pid, 0); }
         catch (probe) { if (probe.code === 'ESRCH') alive = false; }
-        if (alive) throw new Error('The workspace writer-lock process is still running. It may be another Branchline server or a reused process ID. Preserve the workspace and inspect its owner before recovery.');
+        const releasedGuard=prior.profile==='branchline.writer/2'&&prior.guard?.dev===guard.dev&&prior.guard?.ino===guard.ino;
+        if(alive&&!releasedGuard){const recovered=await recoverUnheldLegacyLock(this.lockFile,prior);if(recovered){this.writerRecovery=recovered;continue;}throw new Error('An earlier Branchline writer may still own this workspace. Close that backend before reopening; its metadata has been kept.');}
         const current = JSON.parse(await fs.readFile(this.lockFile, 'utf8'));
         if (current.token !== prior.token) throw new Error('Workspace ownership changed during recovery. Try again.');
         await fs.unlink(this.lockFile);
       }
     }
     throw new Error('Could not acquire the workspace writer lock.');
+    }catch(error){await this.lockHandle?.close();this.lockHandle=null;this.writerGuard?.close();this.writerGuard=null;throw error;}
   }
 
-  async open({ onProgress } = {}) {
+  open(options={}){return this.inputs.run(()=>this.openWithInputs(options));}
+  async openWithInputs({ onProgress } = {}) {
     await fs.mkdir(this.dataDir, { recursive: true });
     await this.acquireLock();
     try {
-      this.freshWorkspace = (await fs.readdir(this.dataDir)).every(name => name === '.writer.lock');
+      this.freshWorkspace = (await fs.readdir(this.dataDir)).every(name => ['.writer.lock','.writer-guard.sqlite3','.writer-guard.sqlite3-journal'].includes(name));
       await this.loadWorkspaceIdentity();
+      this.journalRecovery=await recoverJournalTail(this.file);
       const started = performance.now();
       const info = await journalInfo(this.file).catch(error => error.code === 'ENOENT' ? null : Promise.reject(error));
       const before = info?.stat;
@@ -120,7 +146,8 @@ export class Store {
       const replay = before ? await replayJournal(this.file, { onProgress, seed: found.seed })
         : { state: this.state, recordCount: 0, bytes: 0, boundary: null, hasher: this.journalHasher };
       if (before && (!sameJournal(before, await fs.stat(this.file)) || replay.bytes !== info.bytes)) throw new Error('Journal changed outside its writer during startup.');
-      this.state = replay.state;
+      this.inputs.verifyState(replay.state);
+      this.state = shareReceiptCopies(freezeAndShare(replay.state));
       this.sequence = replay.recordCount;
       this.journalBytes = replay.bytes;
       this.storedJournalBytes = info?.storedBytes ?? 0;
@@ -137,12 +164,13 @@ export class Store {
       this.checkpointBytes = found.seed?.bytes ?? 0;
       this.checkpointSlot = found.slot ?? null;
       this.loaded = true;
+      if(this.state.handoffs?.records.some(r=>r.kind==='context.to_model'&&Array.isArray(r.detail.inputMessages)))await this.transact(s=>{this.inputs.migrate(s);return s;},{returnState:false});
       if (this.sequence) await this.compressHistory(onProgress);
       if (this.checkpoints) await compressLegacyCheckpoints(this.dataDir);
       // Packing changes physical bytes, even when no logical record changed.
       // Publish that new binding before the next startup can use the fast path.
       if (this.checkpointEncodingChanged) await this.requestCheckpoint();
-      this.startupDiagnostics = { path: found.seed ? 'checkpoint' : 'full-replay',
+      this.startupDiagnostics = { recovery:this.journalRecovery??null, writerRecovery:this.writerRecovery??null, path: found.seed ? 'checkpoint' : 'full-replay',
         coveredSequence: found.seed?.recordCount ?? 0, coveredBytes: found.seed?.bytes ?? 0,
         tailRecords: this.sequence - (found.seed?.recordCount ?? 0), journalBytes: this.journalBytes,
         storedJournalBytes: this.storedJournalBytes, compressedJournal: this.compressedJournal,
@@ -189,18 +217,21 @@ export class Store {
 
   #transact(update, returnState, draftCommand = null) {
     if (this.closing || this.closed) return Promise.reject(new Error('Workspace is closing.'));
-    const transaction = this.writeChain.then(async () => {
+    const transaction = this.writeChain.then(() => this.inputs.run(async () => {
       if (this.closed || !this.lockHandle) throw new Error('Workspace is closed.');
       if (this.writeFault) throw new Error('A prior save failed. Restart and inspect the journal before writing again.');
       const next = draftCommand ? updateDraft(this.state, draftCommand.payload ?? {}) : update(clone(this.state));
       if (next?.then) throw new Error('Store transactions must be synchronous.');
+      if(!draftCommand)freezeAndShare(next,this.state,true);
       if (this.dreamRecoveryPending && inferencePending(next)) throw new Error('A Dream recovery is preparing. Finish or cancel it before starting model work.');
       if (draftCommand) {
         // No caller-supplied update function can use this path. History and grants
         // retain their identities; only one checked composer string is replaced.
         recordUiCommand(this.state, next, draftCommand);
+        freezeAndShare(next,this.state,true);
       } else {
         validateState(next);
+        preserveDreamTraining(this.state, next);
         preserveDeskWork(this.state, next);
         preserveLocalModels(this.state, next);
         preserveImages(this.state, next);
@@ -221,6 +252,7 @@ export class Store {
         preserveEasel(this.state, next);
         preserveParallelHistory(this.state, next);
         preservePony(this.state, next);
+        preserveMail(this.state, next);
         preserveContinuityHistory(this.state, next);
         enforceModelWrite(this.state, next);
         enforceAdoptionWrite(this.state, next);
@@ -232,6 +264,7 @@ export class Store {
       const storedEvent = this.compressedJournal ? encodeJournalFrame(event) : event;
       let handle;
       try {
+        await this.inputs.flush();
         handle = await fs.open(this.file, 'a');
         if ((await handle.stat()).size !== this.storedJournalBytes) throw new Error('Journal size changed outside its writer.');
         await handle.writeFile(storedEvent);
@@ -241,7 +274,7 @@ export class Store {
         this.writeFault = err;
         throw new Error('Local save failed: ' + err.message);
       } finally { await handle?.close(); }
-      this.state = draftCommand ? next : clone(next);
+      this.state = shareReceiptCopies(next);
       this.sequence = sequence;
       this.journalHasher?.update(event);
       this.storedJournalHasher?.update(storedEvent);
@@ -251,7 +284,7 @@ export class Store {
       this.storedJournalBytes += storedEvent.length;
       this.scheduleCheckpoint();
       return returnState ? clone(this.state) : undefined;
-    });
+    }));
     // Validation errors do not poison the queue; partial filesystem writes do.
     this.writeChain = transaction.catch(() => {});
     return transaction;
@@ -404,13 +437,13 @@ export class Store {
         this.closed = true;
         const ownedHandle = this.lockHandle;
         this.lockHandle = null;
-        if (ownedHandle) {
+        try{if (ownedHandle) {
           await ownedHandle.close();
           try {
             const current = JSON.parse(await fs.readFile(this.lockFile, 'utf8'));
             if (current.token === this.owner.token) await fs.unlink(this.lockFile);
           } catch (err) { if (err.code !== 'ENOENT') throw err; }
-        }
+        }}finally{this.writerGuard?.close();this.writerGuard=null;}
       }
     })();
     return this.closePromise;

@@ -37,19 +37,19 @@ export function imageHistory(state, exchange) {
   return { role: 'user', content: '[Pictures saved with this earlier turn — metadata only here; pixels are supplied only when explicitly attached to the current request]\n'
     + JSON.stringify(selectedImages(state, exchange.chatId, ids).map(imageDescription)) };
 }
-export function recordImageSelection(state, chatId, snapshot) {
+export function recordImageSelection(state, chatId, snapshot, {activate=true,parcelId=null}={}) {
   const scope = scopeFor(state, chatId), images = imageState(state);
-  fail(activeImageIds(state, chatId).length < IMAGE_LIMITS.count, 'remove a selected picture before adding another.');
+  fail(!activate || activeImageIds(state, chatId).length < IMAGE_LIMITS.count, 'remove a selected picture before adding another.');
   const id = uid(), taskId = id;
-  const request = recordHandoff(state, { kind: 'image.selection', taskId, scope, from: 'local_ui', to: 'bounded_image_decoder', payload: snapshot,
-    status: 'REQUEST_RECORDED', detail: { selection: snapshot, authority: 'local_UI_selected_bytes_only' } });
+  const request = recordHandoff(state, { kind: 'image.selection', taskId, scope, from: parcelId?'pony_post':'local_ui', to: 'bounded_image_decoder', payload: snapshot,
+    status: 'REQUEST_RECORDED', detail: { selection: snapshot, authority: parcelId?'accepted_postal_attachment':'local_UI_selected_bytes_only',...(parcelId?{parcelId}:{}) } });
   const reviewBasis = { selection: request.hash, scope, original: snapshot.original.sha256, view: snapshot.view.sha256, effect: 'retain_selected_image' };
   const review = makeReview('selected-image/1', reviewBasis, { scope_current: true, bytes_bounded: true, format_checked: true, pixels_bounded: true, selection_bound: true });
   fail(reviewAllowsEffect(review), 'image intake was not cleared.');
   const receipt = recordHandoff(state, { kind: 'image.read', taskId, scope, from: 'bounded_image_decoder', to: 'shared_task', payload: snapshot,
     parents: [request.id], status: 'WITHIN_LOCAL_PROFILE', detail: { reviewBasis, review, snapshot, sourceRole: 'image_evidence', executionAuthority: 'NONE', peaJudgment: null } });
   const image = { id, chatId, createdAt: new Date().toISOString(), receiptId: receipt.id, ...snapshot };
-  images.selections.push(image); images.active[chatId] = [...activeImageIds(state, chatId), id]; reviseSelection(state, chatId); return image;
+  images.selections.push(image); if(activate){images.active[chatId] = [...activeImageIds(state, chatId), id]; reviseSelection(state, chatId);} return image;
 }
 export function applyImageSelection(state, chatId, ids) {
   scopeFor(state, chatId); selectedImages(state, chatId, ids);

@@ -1,6 +1,8 @@
+import {isInputRef,originalReceipt,receiptDigest,withInputMaterial,currentInputReader,readInput} from './history-inputs.mjs';
 import { digest } from './integrity.mjs';
 import { validateRecordedReview, validateReviewSources } from './review.mjs';
 
+export const INPUT_WIRE='branchline.handoff-wire/5';
 export const WIRE = 'branchline.handoff-wire/1';
 export const PARALLEL_WIRE = 'branchline.handoff-wire/2';
 export const HEARTH_WIRE = 'branchline.handoff-wire/3';
@@ -15,9 +17,10 @@ const exactKeys = (value, keys) => object(value) && Object.keys(value).sort().jo
 function verifyRecord(record) {
   fail(object(record) && hash(record.hash), 'invalid receipt');
   const { hash: expected, ...value } = record;
-  fail(digest(value) === expected && record.authorityCreated === false, 'receipt changed or claimed authority');
+  fail(receiptDigest(record) === expected && record.authorityCreated === false, 'receipt changed or claimed authority');
   fail(record.profile === 'branchline.ppp-handoff/0.1', 'unknown source profile');
   fail(typeof record.taskId === 'string' && record.taskId.length > 0 && typeof record.id === 'string' && typeof record.kind === 'string' && object(record.scope) && Array.isArray(record.parents), 'missing receipt boundary');
+  if(isInputRef(record.detail?.inputMessages))readInput(record.detail.inputMessages);
   validateRecordedReview(record);
 }
 
@@ -67,7 +70,10 @@ function verifyTaskBoundary(records, taskId, version) {
 // Wire-only, lossless structural sharing. The original journal is not migrated.
 // A node is ['a', children], ['o', sorted key/token pairs], or ['v', a long string].
 // A token is [0, inline JSON] or [1, SHA-256 node reference]. No summaries replace data.
-export function packHandoffs(records, { known = [], taskId: requestedTaskId } = {}) {
+export function packHandoffs(records, { known = [], taskId: requestedTaskId, inputReader=currentInputReader() } = {}) {
+  records=records.map(r=>originalReceipt(r,inputReader));
+  const referenced=records.filter(r=>isInputRef(r.detail?.inputMessages));
+  const material=Object.fromEntries(referenced.map(r=>[r.detail.inputMessages.sha256,inputReader.read(r.detail.inputMessages)]));
   fail(Array.isArray(records) && records.length <= LIMITS.records, 'too many receipts');
   fail(Array.isArray(known) && known.length <= LIMITS.nodes && known.every(hash), 'invalid cache advertisement');
   fail(bytes(records) <= LIMITS.expandedBytes, 'expanded data exceeds limit');
@@ -94,13 +100,15 @@ export function packHandoffs(records, { known = [], taskId: requestedTaskId } = 
   });
   verifySources(records);
   const nodes = Object.fromEntries([...all].filter(([key]) => !advertised.has(key)));
-  const packet = { v: version, task: taskId, r: headers, n: nodes };
+  const packet = { v: referenced.length?INPUT_WIRE:version, task: taskId, r: headers, n: nodes,...(referenced.length?{baseVersion:version,inputMaterial:material}: {}) };
   fail(bytes(packet) <= LIMITS.packetBytes, 'packet exceeds limit');
   return packet;
 }
 
-export function unpackHandoffs(packet, { cache = new Map() } = {}) {
-  fail(exactKeys(packet, ['v', 'task', 'r', 'n']) && [WIRE,PARALLEL_WIRE,HEARTH_WIRE,PONY_WIRE].includes(packet.v), 'unknown schema or version');
+export function unpackHandoffs(packet,options={}){return withInputMaterial(packet?.inputMaterial??{},()=>unpackWithInputs(packet,options));}
+function unpackWithInputs(packet, { cache = new Map() } = {}) {
+  fail(exactKeys(packet, ['v', 'task', 'r', 'n',...(packet?.v===INPUT_WIRE?['baseVersion','inputMaterial']:[])]) && [WIRE,PARALLEL_WIRE,HEARTH_WIRE,PONY_WIRE,INPUT_WIRE].includes(packet.v), 'unknown schema or version');
+  if(packet.v===INPUT_WIRE)fail([WIRE,PARALLEL_WIRE,HEARTH_WIRE,PONY_WIRE].includes(packet.baseVersion)&&object(packet.inputMaterial),'unknown input packet basis.');
   fail(Array.isArray(packet.r) && packet.r.length <= LIMITS.records && object(packet.n), 'invalid packet shape');
   fail(packet.task === null || typeof packet.task === 'string', 'invalid task');
   fail(bytes(packet) <= LIMITS.packetBytes && Object.keys(packet.n).length <= LIMITS.nodes, 'packet exceeds limit');
@@ -147,7 +155,7 @@ export function unpackHandoffs(packet, { cache = new Map() } = {}) {
     fail(!ids.has(record.id), 'duplicate receipt'); ids.add(record.id);
     return structuredClone(record);
   });
-  verifyTaskBoundary(records,packet.task,packet.v);
+  verifyTaskBoundary(records,packet.task,packet.baseVersion??packet.v);
   verifySources(records);
   // Do not admit an incomplete packet to the cache. No method here issues a grant.
   for (const [key, node] of staged) if (memo.has(key)) cache.set(key, structuredClone(node));

@@ -68,8 +68,8 @@ export async function discoverModels(baseUrl, { timeoutMs = 5000, maxResponseByt
   }
 }
 
-export function compileMessages(state, chatId, content, { maxContextCharacters = 60000, selectedFile = null, selectedImages = [], selection = null, requestKind = 'send', followUp = false, coatSnapshot = null, selectedSketch = null } = {}) {
-  return buildMessages(state, chatId, content, { maxContextCharacters, selectedFile, selectedImages, selection, requestKind, followUp, coatSnapshot, selectedSketch }).messages;
+export function compileMessages(state, chatId, content, { maxContextCharacters = 60000, selectedFile = null, selectedImages = [], selection = null, requestKind = 'send', followUp = false, coatSnapshot = null, selectedSketch = null, goalId = undefined, ponyRead = null, ponyAssert = null, ponyCurrentId = null } = {}) {
+  return buildMessages(state, chatId, content, { maxContextCharacters, selectedFile, selectedImages, selection, requestKind, followUp, coatSnapshot, selectedSketch, goalId, ponyRead, ponyAssert, ponyCurrentId }).messages;
 }
 
 // Measure the actual prompt once. Fixed context includes current guidance,
@@ -79,10 +79,10 @@ export function measureContext(state, chatId, content, options = {}) {
   return { characters, fixedCharacters };
 }
 
-function buildMessages(state, chatId, content, { maxContextCharacters = 60000, selectedFile = null, selectedImages = [], selection = null, requestKind = 'send', followUp = false, coatSnapshot = null, selectedSketch = null, originalWindow = maxContextCharacters, includeOriginalHistory = false, goalId = undefined } = {}) {
+function buildMessages(state, chatId, content, { maxContextCharacters = 60000, selectedFile = null, selectedImages = [], selection = null, requestKind = 'send', followUp = false, coatSnapshot = null, selectedSketch = null, originalWindow = maxContextCharacters, includeOriginalHistory = false, goalId = undefined, ponyRead = null, ponyAssert = null, ponyCurrentId = null } = {}) {
   state = chairView(state,chatId,selection?.chairId);
   if(!includeOriginalHistory&&state.chats.find(c=>c.id===chatId)?.contextPolicy===2&&activeCarry(state,chatId)&&Number.isFinite(originalWindow)){
-    try{return buildMessages(state,chatId,content,{maxContextCharacters:Math.min(maxContextCharacters,originalWindow),selectedFile,selectedImages,selection,requestKind,followUp,coatSnapshot,selectedSketch,includeOriginalHistory:true,goalId});}
+    try{return buildMessages(state,chatId,content,{maxContextCharacters:Math.min(maxContextCharacters,originalWindow),selectedFile,selectedImages,selection,requestKind,followUp,coatSnapshot,selectedSketch,includeOriginalHistory:true,goalId,ponyRead,ponyAssert,ponyCurrentId});}
     catch(error){if(!error.message.includes('working-context limit'))throw error;}
   }
   validateHandoffs(state);
@@ -120,6 +120,7 @@ function buildMessages(state, chatId, content, { maxContextCharacters = 60000, s
   }
   messages.push(...home.filter(m=>m.role!=='system'));
   messages.push(...deskContext(state,chatId,selection,Math.min(6000,Number.isFinite(maxContextCharacters)?Math.floor(maxContextCharacters/8):6000),goalId,minimalLocal));
+  if(ponyAssert&&selection?.modelId)ponyAssert(state,chatId,state.models.find(m=>m.id===selection.modelId));
   const selectedResults = (state.mcpContext?.[chatId] || []).map(id => state.mcpResults?.find(result => result.id === id)).filter(Boolean);
   const account = mindContext(state, chatId);
   if (account) messages.push(account);
@@ -130,7 +131,8 @@ function buildMessages(state, chatId, content, { maxContextCharacters = 60000, s
   const history = [];
   let reply = 0;
   for (const message of state.messages.filter(item => item.chatId === chatId).slice(includeOriginalHistory?0:carriedPrefixLength(state, chatId))) {
-    if (message.kind === 'parallel') history.push(...toolEvidence(state,message.parallelEpisodeId), parallelEvidence(state, message));
+    if (message.kind === 'pony') { if(message.ponyParcelId===ponyCurrentId)continue; if(!ponyRead)throw new Error('Pony Post reader is unavailable.'); history.push({role:'user',content:ponyRead(state,message.ponyParcelId)}); }
+    else if (message.kind === 'parallel') history.push(...toolEvidence(state,message.parallelEpisodeId), parallelEvidence(state, message));
     else if (message.kind === 'note') history.push({ role: 'user', content: '[Saved chat note] ' + message.content });
     else if (selection || completed.has(message.exchangeId)) {
       const turn = state.exchanges.find(item => item.id === message.exchangeId);

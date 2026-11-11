@@ -12,3 +12,7 @@ training/phoenix-pilot/artifacts/
 training/phoenix-pilot/__pycache__/
 training/phoenix-pilot/tests/__pycache__/
 experiments/native-episodes/__pycache__/
+
+# Local Dream worker compilation caches
+unsloth_compiled_cache/
+server/dream_runtime/__pycache__/
