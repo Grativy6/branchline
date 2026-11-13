@@ -61,7 +61,7 @@ Attached pictures follow Select, Alternate, All and explicit chair groups. One s
 - Optional context handoffs, local backups and export/restore.
 - Local Qwen and separately chosen provider connections, including the existing ChatGPT sign-in route.
 
-Read [PREVIEW-LIMITS.md](PREVIEW-LIMITS.md) and [VERIFICATION.md](VERIFICATION.md) for practical boundaries and the checks actually performed. Back up an existing workspace before updating. Chair work, including an ordinary model reply, creates workspace format 4; an older app needs the preserved older workspace copy for rollback.
+Read [PREVIEW-LIMITS.md](PREVIEW-LIMITS.md) and [VERIFICATION.md](VERIFICATION.md) for practical boundaries and the checks actually performed. Back up an existing workspace before updating. Version 1.1 reads earlier records and writes workspace format 7; an older app needs the preserved older workspace copy for rollback.
 
 ## Development and packaging
 
