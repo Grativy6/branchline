@@ -13,6 +13,7 @@ export async function loadLicences(panel) {
     const index = await response.json();
     if (!panel.isConnected) return;
     panel.innerHTML = `<h3>Branchline <small>${e(index.version)}</small></h3>
+      <p><button type="button" class="primary-button" data-action="preview-help">How-to guide</button></p>
       <p>Founded by Christopher Daniel Pang.<br>Copyright 2026 Christopher Daniel Pang.</p>
       <p>Branchline’s own application is licensed under Apache-2.0. You can use, modify and share it under those terms. Included components keep their own licences.</p>
       <p class="muted">These notices are included with the app and can be read offline.</p>

@@ -16,12 +16,13 @@ export async function* streamLocalTools(endpoint, baseBody, tools, signal, maxRe
     // Never silently trim them or send an unbounded continuation to the model.
     // The caller has already reserved the image allowance. Count text parts,
     // never array length or base64 as if it were ordinary conversation text.
-    const characters = messages.reduce((n, m) => n + (Array.isArray(m.content) ? m.content.reduce((sum,p) => sum + (p.type === 'text' ? p.text.length : 0), 0) : m.content?.length || 0) + (m.tool_calls ? JSON.stringify(m.tool_calls).length : 0), 0);
+    const characters = messages.reduce((n, m) => n + (Array.isArray(m.content) ? m.content.reduce((sum,p) => sum + (p.type === 'text' ? p.text.length : 0), 0) : m.content?.length || 0) + (m.reasoning_content?.length??0)+(m.reasoning?.length??0) + (m.tool_calls ? JSON.stringify(m.tool_calls).length : 0), 0);
     if (characters > maxContextCharacters) throw new Error('Tool results filled this model’s working context. The results remain saved. Open Context to make room before continuing.');
     metrics?.beginRound(round);
     const response = await request(endpoint, { method:'POST', headers:{'content-type':'application/json'}, redirect:'error', signal,
       body:JSON.stringify({ ...baseBody, messages, tools:tools.definitions.map(d=>({type:'function',function:d})), tool_choice:round===rounds?'none':'auto' }) });
     if (!response.ok) { await response.body?.cancel(); throw new Error('The local model could not use the structured tool connection (HTTP ' + response.status + '). Turn Tools off for a text-only reply.'); }
+    const reasoning={};
     let buffer = '', text = '', bytes = 0, finish = null, done = false;
     const calls = new Map(), decoder = new TextDecoder();
     const parse = function*(record) {
@@ -37,6 +38,7 @@ export async function* streamLocalTools(endpoint, baseBody, tools, signal, maxRe
         total += Buffer.byteLength(delta.content); if (total > maxResponseBytes) throw new Error('Reply exceeded its output limit.');
         text += delta.content; yield { text:delta.content };
       }
+      for(const field of ['reasoning_content','reasoning'])if(typeof delta[field]==='string'&&delta[field]){reasoning[field]=(reasoning[field]??'')+delta[field];yield {note:{source:'native_thinking',itemId:'local-round-'+round+'-'+field,part:0,text:delta[field]}};}
       for (const fragment of delta.tool_calls || []) {
         if (!Number.isInteger(fragment.index) || fragment.index < 0 || fragment.index >= 8) throw new Error('Invalid tool call index.');
         const call = calls.get(fragment.index) || { id:'', type:'function', function:{name:'',arguments:''} };
@@ -44,7 +46,7 @@ export async function* streamLocalTools(endpoint, baseBody, tools, signal, maxRe
         if (fragment.id) call.id += fragment.id;
         if (fragment.function?.name) call.function.name += fragment.function.name;
         if (fragment.function?.arguments) call.function.arguments += fragment.function.arguments;
-        if (call.id.length > 200 || call.function.name.length > 100 || call.function.arguments.length > 12000) throw new Error('Tool request exceeded its limits.');
+        if (call.id.length > 200 || call.function.name.length > 100 || call.function.arguments.length > (call.function.name==='record_reasoning_note'?96000:12000)) throw new Error('Tool request exceeded its limits.');
         calls.set(fragment.index,call);
       }
     };
@@ -58,7 +60,7 @@ export async function* streamLocalTools(endpoint, baseBody, tools, signal, maxRe
     if (!calls.size) { if (!text.trim()) throw new Error('The model returned no text reply.'); return finish; }
     if (finish !== 'tool_calls' || round === rounds) throw new Error('Incomplete tool request or tool-round limit reached. No partial call was executed.');
     const requested = [...calls.entries()].sort(([a],[b])=>a-b).map(([,call])=>call);
-    messages.push({role:'assistant',content:text||null,tool_calls:requested});
+    messages.push({role:'assistant',content:text||null,...reasoning,tool_calls:requested});
     for (const call of requested) {
       let args; try { args = JSON.parse(call.function.arguments); } catch { throw new Error('The model returned malformed tool arguments.'); }
       const result = await tools.invoke(call.function.name,args,call.id);

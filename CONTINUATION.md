@@ -74,3 +74,15 @@ retain their original binding rules and history.
 ## Development 0.8.14 picture and opening behavior
 
 The + button opens one file picker for supported pictures and UTF-8 text. An ordinary picture clears from the composer after a successful reply and remains attached to its original message. Look again reselects that source; Keep in view deliberately retains it for later replies. Failed or incomplete replies preserve the picture selection. Activity is beside the composer. The development room launcher shows visible opening feedback and prepares the local model while saved work becomes available.
+
+## Continue from a handoff
+
+Click the cloud counter and choose **Continue from this handoff** at the top. The preview shows the resulting input size. The button selects the prepared account (or continues from the selected account), establishes a saved working-input boundary and makes no model call. Send your next message or use the existing Resume / Send queued controls when ready.
+
+Original messages and tool receipts stay saved. The next request keeps the Coat, handoff, goal and selected desk/drawer context, plus a short map of work recorded after the handoff. Old transcript bodies are omitted; later historical tool results use retrieval handles instead of repeating full output. Tools within a running request retain their normal live results. Running requests keep their captured context, and replies or messages arriving after the chosen point remain in the new working transcript.
+
+Use **Reopen another original message** to inspect saved text and evidence. Models with Tools and the Reopen chat sources pocket can retrieve the same material. **Use full history again** restores ordinary history inclusion. The reset survives reopening the app and does not recolor or change any Coat.
+
+A prepared account alone does not display Stop this episode. A failed request that never started provides **Copy unsent request to draft** on its original prompt; only unsent chairs are addressed. Recorded requests identify which handoff was actually used.
+
+[Short how-to guide](public/how-to.md).

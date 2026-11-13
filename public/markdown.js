@@ -14,6 +14,14 @@ function linkLabel(renderer, tokens) {
 }
 
 const renderer = new marked.Renderer();
+let blockIndex=0;
+function codeBlock(text,language=''){
+  const code=String(text??''),lines=code.split('\n').length,label=String(language).split(/\s/)[0].slice(0,30)||'Code';
+  const body=`<pre><code>${escapeHtml(code)}</code></pre>`;
+  if(lines<=10&&code.length<=1000)return body;
+  return `<details class="output-panel" data-output-key="${blockIndex++}"><summary><span>${escapeHtml(label)} · ${lines.toLocaleString()} line${lines===1?'':'s'}</span><button type="button" class="text-button" data-output-copy>Copy</button><span class="output-expand">Expand</span><span class="output-collapse">Collapse</span></summary><div class="output-scroll" tabindex="0" aria-label="${escapeHtml(label)} output">${body}</div></details>`;
+}
+renderer.code=({text,lang})=>codeBlock(text,lang);
 
 // Links are shown as readable text. Branchline does not turn assistant output
 // into a navigation surface in this slice.
@@ -35,7 +43,7 @@ renderer.image = function inertImage({ href, text, tokens }) {
 // Raw HTML is content, not markup. Marked's normal output remains available for
 // Markdown structure (paragraphs, lists, code, blockquotes, and tables).
 renderer.html = function literalHtml({ text }) {
-  return escapeHtml(text);
+  return text.length>1000?codeBlock(text,'HTML'):escapeHtml(text);
 };
 
 // Task-list syntax must not create an interactive input control.
@@ -66,6 +74,7 @@ const markedOptions = {
  */
 export function renderMarkdown(text) {
   if (text == null || text === '') return '';
+  blockIndex=0;
   return marked.parse(String(text), markedOptions);
 }
 

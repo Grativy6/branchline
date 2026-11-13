@@ -1,4 +1,14 @@
-# Verification for Branchline 1.0
+# Verification for Branchline 1.1
+
+## 1.1 release checks
+
+The backend suite passed 137 tests. Focused browser checks cover handoff selection, input reduction, recorded input, retained code selection and scroll position, complete Copy, hidden shared work, discard/reload behavior, and the in-app guide. The native-backdrop color checks cover 15 color/theme combinations with body-text contrast above 7.49:1.
+
+The final touchups check that busy desk events cannot cut off the artifact index, updated own notes become the return point, broadcasts retain recipients without repeating the prompt, distinct later prompts remain distinct, starter colors stay locked, and custom colors remain editable and portable.
+
+Reply-lifetime tests exercise work beyond the former deadline through a tool continuation, explicit Stop, and provider-error reporting. These checks use synthetic responses and do not claim a model-quality improvement. Local Dreams training behavior is unchanged from the qualified 1.0 backend.
+
+Packaged startup, installer and download-helper results accompany the release in INSTALLER-VERIFICATION.json. Older dated checks below describe their original scope and are retained as history.
 
 ## 1.0 release checks
 

@@ -1,10 +1,16 @@
-# Branchline 1.0
+# Branchline 1.1
 
 A local home for conversations, ideas and shared work with AI. Keep your desks, branches and history while choosing the models you work with.
 
-[Download Branchline 1.0 for Windows](https://github.com/Grativy6/branchline/releases/tag/v1.0.0) or start with [START-HERE.md](START-HERE.md). The normal installer includes stock Qwen3.5-4B. It needs no Branchline account or purchased stamp. This is an unsigned Windows x64 application.
+[Download Branchline 1.1 for Windows](https://github.com/Grativy6/branchline/releases/tag/v1.1.0) or start with [START-HERE.md](START-HERE.md). The normal installer includes stock Qwen3.5-4B. It needs no Branchline account or purchased stamp. This is an unsigned Windows x64 application.
 
-## New in 1.0
+## New in 1.1
+
+Long code and tool output fold into Copy / Expand panels. **Continue from this handoff** starts a fresh working input and keeps old tool output retrievable instead of replaying it. Failed requests that never started can return to the draft. Coats can tint their authors’ cards and optionally retain generated thinking notes in their own drawers. Starter Coats have fixed colors; your own Coats can be customized. Shared work cards stay off the chat by default, and old unsent requests can be discarded. Ordinary chair replies have no Branchline elapsed-time cutoff; Stop stays available.
+
+A compact return map now keeps current shared artifacts and the chair’s last work visible without slicing the middle of the context record. All broadcasts appear once in working history with their recipients; original messages remain saved.
+
+## Foundations from 1.0
 
 The 1.0 repair pass adds interrupted-save recovery, process-owned writer locking,
 compact exact-input storage, corrected Dream training masks and stable Resume data.
@@ -21,6 +27,8 @@ The Desk Model menu button uses concentric rings, or the selected personal model
 [Dreams](DREAM-REVIEW.md) can now prepare chosen conversation or workflow notes, train the included Qwen locally, and export a new generation to try or adopt. The original stays available. The first supported training backend is Ubuntu 24.04 / WSL 2 on an NVIDIA GPU. Home contains the note list and job controls; Settings → Dreams chooses the preparation model. Usual Coats is now one collapsible section.
 
 Find compatible GGUF files on your computer, preview their descriptions, and add them through the [local-model library](LOCAL-MODEL.md). They load when used. Subscription meters show the allowance left, and recorded usage is grouped by chair. [Conversation goals and queue/steer](CREW-GOALS.md) keep shared work organized. Optional [reasoning notes](REASONING-NOTES.md) use 10/30/60-second choices and wait behind current work. Coats have one current choice, with Select all and Clear all for their tool pockets.
+
+[How to use the new features](public/how-to.md) is also included at the desk’s **… → How-to guide** and Settings → About & licences. Keep this guide current when adding user-facing controls.
 
 ## ChatGPT connection
 
@@ -65,7 +73,7 @@ The Windows binary payload keeps hash-pinned Node, Python, Codex, dependency and
 
 ```powershell
 pwsh -File scripts/Build-Preview.ps1 -RuntimeFolder C:\BuildInputs\Branchline -WithModel
-pwsh -File scripts/Build-Installer.ps1 -PackageFolder releases/Branchline-v1.0.0-Windows-x64 -InputFolder C:\BuildInputs\Prerequisites -Compiler C:\BuildTools\Inno\ISCC.exe -OutputFolder releases/Installer
+pwsh -File scripts/Build-Installer.ps1 -PackageFolder releases/Branchline-v1.1.0-Windows-x64 -InputFolder C:\BuildInputs\Prerequisites -Compiler C:\BuildTools\Inno\ISCC.exe -OutputFolder releases/Installer
 ```
 
 The installer inputs and their hashes are in `provenance/installer-inputs.json`. Existing outputs are never merged by the build scripts. The native-library source companion accompanies the binary downloads. No personal workspace, account credential, Home selection, private memory or trained adapter is part of this release.

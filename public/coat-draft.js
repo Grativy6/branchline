@@ -1,3 +1,4 @@
+import {checkCoatOptions} from './coat-options.js';
 import { HARNESS_LIMITS, exactFields } from './harness-format.js';
 import { checkPockets } from './coat-pockets.js';
 
@@ -8,8 +9,9 @@ export function validateCoatDraft(draft) {
   const text = (value, limit) => typeof value === 'string' && value.length <= limit;
   const id = value => typeof value === 'string' && /^[A-Za-z0-9_-]{1,120}$/.test(value);
   if (!exactFields(draft, ['content','pocketsCustomized','branch','seat','id','baseVersion','importFile'])
-      || !exactFields(draft.content, ['name','description','instructions','pockets'])) fail();
+      || !exactFields(draft.content, ['name','description','instructions','pockets','options'])) fail();
   for (const field of ['name','description','instructions']) if (!text(draft.content[field], HARNESS_LIMITS[field])) fail();
+  if(draft.content.options!==undefined)checkCoatOptions(draft.content.options);
   if (draft.content.pockets !== undefined) checkPockets(draft.content.pockets);
   if (typeof draft.pocketsCustomized !== 'boolean' || !['shared','personal','visiting'].includes(draft.seat)) fail();
   if (draft.branch !== null && (!exactFields(draft.branch, ['chatId','title','baseRevisionId'])

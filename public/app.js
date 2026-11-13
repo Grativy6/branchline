@@ -1,3 +1,4 @@
+import { installOutputPanels,replaceOutputContent } from './output-panels.js';
 import {createMessageActions} from './message-actions.js';
 import {conversationMessage} from './conversation-records.js';
 import {createLocalModels} from './local-models.js';
@@ -209,10 +210,10 @@ let guidanceReview = null;
 let contextStatus = null, contextStatusKey = '', carryBusy = false;
 function refreshContextStatus(root, chat, busy) {
   if (!chat) return;
-  const key = JSON.stringify([chat.id, state.messages.at(-1)?.id, activeAccount(state, chat.id)?.id, state.contextCarry?.pins[chat.id],
+  const key = JSON.stringify([chat.id, state.messages.at(-1)?.id, activeAccount(state, chat.id)?.id, state.contextCarry?.pins[chat.id],state.contextCarry?.working?.[chat.id],
     state.drafts[chat.id]?.length, root?.instructions.at(-1)?.id, root?.continuity?.heart.at(-1)?.id,
     root?.continuity?.journal.map(j => [j.id, j.removedAt]), state.mcpContext?.[chat.id],
-    state.mind?.accounts.length, chat.harnessSelections?.at(-1)?.id, chat.responseMode, root?.resources, chat.carrySettings, state.contextCarry?.ready, chosenModel(root, chat), nextSpeaker(chat),
+    state.coatOptions,state.thinkingContext,state.mind?.accounts.length, chat.harnessSelections?.at(-1)?.id, chat.responseMode, root?.resources, chat.carrySettings, state.contextCarry?.ready, chosenModel(root, chat), nextSpeaker(chat),
     chat.seating?.revisionId, chat.table?.assignments.at(-1)?.id, state.models, state.modelArchives, state.personalParticipants?.map(p => [p.id, p.currentGenerationId, p.connections.at(-1)?.id]), state.agentProfiles?.selections.at(-1)?.id, state.agentProfiles?.sharing.at(-1)?.id]);
   $('context-status').innerHTML = contextBar(contextStatus, false, carrySettings(chat).showCount);
   if (busy || key === contextStatusKey) return;
@@ -229,7 +230,7 @@ async function openContext(speaker) {
   if (!chat) return;
   speaker ||= carrySettings(chat).speaker;
   const status = await api.contextCarry(chat.id, speaker);
-  if (speaker === carrySettings(chat).speaker) contextStatus = status;
+  if (speaker === carrySettings(chat).speaker){contextStatus = status;$('context-status').innerHTML=contextBar(status,false,carrySettings(chat).showCount);}
   openDialog('Conversation context', contextDialog(state, chat, status, speaker), 'context-dialog');
 }
 async function openContextSource(id, offset = 0) {
@@ -649,8 +650,8 @@ function render({ scroll = false, refreshDetails = false } = {}) {
   $('details-toggle').setAttribute('aria-expanded', String(detailsOpen));
   const atBottom = $('conversation').scrollHeight - $('conversation').scrollTop - $('conversation').clientHeight < 100;
   const markup = conversation(state, root, chat);
-  if (conversationMarkup !== markup) { conversationHistory.innerHTML = markup; conversationMarkup = markup; }
-  if (scroll || atBottom && !messageActions.isOpen) requestAnimationFrame(() => { $('conversation').scrollTop = $('conversation').scrollHeight; });
+  if (conversationMarkup !== markup) { replaceOutputContent(conversationHistory,markup); conversationMarkup = markup; }
+  if (scroll || atBottom && !messageActions.isOpen && !window.getSelection()?.toString()) requestAnimationFrame(() => { $('conversation').scrollTop = $('conversation').scrollHeight; });
   $('composer-form').hidden = !chat;
   const busy = chat && (isPending(state, chat.id) || submitting.has(chat.id));
   const rootBusy = root && state.chats.some(c => c.rootId === root.id && (isPending(state, c.id) || submitting.has(c.id)));
@@ -685,7 +686,7 @@ function render({ scroll = false, refreshDetails = false } = {}) {
   placeActivity();
   hydrateImages();
   const chairUnavailable = refreshComposerButtons(root, chat);
-  $('cancel-button').hidden = !chat || (!isPending(state, chat.id) && !submitting.has(chat.id) && !state.parallel?.runs.some(r=>r.chatId === chat.id && liveParallel(r)) && !state.contextCarry?.jobs.some(j=>j.chatId === chat.id && j.status === 'pending') && !state.contextCarry?.ready?.[chat.id] && !['queued','preparing'].includes(contextStatus?.preparationState?.phase));
+  $('cancel-button').hidden = !chat || (!isPending(state, chat.id) && !submitting.has(chat.id) && !state.parallel?.runs.some(r=>r.chatId === chat.id && liveParallel(r)) && !state.contextCarry?.jobs.some(j=>j.chatId === chat.id && j.status === 'pending') && !['queued','preparing'].includes(contextStatus?.preparationState?.phase));
   refreshContextStatus(root, chat, globalBusy);
   $('details-panel').hidden = !detailsOpen;
   if (detailsOpen && (detailsRootId !== root?.id || detailsChatId !== chat?.id || refreshDetails || !detailsDirty)) {
@@ -1026,7 +1027,17 @@ document.addEventListener('click', safe(async event => {
     toast('Stopping shared work…');return;
   }
   if(action==='coat-follow') { await command('harness.branch',{chatId:target.dataset.chat,key:target.dataset.key,baseId:target.dataset.base||null,mode:'follow',ref:null}); harnessEditor.openPicker(state.chats.find(c=>c.id===target.dataset.chat)); return; }
+  if(action==='preview-help'){
+    const r=await fetch('/how-to.md');if(!r.ok)throw new Error('The included how-to guide could not be opened.');
+    return openDialog('Branchline how-to',`<div class="markdown-body">${renderMarkdown(await r.text())}</div>`,'how-to-dialog');
+  }
+  if(action==='context-continue'){
+    target.disabled=true;
+    try{const chatId=selected(state).chat.id;await command('carry.continue',{chatId,baseId:activeAccount(state,chatId)?.id??null,recordId:id,lastMessageId:target.dataset.last});contextStatusKey='';await openContext();toast('Fresh working input ready. History is still saved.');}
+    finally{if(target.isConnected)target.disabled=false;}return;
+  }
   if (action === 'context-open') return openContext();
+  if (action === 'context-request-input') { const input=await api.historyInput(id); return openDialog('Recorded handoff input',`<pre>${e(JSON.stringify(input.messages,null,2))}</pre>`); }
   if (action === 'context-source' || action === 'context-source-page') return openContextSource(id, Number(target.dataset.offset || 0));
   if (action === 'context-stop') { await api.continuityCancel(selected(state).chat.id); toast('Stopping context preparation…'); return; }
   if (['context-select', 'context-full', 'context-pin', 'context-unpin'].includes(action)) {
@@ -1328,6 +1339,18 @@ document.addEventListener('click', safe(async event => {
     await command('chat.update', { id: id || selected(state).chat.id, archived: action === 'archive-current-chat' });
     if (action === 'restore-chat') openDialog('Archives',archiveView(state)); else closeDialog();
     return toast(action === 'restore-chat' ? 'Chat restored' : 'Chat archived');
+  }
+  if(action==='discard-unsent-request'){
+    const batch=state.deskWork?.batches.find(b=>b.id===id);if(!batch)return;
+    target.disabled=true;
+    try{await flushDrafts();await command('desk.discardUnsent',{batchId:id});if(selected(state).chat?.id===batch.chatId&&$('message-input').value===batch.original){pendingDrafts.set(batch.chatId,{text:''});await flushDrafts();render();}toast('Unsent request discarded');}
+    finally{if(target.isConnected)target.disabled=false;}return;
+  }
+  if(action==='reuse-desk-request'){
+    const batch=state.deskWork.batches.find(b=>b.id===id);if(!batch)return;
+    const failed=state.deskWork.tasks.filter(t=>t.batchId===id&&t.status==='failed'&&!t.exchangeId);
+    const text=(batch.sharedContext?batch.sharedContext+'\n\n':'')+failed.map(t=>'@{'+t.label+'} '+t.content).join('\n\n');
+    pendingDrafts.set(batch.chatId,{text});await flushDrafts();render();$('message-input').focus();return;
   }
   if (action === 'reuse-message') {
     const m = state.messages.find(m => m.id === id);
@@ -1752,3 +1775,5 @@ document.addEventListener('change', event => {
 });
 
 document.addEventListener('input',event=>{if(event.target.id==='background-transparency'){const form=event.target.closest('form');saveAppearance(Object.fromEntries(new FormData(form)));$('transparency-value').textContent=event.target.value+'%';}});
+
+installOutputPanels({toast,reportError:error});

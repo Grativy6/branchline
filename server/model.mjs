@@ -1,3 +1,4 @@
+import {thinkingMessages,thinkingChoice} from './thinking-notes.mjs';
 import {isOwnedLocal} from './local-model-state.mjs';
 import {homeMessages} from './home-state.mjs';
 import { chairView } from '../public/chair-roster.js';
@@ -16,7 +17,7 @@ import {personalContextMessages} from './personal-context.mjs';
 import { replySpeaker, attributedReply, chairIdentitySnapshot } from './speaker-context.mjs';
 import { toolEvidence } from './conversation-tools.mjs';
 import { streamLocalTools } from './local-tool-stream.mjs';
-import { activeCarry, carryMessages, carriedPrefixLength } from './context-carry.mjs';
+import { activeCarry, carryMessages, workingMessages, workingWindow } from './context-carry.mjs';
 import { parallelEvidence } from './parallel-state.mjs';
 import { imageEvidence, imageHistory } from './images.mjs';
 import { mediaReferences } from './model-media.mjs';
@@ -68,8 +69,8 @@ export async function discoverModels(baseUrl, { timeoutMs = 5000, maxResponseByt
   }
 }
 
-export function compileMessages(state, chatId, content, { maxContextCharacters = 60000, selectedFile = null, selectedImages = [], selection = null, requestKind = 'send', followUp = false, coatSnapshot = null, selectedSketch = null, goalId = undefined, ponyRead = null, ponyAssert = null, ponyCurrentId = null } = {}) {
-  return buildMessages(state, chatId, content, { maxContextCharacters, selectedFile, selectedImages, selection, requestKind, followUp, coatSnapshot, selectedSketch, goalId, ponyRead, ponyAssert, ponyCurrentId }).messages;
+export function compileMessages(state, chatId, content, { maxContextCharacters = 60000, selectedFile = null, selectedImages = [], selection = null, requestKind = 'send', followUp = false, coatSnapshot = null, selectedSketch = null, goalId = undefined, ponyRead = null, ponyAssert = null, ponyCurrentId = null, thinkingCoat = null } = {}) {
+  return buildMessages(state, chatId, content, { maxContextCharacters, selectedFile, selectedImages, selection, requestKind, followUp, coatSnapshot, selectedSketch, goalId, ponyRead, ponyAssert, ponyCurrentId, thinkingCoat }).messages;
 }
 
 // Measure the actual prompt once. Fixed context includes current guidance,
@@ -79,12 +80,8 @@ export function measureContext(state, chatId, content, options = {}) {
   return { characters, fixedCharacters };
 }
 
-function buildMessages(state, chatId, content, { maxContextCharacters = 60000, selectedFile = null, selectedImages = [], selection = null, requestKind = 'send', followUp = false, coatSnapshot = null, selectedSketch = null, originalWindow = maxContextCharacters, includeOriginalHistory = false, goalId = undefined, ponyRead = null, ponyAssert = null, ponyCurrentId = null } = {}) {
+function buildMessages(state, chatId, content, { maxContextCharacters = 60000, selectedFile = null, selectedImages = [], selection = null, requestKind = 'send', followUp = false, coatSnapshot = null, selectedSketch = null, goalId = undefined, ponyRead = null, ponyAssert = null, ponyCurrentId = null, thinkingCoat = null } = {}) {
   state = chairView(state,chatId,selection?.chairId);
-  if(!includeOriginalHistory&&state.chats.find(c=>c.id===chatId)?.contextPolicy===2&&activeCarry(state,chatId)&&Number.isFinite(originalWindow)){
-    try{return buildMessages(state,chatId,content,{maxContextCharacters:Math.min(maxContextCharacters,originalWindow),selectedFile,selectedImages,selection,requestKind,followUp,coatSnapshot,selectedSketch,includeOriginalHistory:true,goalId,ponyRead,ponyAssert,ponyCurrentId});}
-    catch(error){if(!error.message.includes('working-context limit'))throw error;}
-  }
   validateHandoffs(state);
   const provenance = validateReplyProvenance(state);
   const chat = state.chats.find(item => item.id === chatId);
@@ -103,6 +100,8 @@ function buildMessages(state, chatId, content, { maxContextCharacters = 60000, s
   const agent = agentProfileMessages(state, selection);
   messages.push(...agent.guidance);
   if (harness.preset.instructions) messages.push({ role: 'system', content: `[Coat: ${harness.preset.name}]\n${harness.preset.instructions}` });
+  const thinking=thinkingCoat??thinkingChoice(state,selection);
+  messages.push(...thinkingMessages(state,chatId,selection,thinking,{requestNote:thinking.requestNote===true}));
   const instruction = root?.instructions.at(-1);
   if (instruction?.text) messages.push({ role: 'system', content: instruction.text });
   const heart = root?.continuity?.heart.at(-1);
@@ -119,7 +118,7 @@ function buildMessages(state, chatId, content, { maxContextCharacters = 60000, s
     }
   }
   messages.push(...home.filter(m=>m.role!=='system'));
-  messages.push(...deskContext(state,chatId,selection,Math.min(6000,Number.isFinite(maxContextCharacters)?Math.floor(maxContextCharacters/8):6000),goalId,minimalLocal));
+  messages.push(...deskContext(state,chatId,selection,undefined,goalId,minimalLocal));
   if(ponyAssert&&selection?.modelId)ponyAssert(state,chatId,state.models.find(m=>m.id===selection.modelId));
   const selectedResults = (state.mcpContext?.[chatId] || []).map(id => state.mcpResults?.find(result => result.id === id)).filter(Boolean);
   const account = mindContext(state, chatId);
@@ -130,9 +129,10 @@ function buildMessages(state, chatId, content, { maxContextCharacters = 60000, s
   const completed = new Set(state.exchanges.filter(item => item.status === 'completed').map(item => item.id));
   const history = [];
   let reply = 0;
-  for (const message of state.messages.filter(item => item.chatId === chatId).slice(includeOriginalHistory?0:carriedPrefixLength(state, chatId))) {
+  const broadcastBodies=new Set();
+  for (const {message,sourceId} of workingMessages(state,chatId)) {
     if (message.kind === 'pony') { if(message.ponyParcelId===ponyCurrentId)continue; if(!ponyRead)throw new Error('Pony Post reader is unavailable.'); history.push({role:'user',content:ponyRead(state,message.ponyParcelId)}); }
-    else if (message.kind === 'parallel') history.push(...toolEvidence(state,message.parallelEpisodeId), parallelEvidence(state, message));
+    else if (message.kind === 'parallel') history.push(...toolEvidence(state,message.parallelEpisodeId,{sourceId,compact:!!workingWindow(state,chatId)}), parallelEvidence(state, message));
     else if (message.kind === 'note') history.push({ role: 'user', content: '[Saved chat note] ' + message.content });
     else if (selection || completed.has(message.exchangeId)) {
       const turn = state.exchanges.find(item => item.id === message.exchangeId);
@@ -144,7 +144,7 @@ function buildMessages(state, chatId, content, { maxContextCharacters = 60000, s
       if (pictures) history.push(pictures);
       if (message.role === 'assistant') {
         for(const amendment of state.handoffs?.records.filter(r=>r.taskId===message.exchangeId&&r.kind==='input.amendment.accepted')??[])history.push({role:'user',content:'[Human input accepted during this earlier reply; retained with its original source. Source receipt: '+amendment.id+']\n'+amendment.detail.input.content+(amendment.detail.input.images?.length?'\n[Selected picture references: '+amendment.detail.input.images.map(i=>i.selectionId).join(', ')+'. Pixels are available through their saved sources.]':'')});
-        history.push(...toolEvidence(state, message.exchangeId));
+        history.push(...toolEvidence(state, message.exchangeId,{sourceId,compact:!!workingWindow(state,chatId)}));
       }
       if (message.role === 'assistant' && provenance.get(message.id) !== 'recorded') {
         history.push({ role: 'user', content: '[App context: unverified historical reply; authorship is not established]\n'
@@ -157,8 +157,14 @@ function buildMessages(state, chatId, content, { maxContextCharacters = 60000, s
         }
         history.push(attributedReply(message, speaker));
       } else if(message.role==='user' && turn?.request?.deskTaskId) {
-        const task=state.deskWork?.tasks.find(t=>t.id===turn.request.deskTaskId);
-        history.push({role:'user',content:'[Earlier human assignment addressed to '+JSON.stringify(task?.label??'a chair')+'. Shared coordination history; keep your own current assignment.]\n'+message.content});
+        const task=state.deskWork?.tasks.find(t=>t.id===turn.request.deskTaskId),batch=state.deskWork?.batches.find(b=>b.id===task?.batchId);
+        if(batch&&!batch.originTaskId&&batch.assignments.length>1){
+          if(!broadcastBodies.has(batch.id)){
+            const recipients=batch.assignments.map(a=>({chair:a.chair,chairId:a.chairId}));
+            const sourceIds=state.messages.filter(m=>m.chatId===chatId).flatMap((m,i)=>m.role==='user'&&state.deskWork.tasks.some(t=>t.batchId===batch.id&&t.exchangeId===m.exchangeId)?['M'+(i+1)]:[]);
+            history.push({role:'user',content:'[Earlier human group prompt. It was sent once to these recipients; their replies keep separate attribution.]\n'+JSON.stringify({recipients,sourceIds})+'\n'+batch.original});broadcastBodies.add(batch.id);
+          }
+        }else history.push({role:'user',content:'[Earlier human assignment addressed to '+JSON.stringify(task?.label??'a chair')+'. Shared coordination history; keep your own current assignment.]\n'+message.content});
       } else history.push({ role: message.role, content: message.content });
     }
   }
@@ -203,7 +209,7 @@ function requestBody(model, messages, stream, maxTokens, outputSchema, imageData
 export async function generateResult(model, messages, signal, { maxResponseBytes = 2 * 1024 * 1024, maxTokens = null, maxContextCharacters = 60000, outputSchema, handoff, codex, openai, tools = null, metrics = null, imageStore = null, localRunner = null, onStatus = null } = {}) {
   if (tools) {
     const stream = streamGenerate(model,messages,signal,{maxResponseBytes,maxTokens,maxContextCharacters,handoff,codex,openai,tools,metrics,imageStore,localRunner,onStatus}); let content = '';
-    while (true) { const next = await stream.next(); if (next.done) return {content,finishReason:next.value??null}; content += next.value.text; }
+    while (true) { const next = await stream.next(); if (next.done) return {content,finishReason:next.value??null}; if(next.value.text)content += next.value.text; }
   }
   assertModelInvocation(handoff, messages, model);
   if (mediaReferences(messages).length && !imageStore) throw new Error('Selected image storage is unavailable; no request was sent.');
@@ -211,7 +217,7 @@ export async function generateResult(model, messages, signal, { maxResponseBytes
   if (model.runtime === 'codex') {
     if (!codex) throw new Error('Codex connection is unavailable.');
     const stream = codex.stream(model, messages, signal, { maxTokens, maxResponseBytes, imageData }); let content = '';
-    while (true) { const next = await stream.next(); if (next.done) return { content, finishReason: next.value ?? null }; content += next.value.text; }
+    while (true) { const next = await stream.next(); if (next.done) return { content, finishReason: next.value ?? null }; if(next.value.text)content += next.value.text; }
   }
   if(model.runtime==='openai'){
     if(!openai)throw new Error('OpenAI API connection is unavailable.');
@@ -295,6 +301,7 @@ export async function* streamGenerate(model, messages, signal, { maxResponseByte
     metrics?.observe(item);
     const choice = item?.choices?.[0];
     if (choice?.finish_reason) finishReason = choice.finish_reason;
+    for(const field of ['reasoning_content','reasoning'])if(typeof choice?.delta?.[field]==='string')yield {note:{source:'native_thinking',itemId:'local-'+field,part:0,text:choice.delta[field]}};
     const text = model.inputFormat === 'plain-dialogue-v1' ? choice?.text : choice?.delta?.content;
     if (typeof text === 'string' && text) {
       total += text.length;

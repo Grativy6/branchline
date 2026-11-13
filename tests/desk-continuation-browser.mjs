@@ -1,0 +1,83 @@
+import {chromium} from 'playwright-core';
+import fs from 'node:fs/promises';
+import assert from 'node:assert/strict';
+import {replayJournal} from '../server/journal.mjs';
+import {fixture,until,finish} from './desk-helpers.mjs';
+const f=await fixture(),errors=[];
+await new Promise(r=>f.app.listen(0,'127.0.0.1',r));
+const browser=await chromium.launch({headless:true,...(process.platform==='win32'?{channel:'msedge'}:{})});
+const context=await browser.newContext({viewport:{width:1250,height:920},permissions:['clipboard-read','clipboard-write']});
+const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));
+await fs.mkdir('.test-output',{recursive:true});
+const code=Array.from({length:80},(_,i)=>`const line${i} = ${i};`).join('\n');
+const sendDelta=(q,text)=>q.res.write(`data: ${JSON.stringify({choices:[{delta:{content:text},finish_reason:null}]})}\n\n`);
+try{
+ await page.goto(`http://127.0.0.1:${f.app.address().port}/#session=${f.app.sessionToken}`);
+ await page.locator('#tour-skip').check();await page.locator('#tour-next').click();await page.locator(`[data-action="select-chat"][data-id="${f.chatId}"]`).click();
+ await page.locator('#settings-button').click();await page.locator('[data-action="settings-tab"][data-id="coats"]').click();
+ await page.locator('[data-harness-id="conversation"] summary').click();assert.equal(await page.locator('[data-harness-id="conversation"] [data-action="harness-options"]').count(),0);
+ await page.locator('[data-harness-id="conversation"] [data-action="harness-duplicate"]').click();await page.locator('#harness-editor-form [name="name"]').fill('Color test');await page.locator('#harness-editor-form [type="submit"][value="save"]').click();await until(()=>f.app.store.state.customHarnesses?.length===1,'custom copy');
+ const colorId=f.app.store.state.customHarnesses[0].id;await page.locator(`[data-harness-id="${colorId}"] summary`).click();await page.locator(`[data-harness-id="${colorId}"] [data-action="harness-options"]`).first().click();
+ await page.locator('#coat-options-form [name="color"]').fill('#ab35da');await page.locator('#coat-options-form [name="thinking"]').check();
+ await page.locator('[data-action="harness-options-save"]').click();await until(()=>f.app.store.state.coatOptions?.[colorId]?.color==='#ab35da','saved options');
+ assert.equal(f.app.store.state.coatOptions[colorId].thinking,true);
+ for(const n of [0,1]){const r=f.app.store.state.chats[0].seating,c=n?r.visitors[0]:r.desk;await f.command('table.roster.chair',{chatId:f.chatId,baseRevisionId:r.revisionId,chairId:c.id,name:c.name,modelId:c.modelId,personalId:null,coat:{id:colorId,version:1}});}
+ if(await page.getByRole('button',{name:'Close dialog',exact:true}).isVisible())await page.getByRole('button',{name:'Close dialog',exact:true}).click();await page.locator('#settings-button').click();await page.reload();
+ await page.locator(`[data-action="select-chat"][data-id="${f.chatId}"]`).click();await page.locator('#tools-enabled').uncheck();
+ await page.locator('#message-input').fill('@hearthline Show code. @qwen Give a short review.');await page.locator('#send-button').click();
+ await until(()=>f.requests.length===2,()=>JSON.stringify(f.app.store.state.deskWork?.tasks));
+ const q=f.requests[0];q.res.writeHead(200,{'content-type':'text/event-stream'});sendDelta(q,'Here is the source.\n\n```javascript\n'+code);
+ const livePanel=page.locator('#chair-live-tasks .output-panel').first();await livePanel.waitFor();assert.equal(await livePanel.getAttribute('open'),null);
+ await livePanel.locator('[data-output-copy]').click();assert.equal((await page.evaluate(()=>navigator.clipboard.readText())).replaceAll('\r\n','\n'),code);
+ await livePanel.locator('summary').click();await livePanel.locator('.output-scroll').evaluate(el=>{el.scrollTop=180;el.dispatchEvent(new Event('scroll'));});
+ await livePanel.locator('code').evaluate(el=>{const r=document.createRange();r.setStart(el.firstChild,6);r.setEnd(el.firstChild,18);const s=getSelection();s.removeAllRanges();s.addRange(r);});
+ const selectedBefore=await page.evaluate(()=>getSelection().toString());
+ finish(f.requests[1],'Short review stays visible.');sendDelta(q,'\nconst ending = true;');
+ await page.waitForFunction(()=>document.querySelector('#chair-live-tasks code')?.textContent.includes('ending'));
+ assert.equal(await page.evaluate(()=>getSelection().toString()),selectedBefore);
+ assert.notEqual(await livePanel.getAttribute('open'),null);assert.equal(await livePanel.locator('.output-scroll').evaluate(e=>e.scrollTop),180);
+ await page.evaluate(()=>getSelection().removeAllRanges());
+ sendDelta(q,'\n```\n\nThat is the complete source.');q.res.end(`data: ${JSON.stringify({choices:[{delta:{},finish_reason:'stop'}]})}\n\ndata: [DONE]\n\n`);
+ await until(()=>f.app.store.state.deskWork.tasks.every(t=>t.status==='completed'),()=>JSON.stringify(f.app.store.state.deskWork.tasks));
+ const panel=page.locator('[data-message-id] .output-panel').first();await panel.waitFor();assert.notEqual(await panel.getAttribute('open'),null);
+ assert.equal(await panel.locator('.output-scroll').evaluate(e=>e.scrollTop),180);
+ await panel.locator('summary').click();
+ assert.equal(await page.locator('.message.assistant[data-coat-color="#ab35da"]').count(),2);
+ const contrast=await page.evaluate(()=>{
+   const card=document.querySelector('.message.assistant[data-coat-color]'),canvas=document.createElement('canvas'),c=canvas.getContext('2d');
+   const rgb=color=>{c.clearRect(0,0,1,1);c.fillStyle=color;c.fillRect(0,0,1,1);return [...c.getImageData(0,0,1,1).data].slice(0,3).map(v=>v/255);};
+   const lum=rgb=>rgb.map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4).reduce((n,v,i)=>n+v*[.2126,.7152,.0722][i],0);
+   return ['garden','starlight','paper'].map(theme=>{document.documentElement.dataset.theme=theme;const s=getComputedStyle(card),a=lum(rgb(s.color)),b=lum(rgb(s.backgroundColor));return {theme,ratio:(Math.max(a,b)+.05)/(Math.min(a,b)+.05)};});
+ });assert(contrast.every(c=>c.ratio>=4.5),JSON.stringify(contrast));
+ await page.evaluate(()=>document.documentElement.dataset.theme='garden');
+ // Raw, unfenced HTML is inert and compact, but ordinary long prose is not folded.
+ const markup=await page.evaluate(async()=>{const {renderMarkdown}=await import('/markdown.js');return {html:renderMarkdown('<html><script>'+('let x=1;'.repeat(200))+'</script></html>'),prose:renderMarkdown('Ordinary prose remains visible. '.repeat(100))};});
+ assert(markup.html.includes('output-panel'));assert(!markup.html.includes('<script>'));assert(!markup.prose.includes('output-panel'));
+ await page.screenshot({path:'.test-output/desk-continuation-compact.png'});
+ // A ready handoff is not running work. Selecting it changes future input only.
+ for(let i=0;i<24;i++)await f.command('message.note',{chatId:f.chatId,content:`Saved project ${i}: `+'Evidence and next steps. '.repeat(45)});
+ const prep=page.evaluate(async input=>{const {api}=await import('/api.js');return api.prepareCarry(input);},{chatId:f.chatId,speaker:'personal',baseId:null,lastMessageId:f.app.store.state.messages.at(-1).id});
+ await until(()=>f.requests.length===3,()=>JSON.stringify(f.app.store.state.contextCarry?.jobs));
+ f.requests[2].res.writeHead(200,{'content-type':'application/json'});f.requests[2].res.end(JSON.stringify({choices:[{message:{content:JSON.stringify({account:'Continue this project from its saved code and evidence. [M1]'})},finish_reason:'stop'}]}));await prep;
+ await page.reload();await page.locator(`[data-action="select-chat"][data-id="${f.chatId}"]`).click();
+ await page.locator('[data-action="context-open"]').first().click();await page.getByRole('button',{name:'Continue from this handoff',exact:true}).waitFor();
+ assert.equal(await page.locator('#cancel-button').isVisible(),false);await page.getByText('Prepared handoff',{exact:true}).waitFor();
+ const before=Number((await page.locator('#context-status').innerText()).match(/[\d,]+/)?.[0].replaceAll(',',''));
+ await page.getByRole('button',{name:'Continue from this handoff',exact:true}).click();await page.getByText('No reply request has used this handoff yet.',{exact:true}).waitFor();
+ assert.equal(f.requests.length,3);assert(f.app.store.state.contextCarry.active[f.chatId]);
+ await page.getByRole('button',{name:'Close dialog',exact:true}).click();
+ const after=Number((await page.locator('#context-status').innerText()).match(/[\d,]+/)?.[0].replaceAll(',',''));assert(after<before,JSON.stringify({before,after,text:await page.locator("#context-status").innerText()}));
+ await page.locator('#message-input').fill('Continue from the account.');await page.locator('#send-button').click();await until(()=>f.requests.length===4,'continued request');finish(f.requests[3],'Continuing from the saved account.');
+ await until(()=>f.app.store.state.deskWork.tasks.at(-1).status==='completed','continued reply');
+ await page.locator('[data-action="context-open"]').first().click();await page.getByText('Requests using this handoff (1)',{exact:true}).click();await page.locator('[data-action="context-request-input"]').click();
+ await page.getByText('Recorded handoff input',{exact:true}).waitFor();assert((await page.locator('#dialog code,#dialog pre').first().textContent()).includes('Continue this project from its saved code'));
+ await page.screenshot({path:'.test-output/desk-continuation-input.png'});
+ await page.getByRole('button',{name:'Close dialog',exact:true}).click();
+ await page.locator('.visitor-order summary').click();await page.locator('.visitor-order [data-action="preview-help"]').click();await page.getByRole('heading',{name:'Using the new desk features',exact:true}).waitFor();
+ assert((await page.locator('#dialog').innerText()).includes('Select Color'));assert((await page.locator('#dialog').innerText()).includes('Continue from this handoff'));
+ const recovered=await replayJournal(f.app.store.file);assert.deepEqual(recovered.state.contextCarry.working,f.app.store.state.contextCarry.working);assert(recovered.state.contextCarry.windows.length===1);
+ await page.screenshot({path:'.test-output/desk-continuation-guide.png'});
+ assert.deepEqual(errors,[]);const result={status:'PASS',guideInApp:true,workingBoundaryReplayed:true,streamingExpansionAndScroll:true,streamingSelection:true,completeCopy:true,rawHTMLInert:true,longProseVisible:true,colors:contrast,handoff:{before,after,requests:1},errors};
+ await fs.writeFile('.test-output/desk-continuation-browser.json',JSON.stringify(result,null,2)+'\n');console.log(JSON.stringify(result));
+}catch(error){console.log(JSON.stringify({active:f.app.store.state.contextCarry?.active,records:f.app.store.state.handoffs?.records.filter(r=>r.kind==='context.to_model').map(r=>({taskId:r.taskId,carry:r.detail.contextView?.carriedContext})),exchangeIds:f.app.store.state.exchanges.map(t=>t.id)}));await page.screenshot({path:'.test-output/desk-continuation-failure.png'});throw error;}
+finally{await browser.close();for(const q of f.requests)if(q.res.headersSent&&!q.res.writableEnded)q.res.end();await f.close();}

@@ -103,7 +103,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .welcome-footnote { font-size: 11px; }
 .empty-chat { padding: 56px 10px; color: var(--muted); text-align: center; }
 .message { max-width: 84%; margin: 18px 0; padding: 0 0 2px; }
-.message.user { margin-left: auto; padding: 11px 13px; border: 1px solid var(--line); border-radius: 8px; background: var(--accent-wash); }
+.message.user { --message-surface:var(--accent-wash);margin-left: auto; padding: 11px 13px; border: 1px solid var(--line); border-radius: 8px; background: var(--accent-wash); }
 .message-meta { display: flex; align-items: baseline; gap: 9px; margin-bottom: 4px; color: var(--muted); font-size: 11px; }
 .message-meta strong { color: var(--ink); }
 .message-options-button { flex:none; align-self:center; width:24px; height:22px; padding:0; margin:-3px 0; border:0; border-radius:5px; background:transparent; color:var(--muted); cursor:pointer; user-select:none; }
@@ -356,3 +356,24 @@ dialog::backdrop { background: var(--backdrop); }
 .pony-parcel small{color:var(--muted,#61746a)}
 .pony-body{white-space:pre-wrap;overflow-wrap:anywhere;margin:20px 0}
 @media(max-width:600px){.pony-address{grid-template-columns:1fr}}
+
+/* Long output keeps its full text inside a compact, expandable reader. */
+.output-panel { margin:10px 0;border:1px solid var(--line);border-radius:8px;background:var(--surface);overflow:hidden;font-size:.9rem; }
+.output-panel>summary { display:flex;align-items:center;gap:12px;cursor:pointer;padding:9px 12px;list-style:none; }
+.output-panel>summary>span:first-child { flex:1;min-width:0;overflow-wrap:anywhere; }
+.output-panel>summary::before { content:'▸'; }
+.output-panel[open]>summary::before { content:'▾'; }
+.output-panel .output-collapse,.output-panel[open] .output-expand { display:none; }
+.output-panel[open] .output-collapse { display:inline; }
+.output-scroll { max-height:min(45vh,420px);overflow:auto;overscroll-behavior:contain; }
+.output-scroll pre { margin:0!important;border:0!important;border-top:1px solid var(--line)!important;border-radius:0!important;max-height:none!important;overflow:visible!important; }
+.output-scroll code { display:block;white-space:pre;overflow-wrap:normal; }
+
+.message.model-request { --message-surface:color-mix(in srgb,#af91d7 13%,var(--surface-strong));background:var(--message-surface);border-style:dashed; }
+.message[data-coat-color],.coat-color-button[data-coat-color] { --message-surface:color-mix(in srgb,var(--coat-color) 16%,var(--surface-strong));background:var(--message-surface);border:1px solid color-mix(in srgb,var(--coat-color) 45%,var(--line));border-radius:8px; }
+.message.assistant[data-coat-color] { padding:11px 13px; }
+#coat-options-form input[type=color] { width:80px;height:42px; }
+
+.output-panel summary button,.output-expand,.output-collapse { user-select:none; }
+
+.how-to-dialog { width:min(740px,calc(100vw - 32px)); }

@@ -77,7 +77,7 @@ export class HistoryInputs {
     const records=state.handoffs?.records;if(!records)return 0;
     for(let i=0;i<records.length;i++){const r=records[i];if(r.kind!=='context.to_model'||!Array.isArray(r.detail.inputMessages))continue;
       records[i]={...r,detail:{...r.detail,inputMessages:this.save(r.detail.inputMessages)},storageEncoding:'branchline.legacy-input-reference/1'};count++;
-    }if(count)state.schemaVersion=4;return count;
+    }if(count)state.schemaVersion=Math.max(4,state.schemaVersion);return count;
   }
   material(records){const values={};for(const r of records){const ref=r.detail?.inputMessages;if(isInputRef(ref))values[ref.sha256]=this.read(ref);}return values;}
 }

@@ -88,7 +88,8 @@ export function preserveHandoffHistory(before, after) {
 
 export function recordHandoff(state, { kind, taskId = uid('task'), scope = { rootId: null, chatId: null }, from, to, payload, parents = [], status = 'RECORDED', checks = [], unresolved = [], detail = {} }) {
   const l = ledger(state);
-  if(kind==='context.to_model'&&Array.isArray(detail.inputMessages)){detail={...detail,inputMessages:saveInput(detail.inputMessages)};if(!Array.isArray(detail.inputMessages))state.schemaVersion=4;}
+  if(kind==='context.to_model'&&detail.capability?.tools?.resources&&!Object.hasOwn(detail.capability.tools.resources,'replySeconds'))state.schemaVersion=Math.max(7,state.schemaVersion);
+  if(kind==='context.to_model'&&Array.isArray(detail.inputMessages)){detail={...detail,inputMessages:saveInput(detail.inputMessages)};if(!Array.isArray(detail.inputMessages))state.schemaVersion=Math.max(4,state.schemaVersion);}
   const r = {
     id: uid('handoff'), sequence: l.records.length + 1, at: new Date().toISOString(), profile: PROFILE,
     taskId, scope: structuredClone(scope), kind, from, to, contentHash: digest(payload), parents: [...parents],
@@ -110,6 +111,7 @@ function contextView(state, scope, selection = null, kind = 'reply', taskId = nu
   state = chairView(state,scope.chatId,selection?.chairId);
   if (kind === 'parallel' && taskId) { const job=state.parallel?.jobs.find(j=>j.id===taskId); const run=state.parallel?.runs.find(r=>r.id===job?.runId); if(run?.sourceExchangeId)state=stateBeforeVisitorAdvance(state,run.sourceExchangeId); }
   const conversational = kind === 'reply' || kind === 'parallel';
+  const capturedView=conversational&&taskId?state.handoffs?.records.find(r=>r.taskId===taskId&&r.kind==='ui.intent'&&r.detail?.task)?.detail.task?.view:null;
   const root = state.roots.find(r => r.id === scope.rootId);
   const instruction = root.instructions.at(-1) ?? null;
   const heart = root.continuity?.heart.at(-1) ?? null;
@@ -144,7 +146,7 @@ function contextView(state, scope, selection = null, kind = 'reply', taskId = nu
     ...(kind === 'carry' && selection?.seat === 'recorder' ? { recorderPreferences: digest(state.chats.find(c => c.id === scope.chatId)?.carrySettings ?? null) } : {}),
     ...(selection && conversational ? { speakerContextProfile: SPEAKER_CONTEXT_PROFILE, chairIdentity: chairIdentitySnapshot(state, scope.chatId, chosen.selection) } : {}),
     ...(state.mind ? { mind: selectedAccount(state, scope.chatId) } : {}),
-    ...(state.contextCarry ? { carriedContext: carryContextView(state, scope.chatId) } : {}),
+    ...(capturedView ? (Object.hasOwn(capturedView,'carriedContext')?{carriedContext:capturedView.carriedContext}:{}) : state.contextCarry ? { carriedContext: carryContextView(state, scope.chatId) } : {}),
     ...(!peer && conversational && personalContextView(state,scope.chatId,selection?.seat??'visiting') ? {personalContext:personalContextView(state,scope.chatId,selection?.seat??'visiting')} : {}),
   };
 }

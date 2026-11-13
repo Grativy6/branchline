@@ -1,6 +1,7 @@
+import {coatPreferences} from '../public/coat-options.js';
 import crypto from 'node:crypto';
 import { findHarness } from '../public/harness-catalog.js';
-import { HARNESS_PROFILE, COAT_PROFILE, HARNESS_LIMITS, exactFields, checkHarnessContent, harnessDocument } from '../public/harness-format.js';
+import { HARNESS_PROFILE, COAT_PROFILE, COAT_OPTIONS_PROFILE, HARNESS_LIMITS, exactFields, checkHarnessContent, harnessDocument } from '../public/harness-format.js';
 import { pocketContent } from '../public/coat-pockets.js';
 
 export function previewHarnessImport(file) {
@@ -14,10 +15,10 @@ export function previewHarnessImport(file) {
   if (/\.json$/i.test(file.name)) {
     let doc; try { doc = JSON.parse(text); } catch { throw new Error('The Coat JSON could not be read.'); }
     const legacy = doc?.profile === HARNESS_PROFILE;
-    if (!exactFields(doc, legacy ? ['profile', 'name', 'description', 'instructions'] : ['profile', 'name', 'description', 'instructions', 'pockets'])
-      || !legacy && (doc?.profile !== COAT_PROFILE || !Object.hasOwn(doc, 'pockets')))
-      throw new Error('Unsupported Coat format. Use branchline.coat/1 with pocket preferences, or the older branchline.harness/1 instruction format.');
-    content = { name: doc.name, description: doc.description, instructions: doc.instructions, ...pocketContent(doc) };
+    if (!exactFields(doc, legacy ? ['profile', 'name', 'description', 'instructions'] : ['profile', 'name', 'description', 'instructions', 'pockets', ...(doc?.profile===COAT_OPTIONS_PROFILE?['options']:[])])
+      || !legacy && (![COAT_PROFILE,COAT_OPTIONS_PROFILE].includes(doc?.profile) || doc.profile===COAT_PROFILE&&!Object.hasOwn(doc, 'pockets') || doc.profile===COAT_OPTIONS_PROFILE&&!doc.options))
+      throw new Error('Unsupported Coat format. Use branchline.coat/2 for color and thinking choices, branchline.coat/1 for pockets, or branchline.harness/1 for instructions.');
+    content = { name: doc.name, description: doc.description, instructions: doc.instructions, ...pocketContent(doc), ...(doc.options?{options:doc.options}:{}) };
     // An empty built-in export is a valid draft, although custom saves need text.
     checkHarnessContent(content, { allowEmpty: true });
   } else {
@@ -32,7 +33,7 @@ export function exportHarness(state, ref, format = 'json') {
   if (!preset) throw new Error('The selected Coat is unavailable.');
   if (!['json', 'md'].includes(format)) throw new Error('Choose JSON or Markdown export.');
   return {
-    text: format === 'json' ? JSON.stringify(harnessDocument(preset), null, 2) + '\n' : preset.instructions,
+    text: format === 'json' ? JSON.stringify(harnessDocument({...preset,...(coatPreferences(state,preset.id).color||state.coatOptions?.[preset.id]?{options:coatPreferences(state,preset.id)}:{})}), null, 2) + '\n' : preset.instructions,
     type: format === 'json' ? 'application/json; charset=utf-8' : 'text/markdown; charset=utf-8',
     filename: `branchline-coat-${preset.id}.${format}`,
   };

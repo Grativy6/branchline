@@ -107,3 +107,15 @@ edit or delete journal records to force a downgrade.
 
 The full installer retains stock Qwen3.5-4B. Private trained models and chats
 are not included. The short welcome tour includes Coats and Settings; replay it from Settings → Conversation.
+
+## Color and Thinking Coat
+
+Starter Coats have fixed colors and stay locked. Duplicate a starter to make your own editable Coat. Conversation is gold, Brainstorm purple, Tutor green, Assistant blue, Roleplay pink, Rival orange and Red team red.
+
+Select Color opens a color picker and optional Thinking Coat setting. A color tints that Coat’s authored cards, including earlier replies and model task requests; it does not change their recorded instructions. Default color restores the normal appearance.
+
+Thinking Coat adds a brainstorming request to the existing role when its note tool is available. Generated working notes are saved in the authoring chair’s drawer. Exposed native thinking and provider summaries are labelled separately. No timer starts a model call, and no hidden provider reasoning is reconstructed. Tools must be on to request an authored note. If no note is returned, the log says so.
+
+New notes are selected for later context. In Drawers, uncheck notes you do not want included. The newest selected notes fit first within the saved-note allowance (4,000 characters by default); full notes remain available for retrieval. A zero allowance keeps storage without automatic inclusion. Changes affect later requests; a running request keeps its captured choice.
+
+JSON exports with these choices use branchline.coat/2. Earlier Coat files remain readable. Instructions-only export contains only the written role instructions. Color and thinking options do not create extra selectable instruction versions.

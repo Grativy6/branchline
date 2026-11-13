@@ -1,6 +1,7 @@
 import { MAIL_TOOLS } from './pony-mail-state.mjs';
 import crypto from 'node:crypto';
 import { noteSettings } from '../public/reasoning-notes-settings.js';
+import {ThinkingNotes,thinkingChoice} from './thinking-notes.mjs';
 import { ReasoningNotes } from './reasoning-notes.mjs';
 import { EventEmitter } from 'node:events';
 import { chairRoster } from '../public/chair-roster.js';
@@ -183,7 +184,7 @@ export class DeskTasks {
         ...(scheduled?{scheduled:true}:{}),
         ...(postal?{ponyParcelId:postal.parcelId,ponyAttempt:postal.attempt}:{}),
         ...(goalForTurn?{goalId:goalForTurn.id,goalRevisionId:goalRevision(goalForTurn).id,automatic:automatic||Boolean(origin),trigger:trigger??{kind:origin?'peer_request':'human_message'},eventCursor:snapshot.deskWork?.events.at(-1)?.id??''}:{}),
-        input:{busyMode:snapshot.ui.busyInputMode??'queue-first',noteSettings:noteSettings(chat),toolsEnabled:input.toolsEnabled===true,baseRevisionId:input.baseRevisionId,lastMessageId:input.lastMessageId,replyMode:parsed.broadcast?'all':parsed.routed?'single':input.replyMode??'single',
+        input:{thinkingCoat:thinkingChoice(snapshot,resolved.selection),busyMode:snapshot.ui.busyInputMode??'queue-first',noteSettings:noteSettings(chat),toolsEnabled:input.toolsEnabled===true,baseRevisionId:input.baseRevisionId,lastMessageId:input.lastMessageId,replyMode:parsed.broadcast?'all':parsed.routed?'single':input.replyMode??'single',
           ...(input.responseMode!==undefined?{responseMode:input.responseMode}:{}),...(input.harnessRevisionId!==undefined?{harnessRevisionId:input.harnessRevisionId}:{}),
           ...(input.selectedFile?{selectedFile:input.selectedFile}:{}),...(input.imagePlanId?{imagePlanId:input.imagePlanId}:{})}};
     });
@@ -308,11 +309,11 @@ export class DeskTasks {
     try{
       await this.update(task.id,{status:'preparing',phase:'Preparing this chair’s context',startedAt:now()});
       if(entry.stopped||this.closed){sink.destroy();throw new Error('Task stopped before dispatch.');}
-      const {media,busyMode,noteSettings:startingNotes,...request}=task.input;
+      const {media,busyMode,noteSettings:startingNotes,thinkingCoat,...request}=task.input;
       const body={...request,chatId:task.chatId,content:task.kind==='ask'?'':taskInput(this.store.state,task),kind:task.kind,speaker:task.selection.seat,requestId:task.requestId,stream:true};
       await this.execute(body,{headers:{'x-branchline-stream':'events-v2'}},sink,{taskId:task.id,selection:task.selection,model:task.model,
         setSteerer:fn=>{entry.steer=fn;},waitInputs:()=>entry.steerChain,setUsage:value=>{entry.usage=value;},
-        startNotes:(exchangeId,settings)=>entry.notes=new ReasoningNotes({store:this.store,task,exchangeId,settings})});
+        startNotes:(exchangeId,settings)=>{const periodic=settings.enabled?new ReasoningNotes({store:this.store,task,exchangeId,settings}):null;return entry.notes=task.input.thinkingCoat?.enabled?new ThinkingNotes({store:this.store,task,exchangeId,periodic}):periodic;}});
       await entry.events;
       const saved=this.store.state.deskWork.tasks.find(t=>t.id===task.id),exchange=this.store.state.exchanges.find(e=>e.id===saved.exchangeId);
       const status=exchange?.status==='completed'?'completed':entry.stopped||exchange?.status==='cancelled'?'cancelled':'failed';

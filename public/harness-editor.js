@@ -1,3 +1,4 @@
+import {coatPreferences} from './coat-options.js';
 import { api } from './api.js';
 import { findHarness, harnessChoice, harnessRef } from './harness-catalog.js';
 import { HARNESS_LIMITS, checkHarnessContent } from './harness-format.js';
@@ -15,7 +16,7 @@ export function createHarnessEditor({ getState, refreshState, command, openDialo
     const f = form();
     if (f && draft) {
       const pockets = draft.pocketsCustomized ? { pockets: { profile: POCKET_PROFILE, selected: [...f.querySelectorAll('[data-pocket-tool]:checked')].map(el => ({ tool: el.dataset.pocketTool, provider: el.dataset.pocketProvider })) } } : {};
-      draft.content = { name: f.elements.name.value, description: f.elements.description.value, instructions: f.elements.instructions.value, ...pockets };
+      draft.content = { name: f.elements.name.value, description: f.elements.description.value, instructions: f.elements.instructions.value, ...pockets, ...(draft.content.options?{options:draft.content.options}:{}) };
       draft.seat = f.elements.seat?.value ?? 'shared';
     }
   };
@@ -60,6 +61,7 @@ export function createHarnessEditor({ getState, refreshState, command, openDialo
     persist,
     keepDraft: capture,
     input(event) {
+      if(event.target.matches('#coat-options-form [name="color"]'))document.querySelector('#coat-options-form [name="defaultColor"]').checked=false;
       if (!event.target.closest('#harness-editor-form')) return;
       if (event.target.matches('[data-pocket-tool]')) draft.pocketsCustomized = true;
       capture(); document.getElementById('harness-length').textContent = `${draft.content.instructions.length.toLocaleString('en-US')} / 24,000 characters`;
@@ -70,6 +72,14 @@ export function createHarnessEditor({ getState, refreshState, command, openDialo
       if (saving) return true;
       if (action === 'harness-library') library();
       else if (action === 'harness-choose') picker();
+      else if(action==='harness-options'){
+        const id=target.dataset.id,p=coatPreferences(getState(),id);
+        openDialog('Coat color and thinking', `<div id="coat-options-form" data-id="${id}"><label class="form-field">Select Color<input type="color" name="color" value="${p.color??'#668cbb'}"></label><label class="check-line"><input type="checkbox" name="defaultColor" ${p.color?'':'checked'}>Use default color</label><label class="check-line"><input type="checkbox" name="thinking" ${p.thinking?'checked':''}>Thinking Coat</label><p class="field-help">Keep generated working notes in this chair’s drawer. Adds to its existing instructions. Tools must be on to request a note; exposed native thinking can also be saved.</p><label class="form-field">Saved-note context (characters)<input type="number" name="thinkingCharacters" min="0" max="16000" step="100" value="${p.thinkingContextCharacters}"></label><p class="field-help">Newest selected notes fit first. Choose notes in Drawers. Stored notes remain complete.</p><div class="dialog-footer"><button type="button" class="quiet-button" data-action="harness-library">Cancel</button><button type="button" class="primary-button" data-action="harness-options-save">Save choices</button></div></div>`);
+      }
+      else if(action==='harness-options-save'){
+        const f=document.getElementById('coat-options-form'),get=name=>f.querySelector(`[name="${name}"]`);
+        await command('harness.options',{id:f.dataset.id,options:{color:get('defaultColor').checked?null:get('color').value,thinking:get('thinking').checked,thinkingContextCharacters:Number(get('thinkingCharacters').value)}});library();toast('Coat choices saved');
+      }
       else if (action === 'harness-new') newDraft();
       else if (action === 'harness-take-off') {
         const select = document.getElementById('harness-form')?.elements[target.dataset.name];
@@ -96,10 +106,10 @@ export function createHarnessEditor({ getState, refreshState, command, openDialo
       }
       else if (action === 'harness-edit') {
         const h = getState().customHarnesses?.find(h => h.id === target.dataset.id), latest = h?.versions.at(-1);
-        if (latest && !h.deletedAt) newDraft({ name: latest.name, description: latest.description, instructions: latest.instructions, ...pocketContent(latest) }, { id: h.id, baseVersion: latest.version });
+        if (latest && !h.deletedAt) newDraft({ name: latest.name, description: latest.description, instructions: latest.instructions, ...pocketContent(latest),options:structuredClone(coatPreferences(getState(),h.id)) }, { id: h.id, baseVersion: latest.version });
       } else if (action === 'harness-duplicate') {
         const h = findHarness(harnessRef(target.dataset.key), getState());
-        if (h) newDraft({ name: (h.name.slice(0, HARNESS_LIMITS.name - 7) + ' · copy'), description: h.description, instructions: h.instructions, pockets: h.pockets ? structuredClone(h.pockets) : defaultPockets() });
+        if (h) newDraft({ name: (h.name.slice(0, HARNESS_LIMITS.name - 7) + ' · copy'), description: h.description, instructions: h.instructions, pockets: h.pockets ? structuredClone(h.pockets) : defaultPockets(),options:structuredClone(coatPreferences(getState(),h.id)) });
       }
       return true;
     },

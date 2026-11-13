@@ -1,3 +1,4 @@
+import {checkCoatOptions} from '../public/coat-options.js';
 import crypto from 'node:crypto';
 import { digest } from './integrity.mjs';
 import { defaultHarnessRef, findHarness, harnessChoice, harnessDeleted, resolvedCoat, coatIdentity, resolvedHarnessChoice } from '../public/harness-catalog.js';
@@ -31,6 +32,10 @@ export function harnessSnapshot(state, chatId, seat = 'visiting') {
 }
 
 export function applyHarnessCommand(state, type, p) {
+  if(type==='harness.options'){
+    fail(exact(p,['id','options'])&&state.customHarnesses?.some(h=>h.id===p.id&&!h.deletedAt),'Choose one of your custom Coats. Duplicate a locked starter to customize it.');
+    checkCoatOptions(p.options);(state.coatOptions??={})[p.id]=structuredClone(p.options);state.schemaVersion=Math.max(5,state.schemaVersion);return;
+  }
   migrateCoats(state);
   if (type === 'harness.usual' || type === 'harness.branch') return selectCoat(state,type,p);
   if (type === 'harness.create' || type === 'harness.revise') return saveCustomHarness(state, type, p);
@@ -82,7 +87,9 @@ function saveCustomHarness(state, type, p) {
     library.push(harness);
   }
   const version = harness.versions.length + 1;
-  harness.versions.push({ ...structuredClone(p.content), version, createdAt, source });
+  const {options,...content}=structuredClone(p.content);
+  harness.versions.push({ ...content, version, createdAt, source });
+  if(options){(state.coatOptions??={})[harness.id]=options;state.schemaVersion=Math.max(5,state.schemaVersion);}
   if (p.use !== undefined) {
     fail(exact(p.use, ['chatId', 'baseRevisionId', 'seat']) && ['shared', 'personal', 'visiting'].includes(p.use.seat), 'Choose the chairs that should use this Coat.');
     const chat = state.chats.find(c => c.id === p.use.chatId), choice = resolvedHarnessChoice(state,chat), ref = { id: harness.id, version };
@@ -116,6 +123,10 @@ function validateCustomHarnesses(state) {
 
 export function validateHarnesses(state) {
   validateCustomHarnesses(state);
+  if(state.coatOptions!==undefined){
+    fail(exact(state.coatOptions,Object.keys(state.coatOptions)),'Invalid Coat preferences.');
+    for(const [id,options] of Object.entries(state.coatOptions)){fail(findHarness({id,version:1},state),'Coat preferences lost their Coat.');checkCoatOptions(options);}
+  }
   const coatIds=new Set();
   for(const r of [...(state.coatUsuals??[]),...state.chats.flatMap(c=>c.coatChoices??[])]) {
     fail(exact(r,['id','at','key','mode','ref']) && /^coat_[a-f0-9-]{36}$/.test(r.id) && !coatIds.has(r.id) && Number.isFinite(Date.parse(r.at)) && /^(personal:|model:|unbound:)/.test(r.key) && ['override','follow'].includes(r.mode) && (r.mode==='follow' ? r.ref===null : validRef(r.ref,state)), 'Invalid model Coat history.'); coatIds.add(r.id);

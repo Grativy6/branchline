@@ -5,7 +5,8 @@ import { saveGoal, currentGoal, goalRevision, INPUT_MODES } from './desk-goals.m
 import {cloneJson,isImmutable} from './immutable-json.mjs';
 const checkedStates=new WeakSet();
 import { validateMail } from './pony-mail-state.mjs';
-import { validateDeskWork } from './desk-work.mjs';
+import { validateDeskWork,deskEvent } from './desk-work.mjs';
+import {unsentRequestFailures} from '../public/conversation-records.js';
 import { assertChairAvailable } from './table.mjs';
 import { chairView } from '../public/chair-roster.js';
 import { isModelArchived } from '../public/model-archives.js';
@@ -47,6 +48,7 @@ import {validateWorkAccess} from './work-access.mjs';
 import {validateHome} from './home-state.mjs';
 import { validateLoopback } from './model.mjs';
 import { MODEL_INPUT_FORMATS } from './model-format.mjs';
+import {selectThinkingNote,validateThinkingContext} from './thinking-notes.mjs';
 import { validateHarnesses, applyHarnessCommand, inheritHarness, harnessSnapshot, migrateCoats } from './harnesses.mjs';
 import { validateAgentProfiles, applyAgentProfileCommand, agentProfileSnapshot } from './agent-profiles.mjs';
 import { validateContinuity, applyContinuityCommand, continuityPending, captureContinuityContext } from './continuity.mjs';
@@ -112,7 +114,7 @@ export function validateState(state) {
   validateEasel(state);
   validatePeaches(state);
   validatePersonalContext(state);
-  assert(isObject(state) && [1,2,3,4].includes(state.schemaVersion), 'This workspace needs a supported Branchline version.');
+  assert(isObject(state) && [1,2,3,4,5,6,7].includes(state.schemaVersion), 'This workspace needs a supported Branchline version.');
   assert(state.schemaVersion!==3||state.deskWork?.profile==='branchline.desk-work/1','The shared-desk workspace is missing its work records.');
   assert(state.schemaVersion!==2||state.easel?.profile==='branchline.easel/1','The newer workspace is missing its Easel records.');
   for (const root of state.roots || []) if (root.resources !== undefined) checkResources(root.resources);
@@ -143,6 +145,7 @@ export function validateState(state) {
   if (state.ui.sketchSize !== undefined) assert(validSettingsSize(state.ui.sketchSize), 'invalid Sketch Book size');
   if (state.ui.toyShelf !== undefined) assert(validToyShelf(state.ui.toyShelf), 'invalid Toy Shelf preferences');
   if (state.ui.coatDraft !== undefined) validateCoatDraft(state.ui.coatDraft);
+  if(state.ui.showSharedWorkInChat!==undefined)assert(typeof state.ui.showSharedWorkInChat==='boolean','invalid shared-work display preference');
   if (state.ui.messageInfo !== undefined) validateMessageInfo(state.ui.messageInfo);
   if (state.ui.appearance !== undefined) {
     assert(isObject(state.ui.appearance) && Object.keys(state.ui.appearance).every(key => ['theme', 'reading', 'transparency'].includes(key)), 'invalid appearance settings');
@@ -259,7 +262,7 @@ export function validateState(state) {
   validateTables(state);
   validateHome(state);validateWorkAccess(state);
   validateDreamHistory(state);
-  validateHarnesses(state);
+  validateHarnesses(state);validateThinkingContext(state);
   validateAgentProfiles(state);
   validateMind(state);
   validateModelArchives(state);
@@ -308,6 +311,7 @@ export function applyCommand(state, command) {
     assertInferenceIdle(s);
     assert(Object.keys(p).sort().join() === 'id,resources', 'invalid resource settings');
     requireRoot(s, p.id).resources = clone(checkResources(p.resources));
+    if(!Object.hasOwn(p.resources,'replySeconds'))s.schemaVersion=Math.max(7,s.schemaVersion);
     validateState(s); return s;
   }
   if(type==='chat.contextPolicy'){
@@ -343,6 +347,7 @@ export function applyCommand(state, command) {
   if (type.startsWith('pony.task.')) { applyPonyCommand(s,type,p); validateState(s); return s; }
   if (type.startsWith('image-provider.')) { applyImageConnection(s, type, p); validateState(s); return s; }
   if (type.startsWith('carry.')) { applyCarryCommand(s, type, p); validateState(s); return s; }
+  if(type==='thinking.note.select'){selectThinkingNote(s,p);validateState(s);return s;}
   if (type.startsWith('harness.')) { applyHarnessCommand(s, type, p); validateState(s); return s; }
   if (type.startsWith('profile.')) { applyAgentProfileCommand(s, type, p); validateState(s); return s; }
   if (type.startsWith('mind.')) { applyMindCommand(s, type, p); validateState(s); return s; }
@@ -489,7 +494,20 @@ export function applyCommand(state, command) {
     s.models = s.models.filter(m => m.id !== p.id);
     return s;
   }
+  if(type==='desk.discardUnsent'){
+    assert(Object.keys(p).join()==='batchId','Choose one unsent request.');
+    const batch=s.deskWork?.batches.find(b=>b.id===p.batchId);assert(batch,'Unsent request not found.');
+    const tasks=s.deskWork.tasks.filter(t=>t.batchId===batch.id);
+    assert(tasks.some(t=>t.status==='failed'&&!t.exchangeId),'This request reached a model or is still pending.');
+    const failures=unsentRequestFailures(s,batch.id);if(!failures.length)return s;
+    for(const task of failures){
+      const event=deskEvent(s,task,'task.discarded',{source:'human_ui',batchId:batch.id},'drawer');event.author={chair:'You',model:null};
+    }
+    if(s.drafts[batch.chatId]===batch.original)delete s.drafts[batch.chatId];
+    validateState(s);return s;
+  }
   if (type === 'ui.update') {
+    if(p.showSharedWorkInChat!==undefined){assert(typeof p.showSharedWorkInChat==='boolean','Choose whether shared work appears in chat.');s.ui.showSharedWorkInChat=p.showSharedWorkInChat;}
     if (p.dreamSize !== undefined) { assert(validSettingsSize(p.dreamSize), 'Invalid Dream review size'); s.ui.dreamSize = clone(p.dreamSize); }
     if (p.dreamDraft !== undefined) s.ui.dreamDraft = clone(p.dreamDraft);
     if (p.toyShelf !== undefined) { assert(validToyShelf(p.toyShelf), 'Invalid Toy Shelf preferences'); s.ui.toyShelf = clone(p.toyShelf); }

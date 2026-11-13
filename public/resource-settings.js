@@ -3,19 +3,20 @@ export const BUNDLED_CONTEXT_DEFAULT = 8192;
 export const BUNDLED_CONTEXT_PRESETS = Object.freeze([8192, 16384, 32768]);
 export const isBundledContext = value => Number.isSafeInteger(value) && BUNDLED_CONTEXT_PRESETS.includes(value);
 export const RESOURCE_DEFAULTS = Object.freeze({ replyTokens: null, inputCharacters: 60000, fileBytes: 131072,
-  toolCalls: 32, toolResultBytes: 160000, replySeconds: 300, handoffSeconds: 300 });
+  toolCalls: 32, toolResultBytes: 160000, handoffSeconds: 300 });
 export const RESOURCE_FIELDS = Object.freeze({
   replyTokens: { label: 'Maximum reply tokens', min: 128, max: 32768, step: 128, help: 'Leave blank for the connection default. Codex does not expose a hard reply-token cap.' },
   inputCharacters: { label: 'Desk input ceiling (characters)', min: 4000, max: 3000000, step: 1000, help: 'Limits what this desk sends; the receiving model may have a smaller window.' },
   fileBytes: { label: 'Text intake (bytes)', min: 131072, max: 1048576, step: 131072, help: 'Exact UTF-8 snapshots. Large sources are read in bounded passages, not inserted whole.' },
   toolCalls: { label: 'Tool calls per reply', min: 1, max: 128, step: 1, help: 'Includes document pages. More calls can take longer and use more provider capacity.' },
   toolResultBytes: { label: 'Tool evidence per reply (bytes)', min: 20000, max: 1048576, step: 10000, help: 'A ceiling, not a promise that it fits the model window. Reading can resume in a later reply.' },
-  replySeconds: { label: 'Reply timeout (seconds)', min: 30, max: 1800, step: 30, help: 'Stop is always available. This does not change a provider’s own deadline.' },
   handoffSeconds: { label: 'Handoff timeout (seconds)', min: 30, max: 1800, step: 30, help: 'A stopped or incomplete preparation never replaces the active account.' },
 });
-export function resourceSettings(root,model=null) { return { ...RESOURCE_DEFAULTS, ...(['openai','codex'].includes(model?.runtime)?{inputCharacters:600000}:{}), ...root?.resources }; }
+export function resourceSettings(root,model=null) { const {replySeconds:retired,...resources}=root?.resources??{};return { ...RESOURCE_DEFAULTS, ...(['openai','codex'].includes(model?.runtime)?{inputCharacters:600000}:{}), ...resources }; }
 export function checkResources(value) {
-  if (!value || Array.isArray(value) || Object.keys(value).sort().join() !== Object.keys(RESOURCE_DEFAULTS).sort().join()) throw new Error('Choose only the supported resource controls.');
+  if (!value || Array.isArray(value) || Object.keys(value).filter(key=>key!=='replySeconds').sort().join() !== Object.keys(RESOURCE_DEFAULTS).sort().join()) throw new Error('Choose only the supported resource controls.');
+  // Frozen history may carry the retired setting; new replies do not use it.
+  if(value.replySeconds!==undefined&&(!Number.isSafeInteger(value.replySeconds)||value.replySeconds<30||value.replySeconds>1800))throw new Error('Invalid historical reply timeout setting.');
   for (const [key, spec] of Object.entries(RESOURCE_FIELDS)) {
     const n = value[key];
     if (key === 'replyTokens' && n === null) continue;

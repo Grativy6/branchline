@@ -1,5 +1,20 @@
 # Branchline release notes
 
+## 1.1.0 — 13 November 2026
+
+A clearer desk for continuing work with several models.
+
+- Continue from a prepared handoff with fresh working input; full history and tool receipts remain available to retrieve.
+- Keep current shared-artifact routes and own-chair return points in a complete overview. An All prompt is represented once with its recipients.
+- Long code and tool output fold behind Copy and Expand, preserving scroll and selection during updates.
+- Starter Coats have fixed colors. Custom Coats keep their color choices; fills work with Windows transparency.
+- Optional Thinking Coats keep generated working notes in their own drawers, with selected notes available in later context.
+- Shared work stays out of chat by default and can be inspected through Drawers. Old unsent failed requests can be discarded.
+- Ordinary chair replies no longer have Branchline's elapsed-time cutoff. Stop remains available.
+- A short how-to guide opens from the desk’s … menu and About & licences.
+
+Existing workspace, chair and account locations remain in use. Version 1.1 uses workspace format 7; preserve a recovery copy for an older app. The installer still includes stock Qwen3.5-4B. Coming later features remain future work.
+
 ## 1.0.0 — 10 November 2026
 
 The first 1.0 release brings the continuing shared workspace and local Dreams into

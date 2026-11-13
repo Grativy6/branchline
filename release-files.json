@@ -1,6 +1,6 @@
 {
   "profile": "branchline.public-release-files/2",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "source": [
     ".gitattributes",
     ".gitignore",
@@ -568,7 +568,19 @@
     "tools/compare-dream-control.mjs",
     "tools/dream-export-control.py",
     "tools/measure-continuity-reply.mjs",
-    "tools/qualify-v1-dream.mjs"
+    "tools/qualify-v1-dream.mjs",
+    "public/coat-options.js",
+    "public/output-panels.js",
+    "server/thinking-notes.mjs",
+    "tests/continuation-repair.test.mjs",
+    "tests/thinking-coats.test.mjs",
+    "tests/desk-continuation-browser.mjs",
+    "public/how-to.md",
+    "tests/continue-window.test.mjs",
+    "tests/chat-cleanup.test.mjs",
+    "tests/chat-cleanup-browser.mjs",
+    "tests/reply-lifetime.test.mjs",
+    "tests/return-map-colors.test.mjs"
   ],
   "binary": [
     "public/agent-profiles/hearthline.json",
@@ -1043,7 +1055,11 @@
     "server/journal-recovery.mjs",
     "server/dream-cleanup.mjs",
     "server/dream_runtime/training_spans.py",
-    "server/legacy-writer-lock.mjs"
+    "server/legacy-writer-lock.mjs",
+    "public/coat-options.js",
+    "public/output-panels.js",
+    "server/thinking-notes.mjs",
+    "public/how-to.md"
   ],
   "auditExceptions": [
     {

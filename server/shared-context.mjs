@@ -3,6 +3,8 @@ import { contextBudget } from './context-budget.mjs';
 import { measureContext, replyTokenLimit } from './model.mjs';
 import { currentAssignment, resolveSpeaker } from './table.mjs';
 import { CARRY_LIMITS } from './context-carry.mjs';
+import {chairRoster} from '../public/chair-roster.js';
+import {routeChairPrompt} from '../public/chair-mentions.js';
 
 // The writer's reading window and the conversation's destination window are
 // distinct. Only metadata is read here; preparation still runs one chosen model.
@@ -11,13 +13,18 @@ export async function sharedContextPlan(state, chatId, options = {}) {
   const root = state.roots.find(r => r.id === chat?.rootId);
   if (!chat || !root) throw new Error('Choose a branch.');
   const assignment = currentAssignment(state, chatId);
-  const seats = chat.seating ? [chat.seating.speaker] : assignment ? [assignment.personalId && 'personal', assignment.visitorModelId && 'visiting'].filter(Boolean) : ['legacy'];
-  const participants = await Promise.all(seats.map(async seat => {
-    const { model, selection } = resolveSpeaker(state, chatId, seat);
+  const roster=chat.seating?chairRoster(state,chat):null;
+  const chairs=roster?[roster.desk,...roster.visitors]:[];
+  const selected=roster?.speaker==='visiting'?roster.selectedVisitorId:roster?.desk.id;
+  const routing=roster?routeChairPrompt(state.drafts[chatId]||'',chairs,selected,roster.mode):null;
+  const recipients=roster?((routing?.sections.length&&!routing.errors.length?[...new Set(routing.sections.map(s=>s.chairId))]:[selected]).map(id=>({seat:id===roster.desk.id?'personal':'visiting',chairId:id})))
+    :(assignment?[assignment.personalId&&'personal',assignment.visitorModelId&&'visiting'].filter(Boolean):['legacy']).map(seat=>({seat}));
+  const participants = await Promise.all(recipients.map(async ({seat,chairId}) => {
+    const { model, selection } = resolveSpeaker(state, chatId, seat,chairId);
     const deskCeiling = resourceSettings(root,model).inputCharacters;
     const budget = await contextBudget(model, { maxContextCharacters: deskCeiling, ...options, maxTokens: replyTokenLimit(root, model) });
-    const measured = measureContext(state, chatId, state.drafts[chatId] || '', { ...options, selection, originalWindow:budget.characters });
-    return { seat, modelId: model.id, modelLabel: model.name, modelRuntime: model.runtime ?? 'compatible', deskCeiling, ...measured, budget };
+    const measured = measureContext(state, chatId, state.drafts[chatId] || '', { ...options, selection });
+    return { seat, chairId, chairName:selection?.displayName, modelId: model.id, modelLabel: model.name, modelRuntime: model.runtime ?? 'compatible', deskCeiling, ...measured, budget };
   }));
   if (!participants.length) throw new Error('Choose a model before preparing the shared context.');
   const pressured = participants.reduce((a, b) => a.characters / a.budget.characters >= b.characters / b.budget.characters ? a : b);
@@ -32,7 +39,7 @@ export async function sharedContextPlan(state, chatId, options = {}) {
     accountCharacters: Math.min(CARRY_LIMITS.account, Math.floor(proseAndRecent * 0.55)),
     sources, recentCharacters: Math.min(CARRY_LIMITS.recent, Math.floor(proseAndRecent * 0.45)),
   } : null;
-  return { scope: 'conversation', limitingSeat: pressured.seat, participants, characters: pressured.characters, limit: pressured.budget.characters,
+  return { scope: 'conversation', limitingSeat: pressured.seat,limitingChairId:pressured.chairId, participants, characters: pressured.characters, limit: pressured.budget.characters,
     budget: pressured.budget, target,
     contextIssue: target ? null : 'Current instructions, selected sources or the draft leave too little room for a shared handoff. Shorten those or choose a larger window; the saved conversation is unchanged.' };
 }

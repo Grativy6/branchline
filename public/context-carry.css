@@ -22,3 +22,5 @@
 .context-original, .context-revision .continuity-source { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 45vh; overflow: auto; }
 .context-dialog summary { cursor: pointer; }
 @media (max-width: 700px) { .context-hint { display: none; } }
+
+.context-hint { margin-inline-start:8px; }

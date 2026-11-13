@@ -1,5 +1,11 @@
 # Updating to Branchline 1.0
 
+## Updating to 1.1
+
+Use the same saved workspace and sign-in location. Starter colors are built in; custom Coats and their chosen colors stay yours. Continue from a handoff changes future input, not stored history. The new return map and grouped broadcast view are derived from saved records.
+
+Version 1.1 reads earlier records and writes format 7. For rollback, keep the pre-update backup and use a separate working copy with the matching older application. The preview-stage notes below explain the changes as they were introduced.
+
 Keep a complete backup and the previous app before updating. The app retains its
 existing data location, including a custom --data-dir selection. The established
 Windows folder and internal executable names stay stable across the display-version
@@ -33,3 +39,15 @@ The app automatically registers models reported by the signed-in ChatGPT connect
 Sign-in is checked through Branchline's existing account connection. If it reports signed out, use the ordinary Sign in with ChatGPT control. No account or private history is included in the package.
 
 v0.10 includes All, full-roster Alternate selection records and captured per-chair picture inputs. Preserve a complete pre-update workspace for rollback, including when returning to an earlier 0.9.1 preview. Equivalent Home recipients move to their existing folder-access grant; historical Home records and additional Home-only readers remain.
+
+## Local 1.1 preview
+
+Coat options, thinking-note selections and new context preparations use workspace schema 5. Keep the recovery copy made before this preview if returning to 1.0; do not open a workspace changed by this preview with the older app. The preview uses the same continuing workspace and connection locations. It does not re-register chairs or reset sign-in.
+
+### Continuing from a handoff
+
+Preview 2 records working-input boundaries in schema 6. Earlier records are preserved. Use the matching pre-update recovery data when rolling back to an older app. The new reset does not change the saved workspace location, connection or Coat colors.
+
+### Ordinary replies without a deadline
+
+Preview 4 removes Branchline’s elapsed-time cutoff for ordinary chair replies and the Reply timeout control. Stop remains available. Saved historical timeout fields remain readable but do not control new replies. New resource records use schema 7; use the corresponding recovery copy if returning to an older application.
