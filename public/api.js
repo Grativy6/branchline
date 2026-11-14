@@ -15,6 +15,8 @@ async function request(path, options = {}) {
 
 const contextStatuses = new Map();
 export const api = {
+  returnMap:input=>request('/api/return-map?'+new URLSearchParams(input)),
+  returnSource:input=>request('/api/return-source?'+new URLSearchParams(input)),
   historyInput:id=>request('/api/history/input?id='+encodeURIComponent(id)),
   pony:(route,input=null)=>request('/api/pony/'+route,input===null?{}:{method:'POST',body:JSON.stringify(input)}),
   dreams: (route='',input=null) => request('/api/dreams/training'+route,input===null?{}:{method:'POST',body:JSON.stringify(input)}),

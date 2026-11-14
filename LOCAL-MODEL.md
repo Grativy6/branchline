@@ -18,6 +18,12 @@ User-selected Coats, guidance, sources and conversation history still apply when
 
 Models remain where you selected them. A changed or missing file is reported; adding the same verified weights from their new location can reconnect the existing identity. No sign-in is needed for these local replies.
 
+## Engine status
+
+The included CPU and Vulkan runtimes use llama.cpp 1.0.0 (b12359). Settings → Models → Included Qwen → Status and recovery shows the installed engine and whether it is unloaded, loading, or running on CPU/Vulkan. A saved local model shows the same engine line when selected in Your locally saved models. Automatic is a preference; the running backend reports what actually loaded.
+
+The refresh keeps one local inference slot and the existing model files. Dream training and export use their separately recorded versions.
+
 ## Included Qwen: first reply and recovery
 
 The full installer includes stock Qwen3.5-4B Q4_K_M plus its picture projector. The app-only ZIP does not. Qwen loads on the first message, not while Branchline is opening. A loading line explains the file check and chosen backend; Stop cancels it. Verified files are reused for that app session.
@@ -37,6 +43,6 @@ On the development PC (Ryzen 5 2600, 32 GiB RAM, RTX 3060 12 GiB), one synthetic
 
 Pictures use the existing attachment preview, metadata removal and destination review. Qwen receives the viewing copy; an image never grants tools or permissions. Available conversation tools use the same reviewed route and recorded results as other compatible models. Turn them on when needed. A model may still invent a tool-use claim: the receipt is the evidence.
 
-Uninstall removes installed app/model files, not conversations, external models or shared Microsoft prerequisites. Back up your workspace through Branchline before changing versions. This preview remains an early-test package; a clean Windows 11 machine with prerequisites missing has not yet been qualified by the development-host checks.
+Uninstall removes installed app/model files, not conversations, external models or shared Microsoft prerequisites. Back up your workspace through Branchline before changing versions. Development-host checks do not establish a clean Windows installation with prerequisites missing.
 
 Older 0.8.0 does not recognize the new included-model connection type. Existing legacy workspaces can be upgraded without changing their models; once you add Qwen, use 0.8.1 or restore a pre-upgrade backup for an older version. Do not try to repair that compatibility mismatch by deleting your workspace.

@@ -1,8 +1,22 @@
-# Branchline 1.1
+# Branchline 1.2
 
 A local home for conversations, ideas and shared work with AI. Keep your desks, branches and history while choosing the models you work with.
 
-[Download Branchline 1.1 for Windows](https://github.com/Grativy6/branchline/releases/tag/v1.1.0) or start with [START-HERE.md](START-HERE.md). The normal installer includes stock Qwen3.5-4B. It needs no Branchline account or purchased stamp. This is an unsigned Windows x64 application.
+[Download Branchline 1.2 for Windows](https://github.com/Grativy6/branchline/releases/tag/v1.2.0) or start with [START-HERE.md](START-HERE.md). The normal installer includes stock Qwen3.5-4B. It needs no Branchline account or purchased stamp. This is an unsigned Windows x64 application.
+
+## New in 1.2: return maps, Hats and desk MEMORY
+
+Version 1.2 adds portable Hats, shared desk MEMORY and structured routes back to work.
+
+**Settings → Memories & Hats** manages portable Hats and optional desk MEMORY. A Hat supplies a short introduction and routes; Coats retain role, pockets and color. Each branch has at most one wearer of a particular Hat. Shared Hats retain attributed contributions across branches, while duplicates grow independently. The chair editor places Hat below Coat and offers a Hat-note Yes/No choice.
+
+The return map keeps fixed slots and exact source routes. Per-chair input receipts keep their supply points separate. Handoffs preserve a structural reference point and can review unresolved threads against watched newer revisions; supported reviews take effect when that handoff is used. Full originals remain available through the source index. [Guide and scope](RETURN-MAPS-AND-HATS.md).
+
+Workspace format 8 is used by these records. Keep a recovery copy before updating a continuing workspace.
+
+## Local engine
+
+Version 1.2 includes llama.cpp 1.0.0 (b12359) CPU/Vulkan runtimes. Existing local models use the same library and chair routes. Their status panel identifies the engine and active backend. Dreams retains its separate training/export pin.
 
 ## New in 1.1
 
@@ -61,7 +75,7 @@ Attached pictures follow Select, Alternate, All and explicit chair groups. One s
 - Optional context handoffs, local backups and export/restore.
 - Local Qwen and separately chosen provider connections, including the existing ChatGPT sign-in route.
 
-Read [PREVIEW-LIMITS.md](PREVIEW-LIMITS.md) and [VERIFICATION.md](VERIFICATION.md) for practical boundaries and the checks actually performed. Back up an existing workspace before updating. Version 1.1 reads earlier records and writes workspace format 7; an older app needs the preserved older workspace copy for rollback.
+Read [PREVIEW-LIMITS.md](PREVIEW-LIMITS.md) and [VERIFICATION.md](VERIFICATION.md) for practical boundaries and the checks actually performed. Back up an existing workspace before updating. Version 1.2’s chair input and continuity records use workspace format 8; an older app needs the preserved older workspace copy for rollback.
 
 ## Development and packaging
 
@@ -73,7 +87,7 @@ The Windows binary payload keeps hash-pinned Node, Python, Codex, dependency and
 
 ```powershell
 pwsh -File scripts/Build-Preview.ps1 -RuntimeFolder C:\BuildInputs\Branchline -WithModel
-pwsh -File scripts/Build-Installer.ps1 -PackageFolder releases/Branchline-v1.1.0-Windows-x64 -InputFolder C:\BuildInputs\Prerequisites -Compiler C:\BuildTools\Inno\ISCC.exe -OutputFolder releases/Installer
+pwsh -File scripts/Build-Installer.ps1 -PackageFolder releases/Branchline-v1.2.0-Windows-x64 -InputFolder C:\BuildInputs\Prerequisites -Compiler C:\BuildTools\Inno\ISCC.exe -OutputFolder releases/Installer
 ```
 
 The installer inputs and their hashes are in `provenance/installer-inputs.json`. Existing outputs are never merged by the build scripts. The native-library source companion accompanies the binary downloads. No personal workspace, account credential, Home selection, private memory or trained adapter is part of this release.

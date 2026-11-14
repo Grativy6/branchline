@@ -11,8 +11,8 @@ export function conversationMessages(state, chatId) {
     return !tasks.length||!tasks.every(t=>t.status==='failed'&&!t.exchangeId&&discarded.has(t.id));
   }).map(b=>({
     id:b.id,chatId:b.chatId,role:'user',content:b.original,createdAt:b.createdAt,kind:'note',deskBatch:true,selectedImages:b.selectedImages,
-    originTaskId:b.originTaskId??null,
-    originChair:b.originTaskId?state.deskWork.tasks.find(t=>t.id===b.originTaskId)?.label:null,
+    originTaskId:b.originTaskId??null,systemRequest:Boolean(b.memoryHandoff),
+    originChair:b.memoryHandoff?'Branchline':b.originTaskId?state.deskWork.tasks.find(t=>t.id===b.originTaskId)?.label:null,
   }));
   return [...messages,...groups].sort((a,b)=>(a.createdAt??'').localeCompare(b.createdAt??''));
 }

@@ -1,3 +1,4 @@
+import {preserveReturnRecords} from './return-records.mjs';
 import {recoverUnheldLegacyLock} from './legacy-writer-lock.mjs';
 import {preserveLocalModels} from './local-model-state.mjs';
 import {preserveDreamTraining} from './dream-training-state.mjs';
@@ -231,6 +232,7 @@ export class Store {
         freezeAndShare(next,this.state,true);
       } else {
         validateState(next);
+        preserveReturnRecords(this.state, next);
         preserveDreamTraining(this.state, next);
         preserveDeskWork(this.state, next);
         preserveLocalModels(this.state, next);

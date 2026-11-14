@@ -1,7 +1,7 @@
 import { installOutputPanels,replaceOutputContent } from './output-panels.js';
 import {createMessageActions} from './message-actions.js';
 import {conversationMessage} from './conversation-records.js';
-import {createLocalModels} from './local-models.js';
+import {createLocalModels,localEngineLabel} from './local-models.js';
 import { createCrewUI } from './crew-controls.js';
 import { reasoningNotesView } from './reasoning-notes.js';
 import { createDeskWorkUI, routingFor } from './desk-work.js';
@@ -48,6 +48,7 @@ import { downloadExport } from './session.js';
 import {homePanel,homeSourceRow,readHomeForm} from './home-sources.js';
 import { openaiPanel } from './openai.js';
 import { chairRoster } from './chair-roster.js';
+import {memoriesSettings,createReturnUI} from './return-ui.js';
 import { chairEditor } from './roster-views.js';
 import { deskBar, modelPicker, deskPicker, branchDialog, installDeskIconFallback } from './desks.js';
 import { harnessPreview, pocketSummary } from './harness-views.js';
@@ -279,6 +280,7 @@ function refreshComposerButtons(root, chat) {
 const filePicker = createFilePicker({ getState:()=>state, command, selection: () => { if (!state) return {}; const { root, chat } = selected(state); return { root: root ? { ...root, modelId: chosenModel(root, chat)?.id ?? null } : root, chat }; }, changed: () => render(), reportError: message => error(message) });
 const sketchBook = createSketchBook({getState:()=>state,command,beforeNavigation,attachment:chatId=>filePicker.get(chatId),
   navigate:(rootId,chatId)=>navigate(rootId,chatId,state.roots.find(r=>r.id===rootId).mode),showCoats:()=>openSettings('coats'),api,toast,reportError:message=>error(message)});
+const returnUI=createReturnUI({getState:()=>state,selection:()=>selected(state),command,api,openDialog,closeDialog,showSettings:()=>openSettings('memory'),toast,refresh:async()=>{state=await api.state();pollEpoch++;render();}});
 const modelArchivePanel = createModelArchivePanel({ getState:()=>state, api, command, openDialog, beforeNavigation });
 const dreamReview = createDreamReview({getState:()=>state,command,beforeNavigation,api,applyState:next=>{state=next;pollEpoch++;render();},reportError:message=>error(message)});
 $('open-toy-shelf').addEventListener('click',safe(()=>openToyShelf()));
@@ -452,7 +454,7 @@ $('dialog').addEventListener('close', () => {
   }
 });
 
-const settingsCategories=[['conversation','Conversation'],['resources','Resources'],['models','Models'],['dreams','Dreams'],['memory','Memory'],['plans','Plans'],['coats','Coats & pockets'],['toy-shelf','Toy Shelf'],['agents','Agents'],['appearance','Appearance'],['message-info','Message info'],['workspace','Workspace'],['advanced','Advanced'],['licences','About & licences']];
+const settingsCategories=[['conversation','Conversation'],['resources','Resources'],['models','Models'],['dreams','Dreams'],['coats','Coats & Pockets'],['memory','Memories & Hats'],['plans','Plans'],['toy-shelf','Toy Shelf'],['agents','Agents'],['appearance','Appearance'],['message-info','Message info'],['workspace','Workspace'],['advanced','Advanced'],['licences','About & licences']];
 let settingsMenu = null, settingsReturnScroll = null;
 const settingsInert = new Map();
 function syncSettingsSurface(){
@@ -514,7 +516,7 @@ function openSettings(tab = settingsTab, editing = null, coatView = null) {
   if (tab === 'mcp') tab = 'advanced';
   settingsTab = tab;
   $('settings-page-title').textContent=settingsCategories.find(([id])=>id===tab)?.[1]??'Settings';
-  $('settings-page-content').innerHTML=`${tab === 'conversation' ? conversationSettings(state, selected(state).root, selected(state).chat) : tab === 'resources' ? resourcesForm(selected(state).root,chosenModel(selected(state).root,selected(state).chat)) : tab === 'coats' ? coatWarningSetting() + (coatView ? `<h3>${e(coatView.title)}</h3>${coatView.content}` : harnessEditor.markup()) : tab === 'toy-shelf' ? shelfSettings(state.ui.toyShelf) : tab === 'models' ? modelsSettings(state, editing, discoveredModels, codexStatus, codexAuthUrl) : tab === 'dreams' ? dreamsSettings(state,dreamsUI.engine) : tab === 'agents' ? agentSettingsForm(state) : tab === 'plans' ? '<h3>Plans</h3><p>Schedule a task for a local or subscription model, with its own Coat and limits.</p><button type="button" class="primary-button" data-action="plans-open">Manage Plans</button>' : tab === 'memory' ? '<h3>Memory</h3><p>Keep selected history across conversations. Save a response, edit MEMORY.md, or choose whether your model can suggest or keep notes.</p><button type="button" class="primary-button" data-action="personal-context">Manage memories</button>' : tab === 'appearance' ? appearanceSettings() : tab === 'message-info' ? messageInfoSettings(state.ui.messageInfo) : tab === 'workspace' ? workspaceSettings(state, storageInfo) : tab === 'licences' ? licencesSettings() : advancedSettings(state, mcpCapabilities)}`;
+  $('settings-page-content').innerHTML=`${tab === 'conversation' ? conversationSettings(state, selected(state).root, selected(state).chat) : tab === 'resources' ? resourcesForm(selected(state).root,chosenModel(selected(state).root,selected(state).chat)) : tab === 'coats' ? coatWarningSetting() + (coatView ? `<h3>${e(coatView.title)}</h3>${coatView.content}` : harnessEditor.markup()) : tab === 'toy-shelf' ? shelfSettings(state.ui.toyShelf) : tab === 'models' ? modelsSettings(state, editing, discoveredModels, codexStatus, codexAuthUrl) : tab === 'dreams' ? dreamsSettings(state,dreamsUI.engine) : tab === 'agents' ? agentSettingsForm(state) : tab === 'plans' ? '<h3>Plans</h3><p>Schedule a task for a local or subscription model, with its own Coat and limits.</p><button type="button" class="primary-button" data-action="plans-open">Manage Plans</button>' : tab === 'memory' ? memoriesSettings(state,selected(state).root,selected(state).chat) : tab === 'appearance' ? appearanceSettings() : tab === 'message-info' ? messageInfoSettings(state.ui.messageInfo) : tab === 'workspace' ? workspaceSettings(state, storageInfo) : tab === 'licences' ? licencesSettings() : advancedSettings(state, mcpCapabilities)}`;
   $('settings-page').hidden=false;$('settings-page-content').scrollTop=0;
   syncSettingsSurface();
   if(window.innerWidth<760){$('app-shell').classList.remove('nav-open');syncNavigationAccessibility();}
@@ -958,6 +960,7 @@ document.addEventListener('click', safe(async event => {
   const target = event.target.closest('[data-action]');
   if (!target || !state) return;
   const { action, id } = target.dataset;
+  if(await returnUI.click(action,id,target))return;
   if (action === 'sketch-access') { await harnessEditor.persist(); closeDialog(); return sketchBook.openAccess(); }
   if (action === 'message-image') { const message=conversationMessage(state,id);if(!message)throw new Error('That saved message is unavailable.');await beforeNavigation();closeDialog();return easel.open({prompt:message.content}); }
   if (action === 'save-sketch') return sketchBook.saveReply(id);
@@ -1247,7 +1250,7 @@ document.addEventListener('click', safe(async event => {
   }
   if (action === 'local-model' || action === 'local-model-control') {
     const status = action === 'local-model-control' ? await api.localModelControl(id) : await api.localModelStatus();
-    return openDialog('Included Qwen', `<p>${e(status.message)}</p><p class="field-help">Stock Qwen3.5-4B · runs on this computer. It loads when you send a message. Stop remains available while loading and replying. To repair missing or damaged files, run the full Setup again.</p><p class="field-help">Mode: ${status.preference === 'cpu' ? 'CPU' : 'Automatic graphics / CPU fallback'} · selected ${status.contextTokens.toLocaleString()} token window${status.loadedContextTokens == null ? ' (not loaded)' : ' · loaded ' + status.loadedContextTokens.toLocaleString() + ' tokens'}.</p>${status.available && !state.models.some(m => m.runtime === 'bundled') ? '<button type="button" class="primary-button" data-action="local-model-add">Add to my models</button>' : ''}<div class="dialog-footer"><button type="button" class="quiet-button" data-action="local-model-control" data-id="auto" ${status.busy ? 'disabled' : ''}>Automatic</button><button type="button" class="quiet-button" data-action="local-model-control" data-id="cpu" ${status.busy ? 'disabled' : ''}>Use CPU</button><button type="button" class="quiet-button" data-action="local-model-control" data-id="unload" ${status.busy ? 'disabled' : ''}>Unload</button><button type="button" class="primary-button" data-action="close-dialog">Done</button></div>`);
+    return openDialog('Included Qwen', `<p>${e(status.message)}</p><p class="field-help local-engine-status">${e(localEngineLabel(status))}</p><p class="field-help">Stock Qwen3.5-4B · runs on this computer. It loads when you send a message. Stop remains available while loading and replying. To repair missing or damaged files, run the full Setup again.</p><p class="field-help">Mode: ${status.preference === 'cpu' ? 'CPU' : 'Automatic graphics / CPU fallback'} · selected ${status.contextTokens.toLocaleString()} token window${status.loadedContextTokens == null ? ' (not loaded)' : ' · loaded ' + status.loadedContextTokens.toLocaleString() + ' tokens'}.</p>${status.available && !state.models.some(m => m.runtime === 'bundled') ? '<button type="button" class="primary-button" data-action="local-model-add">Add to my models</button>' : ''}<div class="dialog-footer"><button type="button" class="quiet-button" data-action="local-model-control" data-id="auto" ${status.busy ? 'disabled' : ''}>Automatic</button><button type="button" class="quiet-button" data-action="local-model-control" data-id="cpu" ${status.busy ? 'disabled' : ''}>Use CPU</button><button type="button" class="quiet-button" data-action="local-model-control" data-id="unload" ${status.busy ? 'disabled' : ''}>Unload</button><button type="button" class="primary-button" data-action="close-dialog">Done</button></div>`);
   }
   if (action === 'edit-model') { const model = state.models.find(m => m.id === id); if(model?.runtime==='openai')return openDialog('OpenAI API',openaiPanel(await api.openaiStatus())); if (model?.runtime === 'bundled') { const status = await api.localModelStatus(); return openDialog('Included Qwen', `<p>${e(status.message)}</p><button type="button" class="primary-button" data-action="local-model">Model controls</button>`); } return model?.runtime === 'codex' ? openCodex() : openSettings('models', model); }
   if (action === 'delete-model') {
@@ -1452,6 +1455,7 @@ document.addEventListener('submit', safe(async event => {
   }
   if (form.id === 'composer-form') return;
   event.preventDefault();
+  if (await returnUI.submit(event)) return;
   if (await agentProfiles.submit(event)) return;
   if (await imageProviderPanel.submit(event)) return;
   if(form.classList.contains('usual-coat-form')) { await command('harness.usual',{key:form.dataset.key,baseId:form.dataset.baseId||null,ref:harnessRef(form.elements.ref.value)}); openSettings('coats'); toast('Usual Coat saved for future replies'); return; }
@@ -1642,7 +1646,7 @@ document.addEventListener('submit', safe(async event => {
     } else if (form.id === 'roster-chair-form') {
       const chat = state.chats.find(c=>c.id===form.dataset.chatId), desk = form.dataset.chairId === chat.seating.desk.id;
       const participant = desk && (data.modelId === form.dataset.modelId ? state.personalParticipants?.find(p=>p.id===form.dataset.personalId) : state.personalParticipants?.find(p=>p.connections.at(-1).modelId===data.modelId));
-      await command('table.roster.chair',{chatId:chat.id,baseRevisionId:form.dataset.revision,chairId:form.dataset.chairId || null,modelId:data.modelId || null,personalId:participant?.id ?? null,name:data.name.trim(),coat:data.coat ? harnessRef(data.coat) : null});
+      await command('table.roster.chair',{chatId:chat.id,baseRevisionId:form.dataset.revision,chairId:form.dataset.chairId || null,modelId:data.modelId || null,personalId:participant?.id ?? null,name:data.name.trim(),coat:data.coat ? harnessRef(data.coat) : null,hatId:data.hatId||null,hatNotesAllowed:data.hatNotesAllowed==='yes'});
       closeDialog(); toast('Chair saved');
     } else if (form.id === 'chair-picker-form') {
       const personal = form.dataset.seat === 'personal';
@@ -1777,3 +1781,5 @@ document.addEventListener('change', event => {
 document.addEventListener('input',event=>{if(event.target.id==='background-transparency'){const form=event.target.closest('form');saveAppearance(Object.fromEntries(new FormData(form)));$('transparency-value').textContent=event.target.value+'%';}});
 
 installOutputPanels({toast,reportError:error});
+
+document.addEventListener('change',safe(event=>returnUI.change(event)));

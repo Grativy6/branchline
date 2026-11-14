@@ -1,4 +1,15 @@
-# Verification for Branchline 1.1
+# Verification for Branchline 1.2
+
+## 1.2 release checks
+
+The unchanged application behavior promoted from the reviewed 1.2 preview passed 153 backend checks. Focused browser checks cover Hats, per-chair note choices, branch-unique selection, desk MEMORY authorship and queued handoff updates, exact source routes, conflicts and correction scopes. Engine-status and local-library checks cover unloaded/loading/actual backend display and saved model identity.
+
+Real local checks returned replies from stock Qwen, Apertus 8B, Gemma 4 12B and existing Dream-derived GGUFs. Qwen picture input, structured calculator calls, Stop/reply, switching, and CPU fallback passed. The runtime archives match the pinned v1.0.0 / b12359 hashes and commit. Device-wide readings peaked at 54 C and 9,774 MiB VRAM on the development PC. No new training or paid-model inference was used for this release.
+
+Native saved-history startup, export and graceful shutdown preserved earlier exact input objects together with Hats and desk MEMORY in a synthetic workspace. The user also tried the installed Working Draft menus and accepted publication. Isolated fresh-install and upgrade results are recorded separately in the attached INSTALLER-VERIFICATION.json; source identity is recorded in SOURCE-IDENTITY.json.
+
+Short matched Qwen samples showed first text at 5.13 s on the earlier engine and 4.23 s on the refreshed one; warm total response time was 157 ms and 154 ms. These small samples are not general performance claims. Synthetic 6,000/60,000-record map checks demonstrate bounded map shape, not a guarantee for every year-long workspace.
+
 
 ## 1.1 release checks
 

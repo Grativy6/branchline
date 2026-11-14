@@ -84,7 +84,8 @@ function checkDelta(before, after, handle, content, accepted) {
     fail(additions.length === (accepted ? 1 : 0) && additions.every(r => r.chatId === handle.scope.chatId && r.jobId === handle.taskId && r.author === 'model' && r.authority === 'NONE'), 'context preparation escaped its record effect.');
     if (accepted) {
       const parsed = parseCarryResult(before, before.contextCarry.jobs[i], content);
-      fail(same(parsed, { text: additions[0].text, sources: additions[0].sources }), 'context writer changed model content.');
+      fail(same(parsed, { text: additions[0].text, sources: additions[0].sources, ...(additions[0].threadReviews?{threadReviews:additions[0].threadReviews}:{}), ...(additions[0].threadReviewIssues?{threadReviewIssues:additions[0].threadReviewIssues}:{}) }), 'context writer changed model content.');
+      fail(same(additions[0].returnAnchor??null,before.contextCarry.jobs[i].returnAnchor??null),'context writer changed the frozen return map.');
       expected.contextCarry.records.push(...copy(additions));
       if (before.contextCarry.jobs[i].staged) (expected.contextCarry.ready ??= {})[handle.scope.chatId] = additions[0].id;
       else expected.contextCarry.active[handle.scope.chatId] = additions[0].id;

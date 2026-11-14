@@ -1,3 +1,4 @@
+import {recordReturnSupply,returnMap,readReturnSource,searchReturnSources} from './return-map.mjs';
 import {assertPcDisclosure} from './pc-permissions.mjs';
 import { ResourceMeters, UsageAccumulator } from './resource-meters.mjs';
 import { taskInput } from '../public/desk-input.js';
@@ -305,6 +306,7 @@ export async function createApp({
             request: turnRequest, speaker,
           });
           next.exchanges.find(e => e.id === exchangeId).handoff = handoff;
+          recordReturnSupply(next,{chatId:chat.id,selection:speaker,exchangeId,handoff,messages});
           if(admission){next.exchanges.find(e=>e.id===exchangeId).reasoningNotes = noteSettings(chat);next.exchanges.find(e=>e.id===exchangeId).thinkingCoat=taskRecord?.input.thinkingCoat??{enabled:false,characters:4000};}
           if(taskRecord?.goalId) next.exchanges.find(e=>e.id===exchangeId).goal=goalSnapshot(state,taskRecord);
           if (selectedFile) next.exchanges.find(e => e.id === exchangeId).selectedFile = selectedFile;
@@ -484,6 +486,8 @@ export async function createApp({
         if(!operation)throw new Error('Unknown Dream action.');
         const result=await operation();return json(response,200,{result:result??null,state:structuredClone(store.state)});
       }
+      if(method==='GET'&&url.pathname==='/api/return-map'){const chatId=url.searchParams.get('chatId'),chairId=url.searchParams.get('chairId'),chat=store.state.chats.find(c=>c.id===chatId);if(!chat)throw new Error('Conversation not found.');const roster=chairRoster(store.state,chat),chair=[roster.desk,...roster.visitors].find(c=>c.id===chairId)??roster.desk;const selection={chairId:chair.id,chairSnapshot:chair};return json(response,200,{map:returnMap(store.state,chatId,selection),search:searchReturnSources(store.state,chatId,selection,{query:url.searchParams.get('query')??'',offset:Number(url.searchParams.get('offset')??0)},true)});}
+      if(method==='GET'&&url.pathname==='/api/return-source')return json(response,200,readReturnSource(store.state,url.searchParams.get('chatId'),null,{source:url.searchParams.get('source'),offset:Number(url.searchParams.get('offset')??0)},{human:true}));
       if(method==='GET'&&url.pathname==='/api/activity')return json(response,200,{rows:activity(),sequence:store.sequence,scope:'This Branchline app · all desks'});
       if(method==='POST'&&url.pathname==='/api/desk/tasks'){
         const input=await readBody(request,2*1024*1024);

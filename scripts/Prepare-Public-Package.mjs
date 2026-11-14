@@ -52,7 +52,7 @@ if(!manifestOnly){
   const sourceCommit=execFileSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'}).trim();
   const manifest={profile:'branchline.public-binary/2',version:JSON.parse(await fs.readFile(path.join(root,'package.json'),'utf8')).version,sourceCommit,
     nativeHostRebuilt:true,nativeSource:JSON.parse(await fs.readFile(path.join(root,'provenance/desktop-source.json'),'utf8')),
-    runtimeLockSha256:await hashFile(path.join(root,'provenance/runtime-files.json')),nodeVersion:lock.nodeVersion,workspaceFormat:7,signed:false,status:'BUILT',files:rows};
+    runtimeLockSha256:await hashFile(path.join(root,'provenance/runtime-files.json')),nodeVersion:lock.nodeVersion,workspaceFormat:8,signed:false,status:'BUILT',files:rows};
   await fs.writeFile(path.join(target,'build-manifest.json'),JSON.stringify(manifest,null,2)+'\n',{flag:'wx'});
   console.log(JSON.stringify({status:'VERIFIED',version:manifest.version,sourceCommit,files:rows.length,withModel}));
 }

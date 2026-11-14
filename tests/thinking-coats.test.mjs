@@ -1,10 +1,11 @@
+import {returnMap,readReturnSource} from '../server/return-map.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {fixture,input,until,callTool,finish} from './desk-helpers.mjs';
 import {exportHarness,previewHarnessImport} from '../server/harness-files.mjs';
 import {coatPreferences,messageCoatId} from '../public/coat-options.js';
 import {thinkingMessages,thinkingChoice,ThinkingNotes} from '../server/thinking-notes.mjs';
-import {deskContext,inspectChairLog} from '../server/desk-work.mjs';
+import {inspectChairLog} from '../server/desk-work.mjs';
 import {resolveSpeaker} from '../server/table.mjs';
 import {replayJournal} from '../server/journal.mjs';
 import {conversationMessages} from '../public/conversation-records.js';
@@ -43,7 +44,7 @@ test('requested note stays in its own drawer, is bounded and selectable later, a
  const s=f.app.store.state,t=s.deskWork.tasks[0],d=s.deskWork.drawers.find(d=>d.chairId===t.chairId),note=d.notes[0];
  assert.equal(note.revisions[0].text,text);assert(!s.messages.some(m=>m.content.includes('WORKING_NOTE')));
  const own=thinkingMessages(s,f.chatId,t.selection,thinkingChoice(s,t.selection));assert(own.some(m=>m.content.includes('WORKING_NOTE')));assert(own.reduce((n,m)=>n+m.content.length,0)<=4000);
- assert(!deskContext(s,f.chatId,t.selection).some(m=>m.content.includes('WORKING_NOTE')));
+ assert(!JSON.stringify(returnMap(s,f.chatId,t.selection)).includes('WORKING_NOTE'));
  const other=resolveSpeaker(s,f.chatId,'visiting').selection;assert.deepEqual(thinkingMessages(s,f.chatId,other,{enabled:true,characters:4000}),[]);
  assert(inspectChairLog(s,{chatId:f.chatId}, {chair_id:t.chairId}).text.includes('WORKING_NOTE'));
  await f.command('thinking.note.select',{drawerId:d.id,revisionId:note.revisions[0].id,selected:false});

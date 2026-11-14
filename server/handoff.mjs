@@ -1,3 +1,4 @@
+import {assertReturnDisclosure} from './return-map.mjs';
 import {saveInput,inputHash,receiptDigest,originalReceipt} from './history-inputs.mjs';
 import {isImmutable} from './immutable-json.mjs';
 import { isContinuing } from './continuing-state.mjs';
@@ -165,6 +166,7 @@ export function prepareModelHandoff(state, { taskId, chatId, kind, messages, pur
   assertWorkDisclosure(state,chatId,transportModel,workspaceId,workspacePath);
   const sketchDisclosure = assertSketchDisclosure(state,chatId,transportModel,workspaceId);
   assertPcDisclosure(state,chatId,transportModel,workspaceId,workspacePath);
+  assertReturnDisclosure(state,chatId,transportModel,selection,workspaceId,workspacePath,kind);
   assertMediaClearance(mediaClearance, messages, transportModel, chatId);
   const transport = transportReceipt(transportModel, messages);
   if (toolContract) fail(['reply', 'parallel'].includes(kind) && toolContract.chatId === chatId && validToolContract(toolContract, transportModel)

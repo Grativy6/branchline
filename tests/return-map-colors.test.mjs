@@ -1,13 +1,13 @@
+import {returnMap,readReturnSource} from '../server/return-map.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {fixture,input,until} from './desk-helpers.mjs';
-import {deskContext,deskEvent,writeDrawer,writeDeskArtifact,readDeskRecord,readDrawer} from '../server/desk-work.mjs';
+import {deskEvent,writeDrawer,writeDeskArtifact,readDeskRecord,readDrawer} from '../server/desk-work.mjs';
 import {compileMessages} from '../server/model.mjs';
 import {resolveSpeaker} from '../server/table.mjs';
 import {STARTER_HARNESSES} from '../public/harness-catalog.js';
 import {STARTER_COLORS,coatPreferences} from '../public/coat-options.js';
 import {exportHarness,previewHarnessImport} from '../server/harness-files.mjs';
-const jsonPart=m=>JSON.parse(m.content.slice(m.content.indexOf('\n')+1));
 
 test('the shared map keeps current artifacts and the latest own return point despite busy event history',async()=>{
  const f=await fixture({hold:false});try{
@@ -22,10 +22,10 @@ test('the shared map keeps current artifacts and the latest own return point des
    for(let i=0;i<35;i++)deskEvent(s,task,'task.update',{summary:'event '+i+' '+ 'noise '.repeat(80)});
    return s;
  });
- const s=f.app.store.state,original=JSON.stringify(s),messages=deskContext(s,f.chatId,task.selection);
- const own=jsonPart(messages.find(m=>m.content.startsWith('[Your chair drawer'))),shared=jsonPart(messages.find(m=>m.content.startsWith('[Shared desk')));
- assert.equal(own.latestNote.name,'Current work');assert(own.latestNote.opening.includes('CURRENT_FILE'));assert(own.latestNote.ending.includes('NEXT_STEP'));
- assert(shared.artifacts.some(a=>a.id===artifact.id));assert(shared.events.at(-1).summary.includes('event 34'));assert(!messages.some(m=>m.content.includes('[More recorded material')));
+ const s=f.app.store.state,original=JSON.stringify(s),map=returnMap(s,f.chatId,task.selection),own=map.slots.ownWork;
+ assert(own.drawer.returnNote.opening.includes('CURRENT_FILE'));assert(own.drawer.returnNote.ending.includes('NEXT_STEP'));
+ assert(map.slots.task.artifacts.routes.some(a=>a.source.includes(artifact.id)));
+ const event=readReturnSource(s,f.chatId,task.selection,{source:map.slots.changes.items.at(-1).source});assert(event.text.includes('event 34'));
  assert(readDeskRecord(s,f.chatId,{id:artifact.id,revision:'',offset:0}).text.includes('COMPLETE_ARTIFACT_CONTENT'));
  assert(readDrawer(s,task,{name:'Current work',offset:7000}).text.includes('NEXT_STEP'));assert.equal(JSON.stringify(s),original);
  }finally{await f.close();}

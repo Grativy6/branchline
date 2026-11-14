@@ -1,5 +1,5 @@
 {
-  "version": "1.1.0",
+  "version": "1.2.0",
   "packages": [
     {
       "name": "quickjs-emscripten",
@@ -551,8 +551,8 @@
           "title": "Component notices and release status",
           "file": "THIRD-PARTY-NOTICES.txt",
           "source": "THIRD-PARTY-NOTICES.md",
-          "bytes": 7082,
-          "sha256": "b18e271db8913766717fc86b7a01143b07c4b7182c2aa48b7171dedb5c000db5"
+          "bytes": 7132,
+          "sha256": "60db27d9f29450f18b17325215bd2e6928adee6df163e2530a17cc80c933d43c"
         }
       ]
     },
@@ -591,8 +591,8 @@
           "title": "llama.cpp — MIT licence",
           "file": "llama.cpp-LICENSE.txt",
           "source": "provenance/licensing/llama.cpp-LICENSE.txt",
-          "bytes": 1099,
-          "sha256": "bcd8ec749126d45cb06737d0690295d73df4b6e7e194205bcf91190368f27285"
+          "bytes": 1078,
+          "sha256": "94f29bbed6a22c35b992c5c6ebf0e7c92f13b836b90f36f461c9cf2f0f1d010d"
         },
         {
           "title": "LLVM OpenMP runtime — licence and exceptions",

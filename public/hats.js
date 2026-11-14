@@ -1,0 +1,11 @@
+export const HAT_OPENING = 'You are an AI participant in the system. A hat has been provided to grant a continuity trace. The details of the continuity are forthcoming.';
+export const HAT_TEMPLATE = 'branchline.hat-opening/1';
+export const hatHead = hat => hat?.revisions?.at(-1) ?? null;
+export const findHat = (state, id) => state.returnRecords?.hats.find(h => h.id === id) ?? null;
+export const currentHats = state => (state.returnRecords?.hats ?? []).filter(h => !hatHead(h).archived);
+export const deskMemory = (state, rootId) => state.returnRecords?.memories.find(m => m.rootId === rootId) ?? null;
+export const memoryHead = memory => memory?.revisions.at(-1) ?? null;
+export const memoryChoice = memory => memory?.settings.at(-1) ?? { enabled:false, author:null };
+export const threadHead = thread => thread?.revisions.at(-1) ?? null;
+export const THREAD_STATES = ['open','unverified','waiting','parked','resolved','superseded','withdrawn'];
+export const activeThreads = (state, chatId) => (state.returnRecords?.threads ?? []).filter(t => t.chatId === chatId && !['resolved','superseded','withdrawn'].includes(threadHead(t).status));

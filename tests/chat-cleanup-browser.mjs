@@ -1,8 +1,9 @@
+import {returnMap,readReturnSource} from '../server/return-map.mjs';
 import {chromium} from 'playwright-core';
 import fs from 'node:fs/promises';
 import assert from 'node:assert/strict';
 import {fixture,input,until} from './desk-helpers.mjs';
-import {writeDeskArtifact,deskContext} from '../server/desk-work.mjs';
+import {writeDeskArtifact} from '../server/desk-work.mjs';
 const f=await fixture({hold:false}),errors=[];
 await f.command('harness.create',{content:{name:'Blue test coat',description:'',instructions:'Reply normally.'}});
 const customId=f.app.store.state.customHarnesses.at(-1).id;
@@ -11,7 +12,8 @@ const seat=f.app.store.state.chats[0].seating;await f.command('table.roster.chai
 await f.app.deskTasks.admit(input(f,'Say hello.'));await until(()=>f.app.store.state.deskWork.tasks[0].status==='completed','first reply');
 const author=f.app.store.state.deskWork.tasks[0];
 await f.app.store.transact(s=>{writeDeskArtifact(s,author,{title:'A shared work log',text:'WORK_LOG_CONTENT: the result is recorded here.'});return s;});
-const sharedBefore=JSON.stringify(deskContext(f.app.store.state,f.chatId,author.selection));
+const workSource=returnMap(f.app.store.state,f.chatId,author.selection).slots.task.artifacts.routes[0].source;
+const sharedBefore=readReturnSource(f.app.store.state,f.chatId,author.selection,{source:workSource}).text;
 f.app.deskTasks.execute=async()=>{throw new Error('Old preparation failure.');};
 const failed=await f.app.deskTasks.admit(input(f,'An old unsent request.','failed_request'));
 await until(()=>f.app.store.state.deskWork.tasks.at(-1).status==='failed','old failure');
@@ -46,7 +48,7 @@ try{
  await page.locator('#open-chair-drawers').click();await page.locator('#dialog [data-desk-action="shared-work"]').click();await page.getByText('WORK_LOG_CONTENT: the result is recorded here.',{exact:true}).waitFor();await page.getByRole('button',{name:'Close dialog',exact:true}).click();
  await page.reload();await page.locator(`[data-action="select-chat"][data-id="${f.chatId}"]`).click();await page.locator('#message-input').waitFor({state:'visible'});assert.equal(await page.locator('#conversation .desk-artifact').count(),0);assert.equal(await page.locator(`[data-message-id="${failed.batchId}"]`).count(),0);
  assert.equal(await page.locator('#message-input').inputValue(),'Keep this new unfinished message.');
- assert(sharedBefore.includes('WORK_LOG_CONTENT'));assert(JSON.stringify(deskContext(f.app.store.state,f.chatId,author.selection)).includes('WORK_LOG_CONTENT'));
+ assert(sharedBefore.includes('WORK_LOG_CONTENT'));assert(readReturnSource(f.app.store.state,f.chatId,author.selection,{source:workSource}).text.includes('WORK_LOG_CONTENT'));
  await page.evaluate(()=>{document.documentElement.dataset.backdropActive='true';document.documentElement.style.setProperty('--background-opacity','40%');});
  await page.screenshot({path:'.test-output/chat-cleanup-backdrop.png'});assert.deepEqual(errors,[]);
  const result={status:'PASS',sharedWorkHiddenByDefault:true,inspectableThroughDrawers:true,togglePersists:true,unsentRequestDiscarded:true,unrelatedDraftKept:true,reload:true,nativeTintCases:colors.length,minContrast:Math.min(...colors.map(r=>r.contrast)),errors};

@@ -1,12 +1,12 @@
-# Start with Branchline 1.1
+# Start with Branchline 1.2
 
 Branchline is a Windows x64 application for conversations and shared work with AI. The full installer includes stock Qwen3.5-4B for local replies and supported pictures. No Branchline account is required.
 
 ## Install
 
-Download **Install-Branchline.exe** from [the 1.1 release](https://github.com/Grativy6/branchline/releases/tag/v1.1.0). It downloads the matching Setup executable and data parts, checks their hashes, and opens the ordinary installer. Choose the full installation to include Qwen. The default location is your Windows user's Local AppData Programs folder.
+Download **Install-Branchline.exe** from [the 1.2 release](https://github.com/Grativy6/branchline/releases/tag/v1.2.0). It downloads the matching Setup executable and data parts, checks their hashes, and opens the ordinary installer. Choose the full installation to include Qwen. The default location is your Windows user's Local AppData Programs folder.
 
-For an offline installation, download `Branchline-v1.1.0-Setup.exe` and every matching `Setup-*.bin` file. Keep them together. Compare their hashes with `SHA256SUMS.txt`, then run Setup. Do not mix parts from different releases.
+For an offline installation, download `Branchline-v1.2.0-Setup.exe` and every matching `Setup-*.bin` file. Keep them together. Compare their hashes with `SHA256SUMS.txt`, then run Setup. Do not mix parts from different releases.
 
 Windows 10 build 19041 or later, x64, is the supported OS floor. The included model needs at least 4 GiB of available memory to start; larger context windows need more. Performance depends on your CPU, available memory and compatible GPU. The app is unsigned, so Windows may display a warning. If Windows blocks it, stop and inspect the publisher, source and checksums; do not disable security protections.
 
@@ -16,7 +16,7 @@ Setup offers a desktop shortcut. The app-only portable ZIP is for people supplyi
 
 Close Branchline and make a verified copy of your existing app and workspace before updating. Existing installations may use a custom workspace path; check the shortcut's `--data-dir` option and Settings -> Workspace. The installer does not copy your conversations into the new package.
 
-Version 1.1 writes workspace format 7. Preserve the pre-update workspace for an older app. Do not point an older version at an upgraded workspace. Restoring old data and returning to an old application are separate choices; keep newer conversations when deciding what to recover.
+Version 1.2 writes workspace format 8. Preserve the pre-update workspace for an older app. Do not point an older version at an upgraded workspace. Restoring old data and returning to an old application are separate choices; keep newer conversations when deciding what to recover.
 
 ## Try a desk
 

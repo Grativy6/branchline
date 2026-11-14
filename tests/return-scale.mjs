@@ -1,0 +1,34 @@
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+import {performance} from 'node:perf_hooks';
+import {initialState,applyCommand} from '../server/domain.mjs';
+import {configureBundledModel} from '../server/bundled-setup.mjs';
+import {Store} from '../server/store.mjs';
+import {returnMap,suppliedMap,readReturnSource} from '../server/return-map.mjs';
+import {writeDrawer,writeDeskArtifact} from '../server/desk-work.mjs';
+import {resolveSpeaker} from '../server/table.mjs';
+let base=configureBundledModel(initialState(),{fresh:true});const chatId=base.chats[0].id;
+base=applyCommand(base,{type:'table.roster.start',payload:{chatId}});
+base=applyCommand(base,{type:'message.note',payload:{chatId,content:'MAY_ORIGINAL: the original decision remains directly retrievable.'}});
+const original=base.messages[0],selection={chairId:base.chats[0].seating.desk.id,chairSnapshot:base.chats[0].seating.desk};
+const chosen=resolveSpeaker(base,chatId,'personal'),task={id:'scale_task',chatId,chairId:selection.chairId,label:'Builder',selection:chosen.selection,model:chosen.model};
+writeDrawer(base,task,{name:'Return point',text:'Continue the current orbit project.',revision:''});
+const artifact=writeDeskArtifact(base,task,{id:'',revision:'',title:'Current build',text:'The current artifact stays available through its exact route.'});
+base=applyCommand(base,{type:'return.thread.save',payload:{chatId,id:'',revision:'',title:'Current keyboard test',question:'Are the current controls verified?',criterion:'A test of the selected artifact revision.',lookFor:'Keyboard test receipt',status:'open',reason:'',sources:[],watch:[`artifact:${chatId}:${artifact.id}:${artifact.revision}`],evidence:[]}});
+const results=[];
+for(const count of [6000,60000]){
+ const s=structuredClone(base);
+ for(let i=0;i<count;i++)s.messages.push({...original,id:'scale_message_'+i,chatId,createdAt:new Date(Date.UTC(2025,10,13)+(i/count)*365*86400000).toISOString(),content:'Synthetic archived conversation '+i+'. '+ 'Preserved original record. '.repeat(4)});
+ const directory=await fs.mkdtemp(path.join(os.tmpdir(),'branchline-return-scale-')),store=new Store(directory);await store.open();
+ const saveStart=performance.now();await store.transact(()=>s,{returnState:false});const initialSaveMs=performance.now()-saveStart;
+ const start=performance.now(),map=returnMap(store.state,chatId,selection),coldMapMs=performance.now()-start;
+ const warmStart=performance.now();for(let i=0;i<10;i++)returnMap(store.state,chatId,selection);const warmMapMs=(performance.now()-warmStart)/10;
+ const sourceStart=performance.now(),source=readReturnSource(store.state,chatId,selection,{source:`message:${chatId}:${original.id}`});const originalReadMs=performance.now()-sourceStart;assert(source.text.includes('MAY_ORIGINAL'));
+ const saveAgain=performance.now();await store.command({type:'message.note',payload:{chatId,content:'A new current note.'}});const appendMs=performance.now()-saveAgain;
+ await store.close();const reopen=new Store(directory),reopenStart=performance.now();await reopen.open();const reopenMs=performance.now()-reopenStart;assert(readReturnSource(reopen.state,chatId,selection,{source:`message:${chatId}:${original.id}`}).text.includes('MAY_ORIGINAL'));await reopen.close();
+ results.push({historyMessages:count,historyDateSpanDays:365,syntheticBodyCharacters:s.messages[1].content.length,inputMapCharacters:JSON.stringify(suppliedMap(map)).length,mapSlots:Object.keys(map.slots),coldMapMs,warmMapMs,originalReadMs,initialSaveMs,appendMs,reopenMs,heapMiB:process.memoryUsage().heapUsed/1048576});
+}
+assert.deepEqual(results[0].mapSlots,results[1].mapSlots);assert(Math.abs(results[1].inputMapCharacters-results[0].inputMapCharacters)<100);
+await fs.mkdir('.test-output',{recursive:true});await fs.writeFile('.test-output/return-scale.json',JSON.stringify({status:'PASS',scope:'Synthetic 6,000/60,000 short records in one conversation over 365 days, with a fixed drawer, artifact and unresolved thread. Measures return-map and storage paths for these payloads, not all year-long workloads or an uncompacted full-history model prompt.',results},null,2));console.log(JSON.stringify(results));

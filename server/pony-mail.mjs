@@ -1,3 +1,4 @@
+import {captureMaterialScope as capture,checkMaterialScope as checkCapture} from './material-scope.mjs';
 import fs from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -6,11 +7,6 @@ import { digest } from './integrity.mjs';
 import { chairRoster } from '../public/chair-roster.js';
 import { resolveSpeaker, lastMessageId } from './table.mjs';
 import { deskEvent, liveDeskTask } from './desk-work.mjs';
-import { assertHomeDisclosure } from './home-state.mjs';
-import { assertPcDisclosure } from './pc-permissions.mjs';
-import { assertWorkDisclosure } from './work-access.mjs';
-import { assertSketchDisclosure } from './sketches.mjs';
-import { boundContext, contextAllowed } from './personal-context.mjs';
 import { recordImageSelection, selectedImages } from './images.mjs';
 import { mailSettings, mailEvent, mailEvents, mailAddress, postalState } from './pony-mail-state.mjs';
 
@@ -28,26 +24,6 @@ function chairAt(s, a) {
 function event(s, p, kind, detail = {}) {
   const row = { id: uid('mailrecord'), at: now(), parcelId: p.id, kind, ...detail };
   postalState(s).events.push(row); return row;
-}
-function capture(s, chatId) {
-  const rootId = s.chats.find(c => c.id === chatId)?.rootId;
-  const profiles = new Set((s.handoffs?.records ?? []).filter(r => r.kind === 'context.to_model' && r.scope.rootId === rootId && r.detail.contextView?.personalContext).map(r => r.detail.contextView.personalContext.profileId));
-  for (const seat of ['personal','visiting']) { const b = boundContext(s, chatId, seat); if (b) profiles.add(b.profileId); }
-  return { chatId, homeArrivals: s.home?.arrivals.length ?? 0, homeExposures: s.home?.exposures.length ?? 0,
-    pc: s.pcAccess?.exposures.length ?? 0, work: s.workAccess?.exposures.length ?? 0, sketch: s.sketchBook?.exposures.length ?? 0,
-    profiles: [...profiles] };
-}
-function checkCapture(s, source, model, store) {
-  const view = { ...s,
-    ...(s.home ? { home: { ...s.home, arrivals: s.home.arrivals.slice(0, source.homeArrivals), exposures: s.home.exposures.slice(0, source.homeExposures) } } : {}),
-    ...(s.pcAccess ? { pcAccess: { ...s.pcAccess, exposures: s.pcAccess.exposures.slice(0, source.pc) } } : {}),
-    ...(s.workAccess ? { workAccess: { ...s.workAccess, exposures: s.workAccess.exposures.slice(0, source.work) } } : {}),
-    ...(s.sketchBook ? { sketchBook: { ...s.sketchBook, exposures: s.sketchBook.exposures.slice(0, source.sketch) } } : {}) };
-  assertHomeDisclosure(view, source.chatId, model, store.workspaceId, store.dataDir);
-  assertPcDisclosure(view, source.chatId, model, store.workspaceId, store.dataDir);
-  assertWorkDisclosure(view, source.chatId, model, store.workspaceId, store.dataDir);
-  assertSketchDisclosure(view, source.chatId, model, store.workspaceId);
-  for (const profileId of source.profiles) fail(contextAllowed(s, profileId, model), 'this destination needs sharing access to the carried personal continuity.');
 }
 
 export class PonyMail {

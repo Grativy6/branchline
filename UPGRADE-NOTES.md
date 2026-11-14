@@ -1,4 +1,8 @@
-# Updating to Branchline 1.0
+# Updating to Branchline 1.2
+
+## Updating to 1.2
+
+Hats, desk MEMORY, unresolved threads and input-supply records use workspace format 8. Existing personal memory profiles are preserved. Keep a pre-update backup for older apps; use a separate restored copy for rollback. The continuing workspace path and sign-in directory remain unchanged.
 
 ## Updating to 1.1
 

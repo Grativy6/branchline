@@ -4,7 +4,8 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import os from 'node:os';
 import net from 'node:net';
-import { spawn } from 'node:child_process';
+import { spawn, execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { setTimeout as delay } from 'node:timers/promises';
 import { BUNDLED_PROFILE, BUNDLED_CONTEXT, BUNDLED_IMAGE_TOKENS, assertBundledProfile, isBundledContext } from './bundled-profile.mjs';
 
@@ -12,6 +13,17 @@ const modelFile = 'Qwen3.5-4B-Q4_K_M.gguf', projectorFile = 'mmproj-Qwen3.5-4B-B
 const expected = { [modelFile]: '25082a7dd3776cc3c741c6347d3bd04523f05796607b3fbc32fa3a25dfa1418c',
   [projectorFile]: 'ae08d9d7eceb8f2d0672d61b5e6aa78b611f2942b55ed71d21414980cc454b91' };
 const fail = message => new Error(message + ' Open Settings → Models for recovery.');
+const execFileAsync = promisify(execFile);
+export function parseRuntimeVersion(text) {
+  const match = /version:\s+(\d+\.\d+\.\d+(?:[-+][\w.-]+)?)\s+\(build\s+(\d+),\s+commit\s+([a-f0-9]{7,40})\)/i.exec(text);
+  if (!match) throw fail('The local engine could not identify its version.');
+  return {version: match[1], build: Number(match[2]), commit: match[3].toLowerCase()};
+}
+async function runtimeVersion(exe, {env, signal}) {
+  const result = await execFileAsync(exe, ['--version'], {cwd: path.dirname(exe), env, signal, windowsHide: true, shell: false, maxBuffer: 65536});
+  return parseRuntimeVersion(result.stdout + result.stderr);
+}
+
 export async function hashFile(file, signal) {
   const hash = crypto.createHash('sha256');
   for await (const chunk of createReadStream(file, { highWaterMark: 4 * 1024 * 1024, signal })) hash.update(chunk);
@@ -32,8 +44,9 @@ async function regular(root, relative) {
 }
 
 export class BundledRunner {
-  constructor(root, { startTimeoutMs = 180000, spawnProcess = spawn, allocatePort = freePort, platform = process.platform, architecture = process.arch, contextTokens = BUNDLED_CONTEXT, validateContext = isBundledContext } = {}) {
+  constructor(root, { startTimeoutMs = 180000, spawnProcess = spawn, readVersion = runtimeVersion, allocatePort = freePort, platform = process.platform, architecture = process.arch, contextTokens = BUNDLED_CONTEXT, validateContext = isBundledContext } = {}) {
     if (!validateContext(contextTokens)) throw new Error('Choose a supported local-model window.');
+    this.readVersion = readVersion; this.versionChecks = new Map();
     this.root = path.resolve(root); this.startTimeoutMs = startTimeoutMs; this.spawnProcess = spawnProcess; this.allocatePort = allocatePort;
     this.label = 'Qwen'; this.alias = BUNDLED_PROFILE.model; this.modelPath = path.join(this.root, modelFile); this.projectorPath = path.join(this.root, projectorFile); this.extraArgs = [];
     this.contextTokens = contextTokens; this.loadedContextTokens = null; this.changing = false;
@@ -56,11 +69,13 @@ export class BundledRunner {
       if (!allowed || (expected[row.path] && expected[row.path] !== row.sha256)) throw fail('The included-model manifest does not match the reviewed model.');
     }
     for (const file of [...Object.keys(expected), 'cpu/llama-server.exe', 'vulkan/llama-server.exe']) if (!seen.has(file)) throw fail('The included-model manifest is incomplete.');
+    if (!/^b\d+$/.test(manifest.runtimeTag ?? '') || !/^[a-f0-9]{40}$/.test(manifest.runtimeCommit ?? '') || !/^\d+\.\d+\.\d+$/.test(manifest.runtimeVersion ?? '')) throw fail('The local engine version record needs repair.');
     this.manifest = manifest;
     this.state = { available: true, phase: 'idle', message: 'Ready to load when you send a message. Replies stay on this device.', backend: null };
     return this;
   }
   status() { return { ...this.state, preference: this.preference, busy: this.requests > 0 || !!this.loading || this.changing,
+    engine: this.manifest ? {name: 'llama.cpp', version: this.manifest.runtimeVersion, tag: this.manifest.runtimeTag, commit: this.manifest.runtimeCommit, reported: this.versionChecks.get(this.state.backend) ?? null} : null,
     changing: this.changing, contextTokens: this.contextTokens, loadedContextTokens: this.loadedContextTokens }; }
   restoreContext(contextTokens) {
     if (!isBundledContext(contextTokens) || this.child || this.loading || this.requests || this.changing) throw new Error('The included-model window cannot be restored.');
@@ -120,6 +135,17 @@ export class BundledRunner {
     }).finally(() => { signal?.removeEventListener('abort', abort); this.loading = null; this.loadAbort = null; });
     await this.loading;
   }
+  async checkVersion(exe, backend, env, signal) {
+    if (this.versionChecks.has(backend)) return this.versionChecks.get(backend);
+    const actual = await this.readVersion(exe, {env, signal});
+    const expected = this.manifest;
+    // Upstream's tagged v1 archive reports 1.0.0-dev; its exact build and commit identify the release.
+    if (actual.version.replace(/-dev$/, '') !== expected.runtimeVersion || actual.build !== Number(expected.runtimeTag.slice(1)) || !expected.runtimeCommit.startsWith(actual.commit)) {
+      throw fail(`Local engine mismatch: expected ${expected.runtimeVersion} / ${expected.runtimeTag}, received ${actual.version} / b${actual.build} (${actual.commit}).`);
+    }
+    this.versionChecks.set(backend, actual);
+    return actual;
+  }
   async load(signal, onStatus) {
     if (this.platform !== 'win32' || this.architecture !== 'x64') throw fail('This included runtime supports Windows x64.');
     if (os.freemem() < 4 * 1024 ** 3) throw fail(`${this.label} needs more free memory. Close another large app and try again.`);
@@ -133,6 +159,7 @@ export class BundledRunner {
         const exe = await regular(this.root, `${backend}/llama-server.exe`);
         this.port = await this.allocatePort(); this.token = crypto.randomBytes(32).toString('hex');
         const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^(LLAMA_|GGML_|HF_|CUDA_|VK_|NODE_OPTIONS$)/i.test(key)));
+        await this.checkVersion(exe, backend, env, signal);
         env.LLAMA_API_KEY = this.token;
         const args = this.launchArguments(backend);
         const child = this.spawnProcess(exe, args, { cwd: path.dirname(exe), env, windowsHide: true, shell: false, stdio: ['ignore', 'ignore', 'pipe'] });

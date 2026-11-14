@@ -1,6 +1,6 @@
 {
   "profile": "branchline.public-release-files/2",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "source": [
     ".gitattributes",
     ".gitignore",
@@ -580,7 +580,18 @@
     "tests/chat-cleanup.test.mjs",
     "tests/chat-cleanup-browser.mjs",
     "tests/reply-lifetime.test.mjs",
-    "tests/return-map-colors.test.mjs"
+    "tests/return-map-colors.test.mjs",
+    "public/hats.js",
+    "public/return-ui.js",
+    "server/return-records.mjs",
+    "server/return-map.mjs",
+    "tests/return-records.test.mjs",
+    "tests/return-hats-browser.mjs",
+    "tests/return-scale.mjs",
+    "RETURN-MAPS-AND-HATS.md",
+    "server/material-scope.mjs",
+    "tests/local-engine.test.mjs",
+    "tests/local-engine-browser.mjs"
   ],
   "binary": [
     "public/agent-profiles/hearthline.json",
@@ -1059,7 +1070,13 @@
     "public/coat-options.js",
     "public/output-panels.js",
     "server/thinking-notes.mjs",
-    "public/how-to.md"
+    "public/how-to.md",
+    "public/hats.js",
+    "public/return-ui.js",
+    "server/return-records.mjs",
+    "server/return-map.mjs",
+    "RETURN-MAPS-AND-HATS.md",
+    "server/material-scope.mjs"
   ],
   "auditExceptions": [
     {

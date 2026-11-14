@@ -10,6 +10,7 @@ await writeGguf(path.join(dir,'alpha.gguf'),{name:'Alpha local',description:'A m
 await writeGguf(path.join(dir,'beta.gguf'),{name:'Beta local',template:'{{messages}}',seed:2});
 await writeGguf(path.join(dir,'mmproj.gguf'),{architecture:'clip',name:'Vision companion'});
 const f=await fixture({modelOptions:{localModelFolders:[dir]}}),errors=[];
+f.app.localRunner.status=()=>({available:true,phase:'idle',backend:null,contextTokens:8192,engine:{name:'llama.cpp',version:'1.0.0',tag:'b12359'}});
 await new Promise(r=>f.app.listen(0,'127.0.0.1',r));
 const browser=await chromium.launch({headless:true,...(process.platform==='win32'?{channel:'msedge'}:{})});
 const page=await browser.newPage({viewport:{width:1100,height:1000}});page.on('pageerror',e=>errors.push(e.message));await fs.mkdir('.test-output',{recursive:true});
@@ -31,7 +32,7 @@ try{
   await page.getByText('Removed from the list. The model file remains on disk.',{exact:true}).waitFor();assert((await fs.stat(path.join(dir,'alpha.gguf'))).isFile());
   await page.locator('.local-model-results button').filter({hasText:'Alpha local'}).click();await page.locator('[data-local-action="add"]').click();await page.locator('.local-model-list').getByRole('option',{name:/My Alpha/}).waitFor();
   await page.reload();await page.locator('#settings-button').click();await page.locator('[data-action="settings-tab"][data-id="models"]').click();await page.locator('.local-model-list').getByRole('option',{name:/My Alpha/}).waitFor();
-  assert.equal(f.app.store.state.models.filter(m=>m.runtime==='gguf').length,1);assert.equal(f.requests.length,0);assert.deepEqual(errors,[]);
+  await page.locator('.local-model-list').getByRole('option',{name:/My Alpha/}).click();await page.getByText('llama.cpp 1.0.0 · b12359 · Unloaded',{exact:true}).waitFor();assert.equal(f.app.store.state.models.filter(m=>m.runtime==='gguf').length,1);assert.equal(f.requests.length,0);assert.deepEqual(errors,[]);
   await page.screenshot({path:'.test-output/local-model-library.png'});
   const result={status:'PASS',pageOrder:true,searchPreviewBeforeAdd:true,removeRetainsFile:true,reAddKeepsIdentity:true,reload:true,huggingFaceDestination:true,noInferenceDuringDiscovery:true,errors,fixture:f.dir};
   await fs.writeFile('.test-output/local-models-browser.json',JSON.stringify(result,null,2)+'\n');console.log(JSON.stringify(result));

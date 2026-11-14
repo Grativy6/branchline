@@ -1,9 +1,10 @@
+import {returnMap,readReturnSource} from '../server/return-map.mjs';
 import { fixture, finish, until, input } from './desk-helpers.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseChairPrompt } from '../public/chair-mentions.js';
 import { activityRows } from '../server/activity.mjs';
-import { writeDrawer, readDrawer, writeDeskArtifact, inspectChairLog, deskContext, preserveDeskWork } from '../server/desk-work.mjs';
+import { writeDrawer, readDrawer, writeDeskArtifact, inspectChairLog, preserveDeskWork } from '../server/desk-work.mjs';
 
 const chairs=[{id:'a',name:'Hearthline'},{id:'b',name:'Qwen'},{id:'c',name:'Long Name'}];
 test('Activity counts a chair once while its started event is still being saved',()=>{
@@ -49,7 +50,7 @@ test('drawer isolation, attributed inspection and shared edit conflicts preserve
     assert.throws(()=>writeDeskArtifact(state,a,{id:'',title:'New shared work',text:'Safe draft',revision:'v1'}),/new shared artifact.*empty strings/);
     const saved=writeDrawer(state,a,{name:'Unfinished',text:'PRIVATE_A_CAVEAT',revision:''});
     assert.equal(readDrawer(state,b,{name:'',offset:0}).notes.length,0);
-    assert.ok(!JSON.stringify(deskContext(state,b.chatId,b.selection)).includes('PRIVATE_A_CAVEAT'));
+    assert.ok(!JSON.stringify(returnMap(state,b.chatId,b.selection)).includes('PRIVATE_A_CAVEAT'));
     assert.match(inspectChairLog(state,b,{chair_id:a.chairId,query:'PRIVATE_A_CAVEAT',offset:0}).text,/PRIVATE_A_CAVEAT/);
     assert.match(inspectChairLog(state,b,{chair_id:a.chairId}).view,/historical|Historical/);
     const artifact=writeDeskArtifact(state,a,{title:'Shared',text:'v1',id:'',revision:''});

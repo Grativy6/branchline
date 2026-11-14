@@ -14,8 +14,8 @@ test('exact input snapshots stay outside state, reopen in wire packets, and surv
   const f=await fixture({hold:false});try{
     for(let i=0;i<3;i++){await f.app.deskTasks.admit(input(f,'Remember this exact request '+i,'saved_input_'+i));await until(()=>f.app.store.state.exchanges.filter(e=>e.status==='completed').length===i+1,'saved reply');}
     const store=f.app.store,records=store.state.handoffs.records.filter(r=>r.kind==='context.to_model');
-    assert(records.every(r=>isInputRef(r.detail.inputMessages)));assert.equal(store.state.schemaVersion,4);
-    await store.transact(s=>{deskWork(s);return s;});assert.equal(store.state.schemaVersion,4,'desk activity cannot downgrade the saved-input format');
+    assert(records.every(r=>isInputRef(r.detail.inputMessages)));assert.equal(store.state.schemaVersion,8);
+    await store.transact(s=>{deskWork(s);return s;});assert.equal(store.state.schemaVersion,8,'desk activity cannot downgrade the saved-input format');
     assert.deepEqual(store.inputs.read(records[0].detail.inputMessages),f.requests[0].body.messages);
     const own=store.state.handoffs.records.filter(r=>r.taskId===records[0].taskId);
     const packet=packHandoffs(own,{inputReader:store.inputs});assert.equal(packet.v,INPUT_WIRE);assert(packet.inputMaterial);

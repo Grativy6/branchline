@@ -1,3 +1,12 @@
+import {deskMemory,memoryChoice} from '../public/hats.js';
+import {conversationMaterialScopes,mergeMaterialScopes,checkMaterialScope} from './material-scope.mjs';
+import {RETURN_TOOLS,executeReturnWrite,returnEvent,proposeDeskMemory} from './return-records.mjs';
+import {returnMap,suppliedMap,readReturnSource,resolveReturnSource,searchReturnSources} from './return-map.mjs';
+import {assertPcDisclosure} from './pc-permissions.mjs';
+import {assertHomeDisclosure} from './home-state.mjs';
+import {assertContextDisclosure} from './personal-context.mjs';
+import {assertSketchDisclosure} from './sketches.mjs';
+import {assertAgentDisclosure} from './agent-profiles.mjs';
 import { MAIL_TOOLS } from './pony-mail-state.mjs';
 import crypto from 'node:crypto';
 import { noteSettings } from '../public/reasoning-notes-settings.js';
@@ -62,6 +71,7 @@ export class DeskTasks {
       for(const t of s.deskWork.tasks.filter(liveDeskTask)){
         if(!t.startedAt&&['queued','waiting'].includes(t.status)){
           if(t.ponyParcelId){t.status='waiting';t.phase='Waiting for Pony Post';continue;}
+          if(t.memoryHandoff){t.status='waiting';t.phase='Waiting for memory author';continue;}
           if(t.automatic||t.trigger?.kind==='goal_start'){t.status='waiting';t.phase='Goal paused';continue;}
           if(humanInput(s,t)){retainUnsentInput(s,t);continue;}
         }
@@ -154,7 +164,7 @@ export class DeskTasks {
         await this.store.transact(next=>{setGoalState(next,goal,'completed','All participating chairs reported their assignments complete. Inspect the linked evidence.','chair_reports');return next;});
     }
   }
-  async admit(input, origin = null, { literal = false, chairIds = null, goalId = null, automatic = false, trigger = null, scheduled = false, postal = null } = {}) {
+  async admit(input, origin = null, { literal = false, chairIds = null, goalId = null, automatic = false, trigger = null, scheduled = false, postal = null, memoryHandoff = null } = {}) {
     fail(!this.closed,'Branchline is closing.');
     fail(input && typeof input.chatId==='string' && typeof input.content==='string' && input.content.length<=200000 && typeof input.requestId==='string' && /^[A-Za-z0-9_-]{1,120}$/.test(input.requestId),'Choose a desk, message and request identity.');
     const epoch=this.epoch,chatEpoch=this.chatEpochs.get(input.chatId)??0;
@@ -171,7 +181,7 @@ export class DeskTasks {
     fail(!parsed.errors.length,parsed.errors.join(' ')); fail(parsed.sections.length>0,'Write a task first.');
     const batchId=uid('deskbatch'), chainId=origin?.chainId??batchId;
     const goal=goalId?snapshot.deskWork?.goals?.find(g=>g.id===goalId&&g.chatId===chat.id):origin?.goalId?snapshot.deskWork?.goals?.find(g=>g.id===origin.goalId):currentGoal(snapshot,chat.id);
-    const goalForTurn=!postal&&!scheduled&&goal&&!['stopped','completed'].includes(goalState(snapshot,goal.id))?goal:null;
+    const goalForTurn=!memoryHandoff&&!postal&&!scheduled&&goal&&!['stopped','completed'].includes(goalState(snapshot,goal.id))?goal:null;
     if(origin&&!goalForTurn)fail((snapshot.deskWork?.tasks.filter(t=>t.chainId===chainId).length??0)<16,'This group reached its 16-task handoff allowance. Return the current results to the desk.');
     const tasks=parsed.sections.map((section,index)=>{
       const chair=chairs.find(c=>c.id===section.chairId);fail(chair,'Choose a chair at this desk.');
@@ -182,6 +192,7 @@ export class DeskTasks {
         kind:postal||origin||automatic?'ask':input.kind??'send',createdAt:now(),status:'queued',phase:'Queued',exchangeId:null,error:null,
         requestId:`${input.requestId}_${index}`,originTaskId:origin?.id??null,
         ...(scheduled?{scheduled:true}:{}),
+        ...(memoryHandoff?{memoryHandoff,automatic:true,trigger:{kind:'memory_handoff',recordId:memoryHandoff.recordId}}:{}),
         ...(postal?{ponyParcelId:postal.parcelId,ponyAttempt:postal.attempt}:{}),
         ...(goalForTurn?{goalId:goalForTurn.id,goalRevisionId:goalRevision(goalForTurn).id,automatic:automatic||Boolean(origin),trigger:trigger??{kind:origin?'peer_request':'human_message'},eventCursor:snapshot.deskWork?.events.at(-1)?.id??''}:{}),
         input:{thinkingCoat:thinkingChoice(snapshot,resolved.selection),busyMode:snapshot.ui.busyInputMode??'queue-first',noteSettings:noteSettings(chat),toolsEnabled:input.toolsEnabled===true,baseRevisionId:input.baseRevisionId,lastMessageId:input.lastMessageId,replyMode:parsed.broadcast?'all':parsed.routed?'single':input.replyMode??'single',
@@ -200,7 +211,7 @@ export class DeskTasks {
       if(postal)this.postalValidate?.(s,postal,tasks);
       const pictures=!origin&&!literal?this.captureImages(s,input,tasks):[];
       w.batches.push({id:batchId,chatId:chat.id,requestId:input.requestId,fingerprint,createdAt:now(),original:postal?'':input.content,sharedContext:parsed.sharedContext,routed:parsed.routed,...(pictures.length?{selectedImages:pictures}:{}),
-        assignments:tasks.map(t=>({taskId:t.id,chairId:t.chairId,chair:t.label,content:t.content})),originTaskId:origin?.id??null});
+        assignments:tasks.map(t=>({taskId:t.id,chairId:t.chairId,chair:t.label,content:t.content})),originTaskId:origin?.id??null,...(memoryHandoff?{memoryHandoff}: {})});
       for(const t of tasks){w.tasks.push(t);drawerFor(s,t.chatId,t.chairId,true);deskEvent(s,t,'task.assigned',{summary:t.content.slice(0,500),batchId});if(goalForTurn)assignGoal(s,goalForTurn,t);}
       if(s.drafts[chat.id]===input.content)delete s.drafts[chat.id];
       return s;
@@ -268,13 +279,36 @@ export class DeskTasks {
     };
     const result=(target.steerChain??Promise.resolve()).then(execute);target.steerChain=result.catch(()=>{});return result;
   }
+  async advanceMemoryHandoffs(){
+    const state=this.store.state;
+    for(const memory of state.returnRecords?.memories??[]){
+      const choice=memoryChoice(memory);if(!choice.enabled||!choice.automaticAfterHandoff||!choice.author)continue;
+      for(const chat of state.chats.filter(c=>c.rootId===memory.rootId&&!c.archivedAt)){
+        const recordId=state.contextCarry?.active?.[chat.id];if(!recordId||choice.afterHandoffs?.[chat.id]===recordId)continue;
+        if(state.deskWork?.tasks.some(t=>t.memoryHandoff?.recordId===recordId)||state.returnRecords.events.some(e=>e.kind.startsWith('memory.auto.')&&e.detail.recordId===recordId))continue;
+        const record=state.contextCarry.records.find(r=>r.id===recordId),actor={kind:'app',name:'Branchline'},scope={rootId:memory.rootId,chatId:chat.id};
+        const handoffSource=`handoff:${chat.id}:${recordId}`;
+        const ownUpdate=[...this.entries.values()].some(e=>e.task.chatId===chat.id&&(e.task.memoryHandoff||e.task.requestId.startsWith('memory_request_')))||(state.deskWork?.tasks??[]).some(t=>t.chatId===chat.id&&(t.memoryHandoff||t.requestId.startsWith('memory_request_'))&&(state.returnRecords?.supplies??[]).some(p=>p.exchangeId===t.exchangeId&&p.refs.includes(handoffSource)));
+        if(ownUpdate){await this.store.transact(s=>{returnEvent(s,'memory.auto.covered',{recordId,reason:'The active memory-author request already receives this handoff.'},actor,scope);return s;});continue;}
+        const authorChat=this.store.state.chats.find(c=>c.id===choice.author.chatId&&!c.archivedAt),roster=authorChat&&chairRoster(this.store.state,authorChat),chair=roster&&[roster.desk,...roster.visitors].find(c=>c.id===choice.author.chairId&&c.modelId);
+        if(!chair){await this.store.transact(s=>{returnEvent(s,'memory.auto.held',{recordId,reason:'The chosen memory author is unavailable.'},actor,scope);return s;});continue;}
+        try{
+          await this.store.transact(s=>{proposeDeskMemory(s,{rootId:memory.rootId,text:'A handoff was used in '+chat.title+'. Review its account and any relevant changes for desk MEMORY.',sources:[`handoff:${chat.id}:${recordId}`],kind:'proposal'}, {...actor,chatId:chat.id,materialScopes:record.returnAnchor?.materialScopes??conversationMaterialScopes(s,chat.id)});return s;});
+          const liveChat=this.store.state.chats.find(c=>c.id===authorChat.id),liveRoster=chairRoster(this.store.state,liveChat);
+          await this.admit({chatId:authorChat.id,chairId:chair.id,content:'Update desk MEMORY from the handoff just used in '+chat.title+'. Read the pending memory proposal and its exact source route: handoff:'+chat.id+':'+recordId+'. Review saved evidence and preserve disagreements. Save the account with write_desk_memory if needed; do not manufacture an update when the account already suffices.',requestId:'memory_handoff_'+recordId,baseRevisionId:liveRoster.revisionId,lastMessageId:lastMessageId(this.store.state,authorChat.id),toolsEnabled:true},null,{literal:true,automatic:true,memoryHandoff:{recordId,sourceChatId:chat.id,settingId:choice.id}});
+        }catch(error){await this.store.transact(s=>{returnEvent(s,'memory.auto.held',{recordId,reason:error.message},actor,scope);return s;}).catch(()=>{});}
+      }
+    }
+  }
   kick(){if(this.closed||this.pumping||this.recovering)return;this.pumping=this.pump().catch(e=>{this.lastError=e.message;}).finally(()=>{this.pumping=null;});}
   async pump(){
     await this.advanceGoals();
+    await this.advanceMemoryHandoffs();
     for(const task of [...(this.store.state.deskWork?.tasks??[])].sort((a,b)=>Number(a.automatic===true)-Number(b.automatic===true))){
       if(!['queued','waiting'].includes(task.status)||this.entries.has(task.id))continue;
       if(['requested','uncertain','held'].includes(inputDelivery(this.store.state,task.id)?.state))continue;
-      const managed=task.automatic||task.trigger?.kind==='goal_start';
+      if(task.memoryHandoff){const choice=memoryChoice(deskMemory(this.store.state,task.rootId));if(!choice.enabled||!choice.automaticAfterHandoff||choice.author?.chatId!==task.chatId||choice.author?.chairId!==task.chairId){await this.update(task.id,{status:'cancelled',phase:'Automatic memory update was disabled or reassigned',endedAt:now()});continue;}}
+      const managed=!task.memoryHandoff&&(task.automatic||task.trigger?.kind==='goal_start');
       if(managed&&currentGoal(this.store.state,task.chatId)?.id!==task.goalId){await this.update(task.id,{status:'cancelled',phase:'Retired by a new conversation goal',endedAt:now()});continue;}
       if(managed&&goalState(this.store.state,task.goalId)!=='running'){if(task.phase!=='Goal paused')await this.update(task.id,{status:'waiting',phase:'Goal paused'});continue;}
       if(task.automatic&&task.trigger?.kind==='declared_next_step'&&latestGoalReport(this.store.state,task.goalId,task.chairId)?.id!==task.trigger.id){await this.update(task.id,{status:'cancelled',phase:'Superseded by a newer return point',endedAt:now()});continue;}
@@ -308,6 +342,7 @@ export class DeskTasks {
     entry.sink=sink;
     try{
       await this.update(task.id,{status:'preparing',phase:'Preparing this chair’s context',startedAt:now()});
+      if(task.memoryHandoff){const choice=memoryChoice(deskMemory(this.store.state,task.rootId));if(!choice.enabled||!choice.automaticAfterHandoff||choice.author?.chatId!==task.chatId||choice.author?.chairId!==task.chairId){entry.stopped=true;sink.destroy();throw new Error('Automatic memory update was disabled or reassigned.');}}
       if(entry.stopped||this.closed){sink.destroy();throw new Error('Task stopped before dispatch.');}
       const {media,busyMode,noteSettings:startingNotes,thinkingCoat,...request}=task.input;
       const body={...request,chatId:task.chatId,content:task.kind==='ask'?'':taskInput(this.store.state,task),kind:task.kind,speaker:task.selection.seat,requestId:task.requestId,stream:true};
@@ -353,6 +388,19 @@ export class DeskTasks {
   }
   async call(taskId,name,args,callId=null){
     const task=this.store.state.deskWork?.tasks.find(t=>t.id===taskId);fail(task&&this.entries.has(taskId)&&liveDeskTask(task),'This chair task is no longer active.');
+    if(name==='read_return_map')return {map:suppliedMap(returnMap(this.store.state,task.chatId,task.selection)),index:searchReturnSources(this.store.state,task.chatId,task.selection,args)};
+    const sourceOptions={disclosure:(origin,row)=>{const s=this.store.state;assertPcDisclosure(s,origin,task.model,this.store.workspaceId,this.store.dataDir);assertHomeDisclosure(s,origin,task.model,this.store.workspaceId,this.store.dataDir);assertContextDisclosure(s,origin,task.model);assertSketchDisclosure(s,origin,task.model,this.store.workspaceId);assertAgentDisclosure(s,origin,task.model,row.record?.speaker??null,'reply');}};
+    if(name==='read_return_source'){
+      const row=resolveReturnSource(this.store.state,task.chatId,task.selection,args.source,sourceOptions),scopes=mergeMaterialScopes(row.record.materialScopes??row.record.returnAnchor?.materialScopes??[],row.chatId?conversationMaterialScopes(this.store.state,row.chatId):[]);
+      for(const scope of scopes)checkMaterialScope(this.store.state,scope,task.model,this.store);
+      const result=readReturnSource(this.store.state,task.chatId,task.selection,args,sourceOptions);
+      await this.store.transact(s=>{returnEvent(s,'source.read',{source:result.source,materialScopes:scopes,phase:'prepared_tool_result'}, {kind:'app',name:'Branchline'}, {chatId:task.chatId,rootId:task.rootId});return s;});return result;
+    }
+    if(RETURN_TOOLS.includes(name)){
+      args={...args};for(const field of ['sources','watch','evidence'])if(Array.isArray(args[field]))args[field]=args[field].map(ref=>resolveReturnSource(this.store.state,task.chatId,task.selection,ref,sourceOptions).source);
+      if(name==='record_source_correction'){args.target=resolveReturnSource(this.store.state,task.chatId,task.selection,args.target,sourceOptions).source;if(args.replacement)args.replacement=resolveReturnSource(this.store.state,task.chatId,task.selection,args.replacement,sourceOptions).source;}
+    }
+    if(RETURN_TOOLS.includes(name)){let result;await this.store.transact(s=>{const current=s.deskWork.tasks.find(t=>t.id===taskId);fail(current&&liveDeskTask(current)&&current.status!=='stopping','The chair stopped before its continuity write.');result=executeReturnWrite(s,current,name,args);deskEvent(s,current,result.conflict?'continuity.conflict':'continuity.saved',{tool:name,...result},name.includes('hat')?'drawer':'desk');return s;});this.contextChanged();return result;}
     if(MAIL_TOOLS.includes(name)){fail(this.ponyMail,'Pony Post is unavailable.');return this.ponyMail.call(task,name,args,callId);}
     if(name===GOAL_TOOL){let result;await this.store.transact(s=>{result=reportGoalWork(s,task,args,callId);return s;});return result;}
     if(name==='read_drawer')return readDrawer(this.store.state,task,args);

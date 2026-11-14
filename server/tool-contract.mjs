@@ -1,3 +1,5 @@
+import {findHat,hatHead,deskMemory,memoryChoice} from '../public/hats.js';
+import {RETURN_TOOLS,continuityDefinitions} from './return-records.mjs';
 import {WORK_TOOL_PROFILE,workSnapshot,workToolNames,validWork,workDefinitions} from './work-profile.mjs';
 import { digest } from './integrity.mjs';
 import { chairView, chairRoster } from '../public/chair-roster.js';
@@ -24,7 +26,8 @@ export const PC_TOOL_PROFILE = 'branchline.conversation-tools/8';
 const sameBinding = (a, b) => a.tool === b.tool && a.provider === b.provider;
 const coordinationTools = parallel => parallel?.pony ? ['pony_task_send'] : [...(parallel ? ['request_parallel_approach'] : []), ...(parallel?.hearth ? ['request_hearth'] : [])];
 const postalTools = contract => contract.ponyMail ? MAIL_TOOLS : [];
-const deskTools = contract => contract.desk ? contract.conversationEnabled ? DESK_TOOLS : contract.goal ? ['read_desk_updates','read_desk_record'] : [] : [];
+const returnTools=contract=>{const c=contract.returnContext;if(!c)return [];return RETURN_TOOLS.filter(n=>c.profile==='branchline.return-tools/1'?n!=='review_desk_memory_proposal':true).filter(n=>n==='write_hat_note'?!!c.hatId&&c.notes:n==='update_hat_intro'?!!c.hatId&&c.intro:n==='write_desk_memory'||n==='review_desk_memory_proposal'?c.memory&&c.author:n==='propose_desk_memory'?c.memory:true);};
+const deskTools = contract => contract.desk ? contract.conversationEnabled ? [...DESK_TOOLS,...returnTools(contract)] : contract.goal ? ['read_desk_updates','read_desk_record'] : [] : [];
 const exact = (v, keys) => v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length === keys.length && keys.every(k => Object.hasOwn(v, k));
 
 // Carry the actual originating implementations, not a fresh, broader catalogue.
@@ -86,6 +89,7 @@ export function makeToolContract(state, { chatId, model, selectedFile, enabled =
   const personal=!peerHistory&&selectedContext(state,chatId,seat);
   if(personal){contract.personalContext={profile:PERSONAL_CONTEXT_PROFILE,snapshotId:personal.id,profileId:personal.profileId,revision:personal.view.revision,memoryPolicy:memoryPolicy(state,personal.profileId).id};contract.bindings=resolvedBindings(contract);}
   if(deskTaskId&&(enabled||goal)){const task=state.deskWork?.tasks.find(t=>t.id===deskTaskId);if(!task||task.chatId!==chatId||task.chairId!==chairId||digest(task.model)!==digest(model))throw new Error('The desk tool assignment changed.');const roster=chairRoster(state,state.chats.find(c=>c.id===chatId));contract.desk={taskId:deskTaskId,chairId,chatId,chairs:[roster.desk,...roster.visitors].map(c=>({id:c.id,name:c.name}))};}
+  if(contract.desk&&enabled){const task=state.deskWork.tasks.find(t=>t.id===deskTaskId),hatId=task.selection.chairSnapshot?.hatId??null,choice=memoryChoice(deskMemory(state,state.chats.find(c=>c.id===chatId).rootId));contract.returnContext={profile:'branchline.return-tools/2',hatId,notes:task.selection.chairSnapshot?.hatNotesAllowed!==false,intro:hatHead(findHat(state,hatId))?.allowChairIntro??false,memory:choice.enabled,author:choice.author?.chatId===chatId&&choice.author?.chairId===chairId};}
   if(goal&&contract.desk){const task=state.deskWork.tasks.find(t=>t.id===deskTaskId);if(task.goalId!==goal.id)throw new Error('Goal assignment changed.');contract.goal={profile:GOAL_PROFILE,id:goal.id,revisionId:goal.revisionId};}
   if(contract.desk && reasoningNotes) contract.reasoningNotes = { profile: NOTE_PROFILE, ...(state.deskWork.tasks.find(t=>t.id===deskTaskId)?.input.thinkingCoat?.enabled?{thinking:true}:{}) };
   if(contract.desk&&enabled&&mailSettings(state,state.chats.find(c=>c.id===chatId)?.rootId)?.enabled)contract.ponyMail={profile:MAIL_PROFILE,rootId:state.chats.find(c=>c.id===chatId).rootId};
@@ -132,6 +136,7 @@ export function toolDefinitions(contract) {
     write_desk_artifact:['Place work on the shared desk or revise a shared artifact. For new work use empty id and revision. For edits use the exact id/revision from read_desk_updates. Conflicting proposals are retained in your drawer. Shared results retain your chair and source task.',{id:{type:'string',maxLength:120},title:text(200),text:{type:'string',maxLength:32000},revision:{type:'string',maxLength:120}}],
     send_chair_message:['Send an attributed message to another chair at this desk. Set request_reply=true only to ask that chair to perform work; otherwise it is a notice for its next working step. Busy chairs queue work. The existing task group permits at most 16 tasks; this does not grant wider tool access. Chairs: '+JSON.stringify(contract.desk.chairs),{chair_id:{type:'string',enum:contract.desk.chairs.map(c=>c.id)},message:text(8000),request_reply:{type:'boolean'}}],
   });
+  if(contract.desk&&contract.conversationEnabled)Object.assign(definitions,continuityDefinitions());
   if(contract.ponyMail)Object.assign(definitions,{
     list_pony_desks:['List other desks and whether their Pony Post is on. Delivery needs no model call.',{}],
     send_pony:['Send your message to another enabled desk through Pony Post. Set request_reply=true to queue work in its receiving chair; false sends a notice with no new turn. Continue your own work. To wait explicitly, use report_goal_work with wait_for=pony and the returned parcelId. This does not grant the receiver your tools.',{desk_id:text(120),text:text(100000),request_reply:{type:'boolean'}}],
@@ -149,6 +154,7 @@ export function toolDefinitions(contract) {
 }
 
 export function validToolContract(contract, model) {
+  if(contract?.returnContext){const c=contract.returnContext;if(!contract.desk||!contract.conversationEnabled||!exact(c,['profile','hatId','notes','intro','memory','author'])||!['branchline.return-tools/1','branchline.return-tools/2'].includes(c.profile)||!(c.hatId===null||typeof c.hatId==='string'&&/^[A-Za-z0-9_-]{1,120}$/.test(c.hatId))||!['notes','intro','memory','author'].every(k=>typeof c[k]==='boolean'))return false;}
   if(contract?.ponyMail&&(!contract.desk||!contract.conversationEnabled||!exact(contract.ponyMail,['profile','rootId'])||contract.ponyMail.profile!==MAIL_PROFILE||typeof contract.ponyMail.rootId!=='string'))return false;
   if(contract?.goal&&(!contract.desk||!exact(contract.goal,['profile','id','revisionId'])||contract.goal.profile!==GOAL_PROFILE||!['id','revisionId'].every(k=>typeof contract.goal[k]==='string'&&/^[A-Za-z0-9_-]{1,120}$/.test(contract.goal[k]))))return false;
   if(contract?.reasoningNotes && (!contract.desk || !exact(contract.reasoningNotes,['profile',...(Object.hasOwn(contract.reasoningNotes,'thinking')?['thinking']:[])])||contract.reasoningNotes.thinking!==undefined&&contract.reasoningNotes.thinking!==true || contract.reasoningNotes.profile!==NOTE_PROFILE)) return false;

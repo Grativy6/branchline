@@ -37,7 +37,7 @@
       "sha256": "44b186a81904015054aa6a06a053e1ff971efa89834811c3dd420bfaf0eb1fbb"
     }
   ],
-  "changes": "Version 1.1.0. Native workspace, account and executable identities are retained. Shared-desk context, fixed starter colors, optional drawer thinking, continuation and presentation changes are packaged from the reviewed source.",
+  "changes": "Version 1.2.0. Promotes the reviewed Hats, return maps, desk MEMORY and llama.cpp 1.0.0 CPU/Vulkan update. Native executable, account and workspace identities retained.",
   "updatedAt": "2026-11-13",
   "updatedBy": "Hearthline, authorized by Chris"
 }

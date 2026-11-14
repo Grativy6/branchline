@@ -78,7 +78,7 @@ test report. These notices are not a claim of universal legal clearance.
 ## Full local-model installer (0.8.1)
 
 - Stock **Qwen3.5-4B**, Q4_K_M and BF16 picture projector: Apache-2.0. Upstream and conversion revision, source URLs, sizes and SHA-256 are in `provenance/bundled-model-inputs.json`. No Dream adapter or private corpus is included.
-- **llama.cpp b11146**, CPU and Vulkan: MIT. Included **LLVM OpenMP** retains its licence and exceptions. Original notices are available in the offline licence viewer.
+- **llama.cpp 1.0.0 (b12359, b1b770d90d94cad9e9ea5b993bdbc383a522fb28)**, CPU and Vulkan: MIT. Included **LLVM OpenMP** retains its licence and exceptions. Original notices are available in the offline licence viewer.
 - **Inno Setup 7.1.0**: its retained upstream licence; the installer contains its runtime, while build tools stay outside the app.
 - **Microsoft C++ V14 14.51.36247** and **WebView2 Evergreen**: unmodified prerequisite installers under their respective Microsoft terms, included for offline setup. Setup displays these terms alongside the separate Branchline licence. They remain shared Windows prerequisites after uninstalling Branchline.
 

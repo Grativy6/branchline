@@ -1,9 +1,10 @@
+import {returnMap,readReturnSource} from '../server/return-map.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { ReasoningNotes, NOTE_TOOL, noteSource } from '../server/reasoning-notes.mjs';
 import { noteSettings, checkNoteSettings } from '../public/reasoning-notes-settings.js';
-import { deskContext, inspectChairLog } from '../server/desk-work.mjs';
+import { inspectChairLog } from '../server/desk-work.mjs';
 import { validToolContract } from '../server/tool-contract.mjs';
 import { replayJournal } from '../server/journal.mjs';
 import { DeskTasks } from '../server/desk-tasks.mjs';
@@ -126,7 +127,7 @@ test('enabled tool uses the existing continuation, remains private, survives jou
     await until(() => f.requests.length === 3, 'continuation after note');
     const event = f.app.store.state.deskWork.events.find(e => e.kind === 'reasoning.note'); assert(event);
     assert.equal(event.taskId, task.id); assert.equal(event.detail.exchangeId, entry.notes.exchangeId);
-    assert(!deskContext(f.app.store.state, f.chatId, task.selection).includes('deliberate checkpoint interpretation'));
+    assert(!JSON.stringify(returnMap(f.app.store.state, f.chatId, task.selection)).includes('deliberate checkpoint interpretation'));
     assert(inspectChairLog(f.app.store.state, task, { chair_id: task.chairId, query: 'deliberate checkpoint', offset: 0 }).text.includes('deliberate checkpoint'));
     await f.command('chat.reasoningNotes', { id: f.chatId, settings: { enabled: false, cadenceSeconds: 60 } });
     callTool(f.requests[2], NOTE_TOOL, { text: 'UNSAVED_AFTER_OFF', ping_id: '', corrects: '' }, 'late');

@@ -52,7 +52,7 @@ export class LocalRunner {
     if(model?.runtime==='bundled')return this.bundled.status();
     if(model?.runtime==='gguf'){
       const file=localFileFor(this.getState(),model),runner=file&&this.files.get(file.id);
-      return runner?.status()??{available:this.bundled.status().available,phase:'idle',message:'Loads when used.',contextTokens:file?.contextTokens??8192,loadedContextTokens:null,busy:false,backend:null,modelId:model.id,modelName:model.name};
+      return runner?.status()??{available:this.bundled.status().available,engine:this.bundled.status().engine,phase:'idle',message:'Loads when used.',contextTokens:file?.contextTokens??8192,loadedContextTokens:null,busy:false,backend:null,modelId:model.id,modelName:model.name};
     }
     const runner=this.current??this.bundled;return {...runner.status(),busy:runner.status().busy||this.switching};
   }

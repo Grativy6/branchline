@@ -1,5 +1,18 @@
 # Branchline release notes
 
+## 1.2.0 — 13 November 2026
+
+- Hats with an exact short introduction, attributed notes, independent duplicates and one wearer per branch.
+- Visiting-chair Hat selection beneath Coat, separate Hat-note permission, and Coat-owned colors.
+- Memories & Hats settings with optional desk MEMORY, an explicit author, human edits and retained proposals/objections.
+- Fixed return-map slots, exact original-source lookup and per-chair supply records. Handoff anchors and supported unresolved-thread reviews are retained together.
+- Competing edits retain the current revision and the proposal. Imported source claims do not create new source access.
+- Existing personal memories remain in place. Text/JSON imports and SOUL.md / MEMORY.md exports are explicit copies.
+- Optional after-handoff desk MEMORY updates queue behind the chosen author’s current work.
+- Refreshed local CPU/Vulkan engine: llama.cpp 1.0.0 / b12359, with installed version and actual backend shown in existing model controls.
+- Workspace format 8. Preserve a pre-update copy for older apps. External SOUL/MEMORY synchronization, additional local slots and CUDA selection remain future work.
+
+
 ## 1.1.0 — 13 November 2026
 
 A clearer desk for continuing work with several models.

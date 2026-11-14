@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import {findHat,hatHead} from '../public/hats.js';
 import { digest } from './integrity.mjs';
 import { assertModelAvailable } from './model-archives.mjs';
 import { findHarness, harnessDeleted, currentHarnessRef } from '../public/harness-catalog.js';
@@ -21,7 +22,7 @@ export function applyRosterCommand(state, type, p) {
   fail(r && p.baseRevisionId === r.revisionId, 'The chairs changed. Reopen their choices before saving.');
   const base = ['chatId', 'baseRevisionId'];
   if (type === 'table.roster.chair') {
-    fail(exact(p, [...base, 'chairId', 'modelId', 'personalId', 'name', 'coat']), 'Choose a chair name, saved connection and Coat.');
+    fail(exact(p, [...base, 'chairId', 'modelId', 'personalId', 'name', 'coat', 'hatId', 'hatNotesAllowed']), 'Choose a chair name, saved connection and Coat.');
     const old = p.chairId === r.desk.id ? r.desk : r.visitors.find(c => c.id === p.chairId);
     fail(p.chairId === null || old, 'This chair is no longer at the desk.');
     fail(p.chairId !== null || r.visitors.length < 32, 'This conversation already has 32 visiting chairs.');
@@ -33,7 +34,13 @@ export function applyRosterCommand(state, type, p) {
     const personalId = p.personalId ?? null;
     const participant = state.personalParticipants?.find(x => x.id === personalId);
     fail(personalId === null || old === r.desk && participant?.connections.at(-1)?.modelId === p.modelId, 'The saved identity does not match this Desk Model connection.');
-    const chair = { id: old?.id ?? 'chair_' + crypto.randomUUID(), name: p.name, modelId: p.modelId, personalId, coat: structuredClone(p.coat) };
+    const hatId=Object.hasOwn(p,'hatId')?p.hatId:old?.hatId??null;
+    fail(hatId===null||ref(hatId)&&findHat(state,hatId)&&(!hatHead(findHat(state,hatId)).archived||old?.hatId===hatId),'Choose an available Hat.');
+    fail(!hatId||![r.desk,...r.visitors].some(c=>c.id!==old?.id&&c.hatId===hatId),'That Hat is already worn by another chair in this branch. Choose another Hat or duplicate it for independent continuity.');
+    fail(p.hatNotesAllowed===undefined||typeof p.hatNotesAllowed==='boolean','Choose Yes or No for Hat-note writing.');
+    const hatNotesAllowed=p.hatNotesAllowed??old?.hatNotesAllowed??true;
+    const chair = { id: old?.id ?? 'chair_' + crypto.randomUUID(), name: p.name, modelId: p.modelId, personalId, coat: structuredClone(p.coat), ...(hatId||Object.hasOwn(p,'hatId')?{hatId,hatNotesAllowed}:{}) };
+    if(hatId||Object.hasOwn(p,'hatId'))state.schemaVersion=Math.max(8,state.schemaVersion);
     if (old === r.desk) r.desk = chair;
     else if (old) r.visitors[r.visitors.indexOf(old)] = chair;
     else { r.visitors.push(chair); r.selectedVisitorId ??= chair.id; }
@@ -59,6 +66,7 @@ export function applyRosterCommand(state, type, p) {
     fail(exact(p, base) && r.removed && r.visitors.length < 32, 'There is no removed chair to restore.');
     fail(!r.visitors.some(c => c.id === r.removed.chair.id), 'This chair is already present.');
     assertModelAvailable(state, r.removed.chair.modelId);
+    fail(!r.removed.chair.hatId||![r.desk,...r.visitors].some(c=>c.hatId===r.removed.chair.hatId),'That Hat is now worn by another chair in this branch. Change its selection before restoring this chair.');
     r.visitors.splice(Math.min(r.removed.index, r.visitors.length), 0, r.removed.chair);
     r.selectedVisitorId = r.removed.selectedVisitorId;
     if (!r.visitors.some(c => c.id === r.selectedVisitorId)) r.selectedVisitorId = r.removed.chair.id;
@@ -71,11 +79,13 @@ export function validateRoster(state, chat) {
   if (!r) return;
   fail(exact(r, ['profile','revisionId','desk','visitors','selectedVisitorId','mode','speaker','removed','completedVisitorReplies','lastCompletedVisitorTurnId','lastAlternateTurnId']) && r.profile === ROSTER_PROFILE && ref(r.revisionId), 'Invalid chair arrangement.');
   fail(Array.isArray(r.visitors) && r.visitors.length <= 32 && ['single','alternate','all'].includes(r.mode) && ['personal','visiting'].includes(r.speaker), 'Invalid visitor settings.');
-  const ids = new Set();
+  const ids = new Set(),hats=new Set();
   for (const c of [r.desk, ...r.visitors]) {
-    fail(exact(c, ['id','name','modelId','personalId','coat']) && ref(c.id) && !ids.has(c.id) && name(c.name), 'Invalid chair.'); ids.add(c.id);
+    fail(exact(c, ['id','name','modelId','personalId','coat','hatId','hatNotesAllowed']) && ref(c.id) && !ids.has(c.id) && name(c.name), 'Invalid chair.'); ids.add(c.id);
     fail(c.modelId === null && c === r.desk || state.models.some(m => m.id === c.modelId), 'Chair connection missing.');
     fail(c.personalId === null || c === r.desk && state.personalParticipants?.some(p => p.id === c.personalId && p.connections.at(-1).modelId === c.modelId), 'Chair continuity connection changed.');
+    fail(c.hatId===undefined||c.hatId===null||ref(c.hatId)&&findHat(state,c.hatId)&&!hats.has(c.hatId),'Invalid or duplicate Hat selection.');if(c.hatId)hats.add(c.hatId);
+    fail(c.hatNotesAllowed===undefined||typeof c.hatNotesAllowed==='boolean','Invalid Hat-note setting.');
     fail(c.coat === null || exact(c.coat, ['id','version']) && findHarness(c.coat,state), 'Chair Coat missing.');
   }
   fail(r.visitors.length ? r.visitors.some(c => c.id === r.selectedVisitorId) : r.selectedVisitorId === null, 'Selected visitor missing.');

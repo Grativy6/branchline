@@ -1,6 +1,6 @@
-# Preview limits
+# Practical limits
 
-This is an early Windows x64 preview. Keep backups and inspect results before relying on model work.
+Branchline 1.2 is a Windows x64 application. Keep backups and inspect results before relying on model work.
 
 - Independent ChatGPT chairs can work concurrently through one connection, subject to provider limits. Qwen and added GGUF models share one owned local runtime slot. Activity identifies waits; a queued task is not active inference.
 - The local finder supports complete compatible GGUF language-model files. It does not convert models, download weights or add native tool/image support. Base models use text completion; selected windows default to at most 8,192 tokens. Search and Add do not start inference.
@@ -18,7 +18,7 @@ This is an early Windows x64 preview. Keep backups and inspect results before re
 - Dream setup downloads its separate Python environment, trainable model checkpoint and pinned converter. It requires WSL/Ubuntu and a compatible GPU driver already installed. Schedules run while the app is open. Whole source notes stay available; long episodes use overlapping training windows. See DREAM-REVIEW.md for controls and recovery.
 - Public Book stamping services, the planned Finis Solutus game mode, and unimplemented provider routes remain future work.
 - The installer and application are unsigned. Windows prerequisites are Microsoft's separate, signed components. This release has been checked on Dust's Windows 11; it does not establish a fresh Windows 10 or every-GPU qualification.
-- Chair work, including an ordinary model reply, creates workspace format 3. Keep an older workspace backup for an older app; newer work is a separate recovery consideration.
+- Version 1.2 reads earlier records and writes workspace format 8. Keep an older workspace backup for an older app; newer work is a separate recovery consideration.
 
 See the release's VERIFICATION.md and attached installer qualification record for actual checks, rather than inferring them from this feature list.
 

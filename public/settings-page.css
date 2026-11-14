@@ -44,3 +44,6 @@ html[data-backdrop-active=true] .message,html[data-backdrop-active=true] .settin
 .chatgpt-models{list-style:none;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
 .chatgpt-models li{padding:12px;border:1px solid var(--line);border-radius:8px;overflow-wrap:anywhere}
 .chatgpt-models small{display:block;color:var(--muted);margin-top:4px}
+
+/* Memories & Hats use existing settings/dialog space. */
+.return-text{white-space:pre-wrap;overflow-wrap:anywhere;max-height:45vh;overflow:auto;font:inherit}.return-hat{margin-block:.6rem;padding:.65rem;border:1px solid var(--line,#d9dfd7);border-radius:8px}.hat-note-choice{border:0;padding:0;margin:1rem 0}.hat-note-choice label{display:inline-flex;gap:.4rem;margin:.5rem 1rem .5rem 0}.return-actions{display:flex;flex-wrap:wrap;gap:.8rem}

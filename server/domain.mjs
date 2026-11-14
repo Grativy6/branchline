@@ -1,3 +1,4 @@
+import {applyReturnCommand,validateReturnRecords} from './return-records.mjs';
 import { applyArchiveCommand, validateModelArchives, assertModelAvailable } from './model-archives.mjs';
 import {assertLocalFileProfile,validateLocalModels} from './local-model-state.mjs';
 import { checkNoteSettings, noteSettings } from '../public/reasoning-notes-settings.js';
@@ -108,13 +109,14 @@ function assertUniqueIds(items, label) {
 
 export function validateState(state) {
   if(isImmutable(state)&&checkedStates.has(state))return;
+  validateReturnRecords(state);
   validateDreamTraining(state);
   validateDeskWork(state);
   if(state.plans&&(state.plans.profile!=='branchline.plans/1'||!Array.isArray(state.plans.items)||!Array.isArray(state.plans.runs)))throw new Error('Invalid Plans records.');
   validateEasel(state);
   validatePeaches(state);
   validatePersonalContext(state);
-  assert(isObject(state) && [1,2,3,4,5,6,7].includes(state.schemaVersion), 'This workspace needs a supported Branchline version.');
+  assert(isObject(state) && [1,2,3,4,5,6,7,8].includes(state.schemaVersion), 'This workspace needs a supported Branchline version.');
   assert(state.schemaVersion!==3||state.deskWork?.profile==='branchline.desk-work/1','The shared-desk workspace is missing its work records.');
   assert(state.schemaVersion!==2||state.easel?.profile==='branchline.easel/1','The newer workspace is missing its Easel records.');
   for (const root of state.roots || []) if (root.resources !== undefined) checkResources(root.resources);
@@ -294,6 +296,7 @@ export function applyCommand(state, command) {
   const type = command?.type;
   const p = command?.payload ?? {};
   if (typeof type !== 'string') throw new Error('command type required');
+  if(type.startsWith('return.')){applyReturnCommand(s,type,p);validateState(s);return s;}
   if (type.startsWith('modelArchive.')) { assertInferenceIdle(s); applyArchiveCommand(s,type,p); validateState(s); return s; }
   if (type.startsWith('dream.')) {
     if (type !== 'dream.note') assertInferenceIdle(s);

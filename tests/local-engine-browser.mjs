@@ -1,0 +1,30 @@
+import {chromium} from 'playwright-core';
+import fs from 'node:fs/promises';
+import assert from 'node:assert/strict';
+import {fixture} from './desk-helpers.mjs';
+const f=await fixture(),errors=[];
+const engine={name:'llama.cpp',version:'1.0.0',tag:'b12359',commit:'b1b770d90d94cad9e9ea5b993bdbc383a522fb28'};
+const state={available:true,phase:'idle',backend:null,engine,preference:'auto',busy:false,contextTokens:8192,loadedContextTokens:null,message:'Qwen loads when used.'};
+f.app.localRunner.bundledStatus=()=>({...state});
+await new Promise(r=>f.app.listen(0,'127.0.0.1',r));
+const browser=await chromium.launch({headless:true,...(process.platform==='win32'?{channel:'msedge'}:{})});
+const page=await browser.newPage({viewport:{width:1100,height:900}});page.on('pageerror',e=>errors.push(e.message));
+try{
+  await page.goto(`http://127.0.0.1:${f.app.address().port}/#session=${f.app.sessionToken}`);
+  await page.locator('#tour-skip').check();await page.locator('#tour-next').click();
+  await page.locator('#settings-button').click();await page.locator('[data-action="settings-tab"][data-id="models"]').click();
+  await page.locator('[data-action="local-model"]').click();
+  await page.getByText('llama.cpp 1.0.0 · b12359 · Unloaded',{exact:true}).waitFor();
+  await page.getByRole('button',{name:'Done',exact:true}).click();
+  Object.assign(state,{phase:'ready',backend:'cpu',loadedContextTokens:8192,message:'Qwen is ready on CPU.'});
+  await page.locator('[data-action="local-model"]').click();
+  await page.getByText('llama.cpp 1.0.0 · b12359 · Running on CPU',{exact:true}).waitFor();
+  assert((await page.locator('body').innerText()).includes('Automatic graphics / CPU fallback'));
+  await fs.mkdir('.test-output',{recursive:true});await page.screenshot({path:'.test-output/local-engine-status.png'});
+  await page.getByRole('button',{name:'Done',exact:true}).click();
+  Object.assign(state,{phase:'loading',backend:'vulkan',loadedContextTokens:null});
+  await page.locator('[data-action="local-model"]').click();
+  await page.getByText('llama.cpp 1.0.0 · b12359 · Loading on Vulkan',{exact:true}).waitFor();
+  assert.deepEqual(errors,[]);assert.equal(f.requests.length,0);
+  console.log(JSON.stringify({status:'PASS',unloaded:true,actualCpuDespiteAuto:true,loadingNotRunning:true,noInference:true,errors}));
+}finally{await browser.close();await f.close();}
